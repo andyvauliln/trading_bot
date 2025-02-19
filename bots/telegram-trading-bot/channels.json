@@ -1,0 +1,16 @@
+{
+    "channels": [
+        {
+            "username": "ghastlygems",
+            "description": "First channel to monitor"
+        },
+        {
+            "username": "eveesL",
+            "description": "Second channel to monitor"
+        },
+        {
+            "username": "prosacalls",
+            "description": "Third channel to monitor"
+        }
+    ]
+} 
