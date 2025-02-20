@@ -5,6 +5,7 @@ export async function scrapePage(url: string) {
   const browser = await chromium.launch({
     headless: false, // Set to true for headless mode
   });
+  console.log("URL:", url);
   const context = await browser.newContext();
   const page = await context.newPage();
   await page.goto(url);

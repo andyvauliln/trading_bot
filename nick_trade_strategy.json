@@ -1,0 +1,60 @@
+{
+    "safetyChecks": {
+      "phishingWallets": {
+        "maxHoldingPercentage": 10,
+        "enabled": true
+      },
+      "auditRequirements": {
+        "minimumScore": 4,
+        "maximumScore": 4,
+        "enabled": true
+      },
+      "holderDistribution": {
+        "maxLargeHolders": 2,
+        "largeHolderThreshold": 3,
+        "maxPurchasePercentage": 3,
+        "enabled": true
+      },
+      "liquidityRequirements": {
+        "minLiquidityToMarketCapRatio": 10,
+        "enabled": true
+      },
+      "additionalChecks": {
+        "checkGmgnWarnings": true,
+        "enabled": true
+      }
+    },
+    "tradingRules": {
+      "solanaAllocation": {
+        "maxPercentagePerTrade": 33,
+        "enabled": true
+      },
+      "sellStrategy": {
+        "lossThresholds": [
+          {
+            "priceDropPercentage": 66,
+            "sellPercentage": 90
+          },
+          {
+            "priceDropPercentage": 80,
+            "sellPercentage": 100
+          }
+        ],
+        "profitThresholds": [
+          {
+            "priceIncreasePercentage": 66,
+            "sellPercentage": 33
+          },
+          {
+            "priceIncreasePercentage": 333,
+            "sellPercentage": 33
+          },
+          {
+            "priceIncreasePercentage": 999,
+            "sellPercentage": 34
+          }
+        ],
+        "enabled": true
+      }
+    }
+  }

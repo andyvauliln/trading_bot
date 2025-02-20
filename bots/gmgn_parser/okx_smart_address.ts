@@ -9,10 +9,10 @@ import {
   TokenData,
 } from "./utils/okx-interface";
 import {
-  chainIdMap,
-  saveCsvFile,
   formattedDate,
-  readCsvFile,
+  readJsonFile,
+  saveJsonFile,
+  chainIdMap,
 } from "./utils/tools";
 
 const MAX_CONCURRENT_REQUESTS = 5; // Control concurrency
@@ -148,70 +148,83 @@ class OkxSmartAddressAnalyzer {
 
 export async function okxMain(browser?: Browser) {
   let close = false;
-  if (!browser) {
-    browser = await createBrowser(true, "./tmp/okx/session");
-    close = true;
-  }
-  const time = formattedDate();
-  const smartAddressAnalyzer = new OkxSmartAddressAnalyzer();
-  const chainIds = [501, 1];
-  const txnSource = [[1, 2], [1]];
-  await Promise.all(
-    chainIds.map((chainId, index) =>
-      smartAddressAnalyzer.queryTokens(browser, chainId, txnSource[index])
-    )
-  );
+  let localBrowser: Browser | undefined = browser;
+  
+  try {
+    if (!localBrowser) {
+      localBrowser = await createBrowser(true, "./tmp/okx/session");
+      close = true;
+    }
+    
+    const time = formattedDate();
+    const smartAddressAnalyzer = new OkxSmartAddressAnalyzer();
+    const chainIds = [501, 1];
+    const txnSource = [[1, 2], [1]];
+    await Promise.all(
+      chainIds.map((chainId, index) =>
+        smartAddressAnalyzer.queryTokens(localBrowser!, chainId, txnSource[index])
+      )
+    );
 
-  const batchSize = 50;
-  for (const chainId of chainIds) {
-    const list = smartAddressAnalyzer.okxTokenMap.get(chainId);
-    if (!list) continue;
+    const batchSize = 50;
+    for (const chainId of chainIds) {
+      const list = smartAddressAnalyzer.okxTokenMap.get(chainId);
+      if (!list) continue;
 
-    for (let i = 0; i < list.length; i += batchSize) {
-      const batch = list.slice(i, i + batchSize);
-      console.log(`list.length: ${list.length} i: ${i}`);
-      await Promise.allSettled(
-        batch.map((token) =>
-          smartAddressAnalyzer.queryTokenSmartMoney(
-            browser,
-            chainId,
-            token.tokenAddress,
-            time
+      for (let i = 0; i < list.length; i += batchSize) {
+        const batch = list.slice(i, i + batchSize);
+        console.log(`list.length: ${list.length} i: ${i}`);
+        await Promise.allSettled(
+          batch.map((token) =>
+            smartAddressAnalyzer.queryTokenSmartMoney(
+              localBrowser!,
+              chainId,
+              token.tokenAddress,
+              time
+            )
           )
-        )
-      );
-    }
+        );
+      }
 
-    let smartMoney = smartAddressAnalyzer.okxTokenSmartMoneyMap.get(chainId);
-    console.log(`smartMoney list.length: ${smartMoney?.length} `);
+      let smartMoney = smartAddressAnalyzer.okxTokenSmartMoneyMap.get(chainId);
+      console.log(`smartMoney list.length: ${smartMoney?.length} `);
 
-    if (smartMoney) {
-      smartMoney = smartAddressAnalyzer.removeDuplicates(smartMoney);
-      console.log(
-        `smartMoney after removing duplicates list.length: ${smartMoney?.length} `
-      );
-      await compareCsv(smartMoney, chainIdMap[chainId]);
+      if (smartMoney) {
+        smartMoney = smartAddressAnalyzer.removeDuplicates(smartMoney);
+        console.log(
+          `smartMoney after removing duplicates list.length: ${smartMoney?.length} `
+        );
+        await compareCsv(smartMoney, chainIdMap[chainId]);
+      }
     }
-  }
-  if (close) {
-    await browser.close();
+  } catch (error) {
+    console.error('Error in okxMain:', error);
+    throw error;
+  } finally {
+    if (close && localBrowser) {
+      try {
+        await localBrowser.close();
+      } catch (closeError) {
+        console.warn('Error closing browser:', closeError);
+      }
+    }
   }
 }
 
 const compareCsv = async (smartMoney: SmartMoney[], chainInfo: string) => {
-  const path = `./csv/OKX_${chainInfo}_Address.csv`;
+  const path = `./json/OKX_${chainInfo}_Address.json`;
   try {
-    const history = await readCsvFile(path);
+    const history = await readJsonFile<SmartMoney>(path);
     const oldAddresses = new Set<string>(history.map((item) => item.address));
     const uniqueNewItems = smartMoney.filter(
       (item) => !oldAddresses.has(item.address)
     );
     console.log("uniqueNewItems", uniqueNewItems.length);
     if (uniqueNewItems.length > 0) {
-      await saveCsvFile(path, uniqueNewItems, true);
+      await saveJsonFile(path, uniqueNewItems, true);
     }
   } catch (error) {
-    await saveCsvFile(path, smartMoney);
+    await saveJsonFile(path, smartMoney);
   }
 }; 
 

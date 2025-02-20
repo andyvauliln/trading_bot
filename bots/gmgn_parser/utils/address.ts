@@ -5,7 +5,7 @@ import {
   TopBuyersHolders,
 } from "./interface";
 import { fetchWithFlareSolverr } from "../proxy/flaresolverr";
-import { saveCsvFile } from "./tools";
+import { saveJsonFile } from "./tools";
 
 const showAddress = async (tokenAddress: string) => {
   const proxyUrl = `https://gmgn.ai/defi/quotation/v1/tokens/top_buyers/sol/${tokenAddress}`;
@@ -62,7 +62,7 @@ const paseRank = async (rank: RankInfo[]) => {
       });
     }
   }
-  await saveCsvFile("./address.csv", list);
+  await saveJsonFile("./address.json", list);
 };
 
 hotRank5m();

@@ -5,8 +5,8 @@ import { AdderssList, ApiResponse, SmartAddress } from "./utils/interface";
 import {
   convertTags,
   formattedDate,
-  readCsvFile,
-  saveCsvFile,
+  readJsonFile,
+  saveJsonFile,
 } from "./utils/tools";
 
 class SmartAddressAnalyzer {
@@ -88,61 +88,73 @@ class SmartAddressAnalyzer {
 }
 export async function gmgnMain(browser?: Browser) {
   let close = false;
-  if (!browser) {
-    browser = await createBrowser(false, "./tmp/gmgn/session");
-    close = true;
-  }
-  let smartAddressAnalyzer = new SmartAddressAnalyzer();
-  const tags = [
-    undefined,
-    "pump_smart",
-    "snipe_bot",
-    "smart_degen&tag=pump_smart",
-    "fresh_wallet",
-    "renowned",
-  ];
-  const chainList = ["sol", "eth"];
-  const time = formattedDate();
-  await Promise.all(
-    chainList.map(async (chain) => {
-      let list: AdderssList[] = [];
-      await Promise.all(
-        tags.map(async (tag) => {
-          const addressList = await smartAddressAnalyzer.analyzeAddresses(
-            chain,
-            browser,
-            time,
-            tag
-          );
-          list = list.concat(addressList);
-        })
-      );
-      list = smartAddressAnalyzer.removeDuplicates(list);
-      if (list.length > 0) {
-        await compareCsv(list, chain);
+  let localBrowser: Browser | undefined = browser;
+  
+  try {
+    if (!localBrowser) {
+      localBrowser = await createBrowser(false, "./tmp/gmgn/session");
+      close = true;
+    }
+    
+    let smartAddressAnalyzer = new SmartAddressAnalyzer();
+    const tags = [
+      undefined,
+      "pump_smart",
+      "snipe_bot",
+      "smart_degen&tag=pump_smart",
+      "fresh_wallet",
+      "renowned",
+    ];
+    const chainList = ["sol", "eth"];
+    const time = formattedDate();
+    await Promise.all(
+      chainList.map(async (chain) => {
+        let list: AdderssList[] = [];
+        await Promise.all(
+          tags.map(async (tag) => {
+            const addressList = await smartAddressAnalyzer.analyzeAddresses(
+              chain,
+              localBrowser!,
+              time,
+              tag
+            );
+            list = list.concat(addressList);
+          })
+        );
+        list = smartAddressAnalyzer.removeDuplicates(list);
+        if (list.length > 0) {
+          await compareCsv(list, chain);
+        }
+      })
+    );
+  } catch (error) {
+    console.error('Error in gmgnMain:', error);
+    throw error;
+  } finally {
+    if (close && localBrowser) {
+      try {
+        await localBrowser.close();
+      } catch (closeError) {
+        console.warn('Error closing browser:', closeError);
       }
-    })
-  );
-  if (close) {
-    await browser.close();
+    }
   }
 }
 
 const compareCsv = async (smartMoney: AdderssList[], chianInfo: string) => {
-  const path = `./csv/GMGN_${chianInfo}_Address.csv`;
+  const path = `./json/GMGN_${chianInfo}_Address.json`;
   try {
-    const history = await readCsvFile(path);
+    const history = await readJsonFile<AdderssList>(path);
     const oldAddresses = new Set<string>(history.map((item) => item.address));
     const uniqueNewItems = smartMoney.filter(
       (item) => !oldAddresses.has(item.address)
     );
     console.log("uniqueNewItems", uniqueNewItems.length);
     if (uniqueNewItems.length > 0) {
-      await saveCsvFile(path, uniqueNewItems, true);
+      await saveJsonFile(path, uniqueNewItems, true);
     }
-    
   } catch (error) {
-    await saveCsvFile(path, smartMoney);
+    await saveJsonFile(path, smartMoney);
   }
 }; 
 

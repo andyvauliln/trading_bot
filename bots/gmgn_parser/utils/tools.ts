@@ -1,14 +1,5 @@
 import * as fs from "fs";
 import * as path from "path";
-import csv from "csv-parser";
-import {
-  createObjectCsvWriter as createCsvWriter,
-  createObjectCsvWriter,
-} from "csv-writer";
-
-interface CsvRow {
-  [key: string]: string;
-}
 
 function ensureDirectoryExistence(filePath: string) {
   const dirname = path.dirname(filePath);
@@ -18,48 +9,44 @@ function ensureDirectoryExistence(filePath: string) {
   }
 }
 
-export const readCsvFile = (filePath: string): Promise<CsvRow[]> => {
+export const readJsonFile = async <T>(filePath: string): Promise<T[]> => {
   ensureDirectoryExistence(filePath);
-  return new Promise((resolve, reject) => {
-    const results: CsvRow[] = [];
-
-    fs.createReadStream(filePath)
-      .pipe(csv())
-      .on("data", (data: CsvRow) => results.push(data))
-      .on("end", () => resolve(results))
-      .on("error", (error) => reject(error));
-  });
+  try {
+    if (!fs.existsSync(filePath)) {
+      return [];
+    }
+    const data = await fs.promises.readFile(filePath, 'utf8');
+    return JSON.parse(data);
+  } catch (error) {
+    console.error(`Error reading JSON file ${filePath}:`, error);
+    return [];
+  }
 };
 
-export function generateCsvHeader(
-  records: object[]
-): { id: string; title: string }[] {
-  if (records.length === 0) {
-    throw new Error("Records array is empty. Cannot generate header.");
-  }
-
-  return Object.keys(records[0]).map((key) => ({
-    id: key,
-    title: key.charAt(0) + key.slice(1),
-  }));
-}
-
-export async function saveCsvFile(
+export async function saveJsonFile<T>(
   filePath: string,
-  records: object[],
+  records: T[],
   append = false
 ) {
   ensureDirectoryExistence(filePath);
 
-  const header = generateCsvHeader(records);
+  try {
+    let existingData: T[] = [];
+    if (append && fs.existsSync(filePath)) {
+      existingData = await readJsonFile<T>(filePath);
+    }
 
-  const csvWriter = createObjectCsvWriter({
-    path: filePath,
-    header: header,
-    append,
-  });
-  await csvWriter.writeRecords(records);
-  console.log(`CSV file written successfully to ${filePath}`);
+    const dataToWrite = append ? [...existingData, ...records] : records;
+    await fs.promises.writeFile(
+      filePath,
+      JSON.stringify(dataToWrite, null, 2),
+      'utf8'
+    );
+    console.log(`JSON file written successfully to ${filePath}`);
+  } catch (error) {
+    console.error(`Error writing JSON file ${filePath}:`, error);
+    throw error;
+  }
 }
 
 export function delay(time: number) {
