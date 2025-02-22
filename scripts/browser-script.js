@@ -2,8 +2,8 @@
     window.requestMap = new Map();
     
     const logRequest = (url, response, type, status) => {
-        const urlWithoutParams = url.split('?')[0];
-        window.requestMap.set(urlWithoutParams, {
+        // const urlWithoutParams = url.split('?')[0];
+        window.requestMap.set(url, {
             url: url,
             response: response,
             type: type,

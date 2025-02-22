@@ -750,7 +750,7 @@
         "status": 200,
         "timestamp": "2025-02-20T07:22:31.641Z"
     },
-    "https://gmgn.ai//api/v1/token_wallet_tags_stat/sol/CUS7ptHdMkbF3hRdv7UUW2AjYuQKVSuSyerZeycESaTN": {
+    "https://gmgn.ai/api/v1/token_wallet_tags_stat/sol/CUS7ptHdMkbF3hRdv7UUW2AjYuQKVSuSyerZeycESaTN": {
         "url": "/api/v1/token_wallet_tags_stat/sol/CUS7ptHdMkbF3hRdv7UUW2AjYuQKVSuSyerZeycESaTN?device_id=d00ac588-8d3b-4b31-8678-1614170c484d&client_id=gmgn_web_2025.0220.102532&from_app=gmgn&app_ver=2025.0220.102532&tz_name=Asia%2FMakassar&tz_offset=28800&app_lang=en",
         "response": {
             "code": 0,
