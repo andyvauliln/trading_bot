@@ -1,11 +1,13 @@
 import { createBrowser } from './scraperClient';
 import { getTokenHoldersWithScraper } from './get_top_holders';
 import { getTokenSlippageWithScraper } from './get_slippage';
+import { getTopTradersWithScraper } from './get_top_traders';
 import { getTokenTradesWithScraper } from './get_token_trades';
 import { getTokenInfoWithScraper } from './get_token_info';
 import { getGasPriceWithScraper } from './get_gas_price';
 import { getTokenSecurityWithScraper } from './get_token_sequrity_launchpad';
 import { getTokenKlineDataWithScraper } from './get_token_kline_data';
+import { getTokenTrendsByType } from './get_token_trades_by_type';
 
 //****************************************************
 async function run_test_get_top_holders() {
@@ -106,7 +108,7 @@ async function run_test_get_token_trades() {
 
         const tokenAddress = '6p6xgHyF7AeE6TZkSmFsko444wqoP15icUSqi2jfGiPN';
         console.log('\nTesting get token trades for token', tokenAddress);
-        const trades = await getTokenTradesWithScraper('sol', tokenAddress, 100, undefined, browser);
+        const trades = await getTokenTradesWithScraper('sol', tokenAddress, 100, undefined, undefined, browser);
         
         if (!trades) {
             console.error('No response received from API');
@@ -355,8 +357,6 @@ async function run_test_get_token_security() {
 }
 //****************************************************
 
-
-
 async function run_test_get_token_kline_data() {
     let browser;
     
@@ -405,6 +405,136 @@ async function run_test_get_token_kline_data() {
         console.log('\nTest completed');
     }
 }
+//****************************************************
+
+async function run_test_get_top_traders() {
+    let browser;
+    
+    try {
+        console.log('Starting test...');
+        browser = await createBrowser();
+        console.log('Browser created successfully');
+
+        const tokenAddress = '6p6xgHyF7AeE6TZkSmFsko444wqoP15icUSqi2jfGiPN';
+        console.log('\nTesting get top traders for token', tokenAddress);
+        console.log('Fetching top traders ordered by realized profit (descending)');
+        const traders = await getTopTradersWithScraper(
+            'sol',
+            tokenAddress,
+            'realized_profit',
+            'desc',
+            'renowned',
+            browser
+        );
+        
+        if (!traders) {
+            console.error('No response received from API');
+            return;
+        }
+
+        console.log('\nTop Traders Information:');
+        console.log('----------------------');
+        console.log('Total Traders:', traders.length);
+
+        if (traders.length > 0) {
+            console.log('\nFirst 3 Traders:');
+            console.log('---------------');
+            traders.slice(0, 3).forEach((trader, index) => {
+                console.log(`\nTrader ${index + 1}:`);
+                console.log('Name:', trader.name);
+                console.log('Address:', trader.address);
+                console.log('Account Address:', trader.account_address);
+                console.log('Realized Profit:', trader.realized_profit);
+                console.log('Unrealized Profit:', trader.unrealized_profit);
+                console.log('Buy Volume:', trader.buy_volume_cur);
+                console.log('Sell Volume:', trader.sell_volume_cur);
+                console.log('Buy Transactions:', trader.buy_tx_count_cur);
+                console.log('Sell Transactions:', trader.sell_tx_count_cur);
+                console.log('Tags:', trader.tags.join(', ') || 'No tags');
+                console.log('Maker Token Tags:', trader.maker_token_tags.join(', ') || 'No maker token tags');
+                if (trader.twitter_username) {
+                    console.log('Twitter:', `@${trader.twitter_username}`);
+                }
+            });
+        } else {
+            console.log('\nNo trader information available');
+        }
+
+    } catch (error: any) {
+        console.error('\nTest failed with error:', error?.message || 'Unknown error');
+    } finally {
+        if (browser) {
+            console.log('\nClosing browser...');
+            await browser.close();
+            console.log('Browser closed successfully');
+        }
+        console.log('\nTest completed');
+    }
+}
+
+//****************************************************
+
+async function run_test_get_token_trends() {
+    let browser;
+    
+    try {
+        console.log('Starting test...');
+        browser = await createBrowser();
+        console.log('Browser created successfully');
+
+        const tokenAddress = '6p6xgHyF7AeE6TZkSmFsko444wqoP15icUSqi2jfGiPN';
+        console.log('\nTesting get token trends for token', tokenAddress);
+        const trends = await getTokenTrendsByType('sol', tokenAddress, browser);
+        
+        if (!trends) {
+            console.error('No response received from API');
+            return;
+        }
+
+        console.log('\nToken Trends Information:');
+        console.log('----------------------');
+
+        // Display average holding balance trend
+        console.log('\nAverage Holding Balance Trend:');
+        console.log('---------------------------');
+        console.log('Latest Value:', trends.avg_holding_balance[trends.avg_holding_balance.length - 1].value);
+        console.log('Number of Data Points:', trends.avg_holding_balance.length);
+
+        // Display holder count trend
+        console.log('\nHolder Count Trend:');
+        console.log('------------------');
+        console.log('Latest Value:', trends.holder_count[trends.holder_count.length - 1].value);
+        console.log('Number of Data Points:', trends.holder_count.length);
+
+        // Display top 10 holder percent trend
+        console.log('\nTop 10 Holder Percent Trend:');
+        console.log('--------------------------');
+        console.log('Latest Value:', trends.top10_holder_percent[trends.top10_holder_percent.length - 1].value);
+        console.log('Number of Data Points:', trends.top10_holder_percent.length);
+
+        // Display blue chip owner percent trend
+        console.log('\nBlue Chip Owner Percent Trend:');
+        console.log('----------------------------');
+        console.log('Latest Value:', trends.bluechip_owner_percent[trends.bluechip_owner_percent.length - 1].value);
+        console.log('Number of Data Points:', trends.bluechip_owner_percent.length);
+
+        // Display insider percent trend
+        console.log('\nInsider Percent Trend:');
+        console.log('--------------------');
+        console.log('Latest Value:', trends.insider_percent[trends.insider_percent.length - 1].value);
+        console.log('Number of Data Points:', trends.insider_percent.length);
+
+    } catch (error: any) {
+        console.error('\nTest failed with error:', error?.message || 'Unknown error');
+    } finally {
+        if (browser) {
+            console.log('\nClosing browser...');
+            await browser.close();
+            console.log('Browser closed successfully');
+        }
+        console.log('\nTest completed');
+    }
+}
 
 //****************************************************
 
@@ -439,10 +569,17 @@ async function run_test_get_token_kline_data() {
 //     process.exit(1);
 // });
 
+// run_test_get_token_kline_data().catch(error => {
+//     console.error('Unhandled error in test:', error);
+//     process.exit(1);
+// });
 
-run_test_get_token_kline_data().catch(error => {
+// run_test_get_top_traders().catch(error => {
+//     console.error('Unhandled error in test:', error);
+//     process.exit(1);
+// });
+
+run_test_get_token_trends().catch(error => {
     console.error('Unhandled error in test:', error);
     process.exit(1);
 });
-
-
