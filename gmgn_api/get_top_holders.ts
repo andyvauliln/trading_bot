@@ -1,5 +1,7 @@
-import axios from 'axios';
-
+import { scrapeJsonData, createBrowser } from './scraperClient';
+import { Browser } from 'puppeteer';
+import * as path from 'path';
+import * as fs from 'fs/promises';
 /**
  * Represents the status of a wallet holder
  */
@@ -90,23 +92,90 @@ export interface GMGNResponse {
 }
 
 /**
- * Fetches token holder information from GMGN API
+ * Represents a record in the holders history file
+ */
+interface HolderRecord {
+    timestamp: string;
+    chain: string;
+    token_address: string;
+    holders_data: HoldersData;
+}
+
+/**
+ * Saves holder data to a JSON file, appending to existing records
+ * @param chain - The blockchain chain identifier
+ * @param tokenAddress - The token contract address
+ * @param holders - The holder data to save
+ */
+export async function save(chain: string, tokenAddress: string, holders: HoldersData): Promise<void> {
+    try {
+        const timestamp = new Date().toISOString();
+        const holderRecord: HolderRecord = {
+            timestamp,
+            chain,
+            token_address: tokenAddress,
+            holders_data: holders
+        };
+
+        const filePath = path.join(process.cwd(), 'gmgn_api', 'get_top_holders.json');
+        
+        // Read existing data or initialize empty array
+        let existingData: HolderRecord[] = [];
+        try {
+            const fileContent = await fs.readFile(filePath, 'utf8');
+            const parsedData = JSON.parse(fileContent);
+            if (Array.isArray(parsedData)) {
+                existingData = parsedData;
+            }
+        } catch (err) {
+            // File doesn't exist or is invalid, start with empty array
+            existingData = [];
+        }
+
+        // Append new record
+        existingData.push(holderRecord);
+
+        // Write back to file
+        await fs.writeFile(
+            filePath,
+            JSON.stringify(existingData, null, 2),
+            'utf8'
+        );
+
+        console.log(`Successfully saved holder data for ${chain}:${tokenAddress} at ${timestamp}`);
+    } catch (error: any) {
+        console.error('Error saving holder data:', error?.message || 'Unknown error');
+        throw error;
+    }
+}
+
+/**
+ * Fetches token holder information from GMGN API using scraper
  * @param chain - The blockchain chain (e.g., 'sol' for Solana)
  * @param tokenAddress - The token contract address
+ * @param browser - Optional browser instance to reuse
  * @returns Promise containing holder information
  */
-export async function getTokenHolders(chain: string = 'sol', tokenAddress: string): Promise<GMGNResponse> {
+export async function getTokenHoldersWithScraper(chain: string = 'sol', tokenAddress: string, browser?: Browser): Promise<HoldersData | null> {
     try {
         const baseUrl = 'https://gmgn.ai/defi/quotation/v1/tokens/top_buyers';
         const url = `${baseUrl}/${chain}/${tokenAddress}`;
-        
-        const response = await axios.get<GMGNResponse>(url);
-        return response.data;
-    } catch (error) {
-        if (axios.isAxiosError(error)) {
-            throw new Error(`GMGN API request failed: ${error.message}`);
+        const data = await scrapeJsonData(url, browser) as GMGNResponse;
+       
+        if (!data || typeof data !== 'object') {
+            console.error('Failed to fetch data or invalid response format');
+            return null;
         }
-        throw error;
+
+        var holders = data.data.holders;
+
+        // Save the holder data
+        await save(chain, tokenAddress, holders);
+
+        return holders;
+    } catch (error: any) {
+        console.error('Error fetching token holders:', error?.message || 'Unknown error');
+        return null;
     }
 }
 

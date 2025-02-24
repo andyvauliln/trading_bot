@@ -1,0 +1,13 @@
+[
+  {
+    "timestamp": "2025-02-24T07:29:25.739Z",
+    "chain": "sol",
+    "token_address": "6p6xgHyF7AeE6TZkSmFsko444wqoP15icUSqi2jfGiPN",
+    "slippage_data": {
+      "recommend_slippage": "5",
+      "has_tax": false,
+      "display_slippage": "2.50",
+      "volatility": 1
+    }
+  }
+]
