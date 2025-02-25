@@ -414,7 +414,8 @@ const config: TelegramConfig = {
         detailed_model: configData.ai_config.detailed_model,
         base_url: configData.ai_config.base_url,
         temperature: configData.ai_config.temperature
-    }
+    },
+    rug_check: configData.rug_check
 };
 
 async function main() {

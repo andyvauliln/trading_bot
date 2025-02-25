@@ -2,7 +2,7 @@ export const config = {
     "environment": "development",
     "name": "telegram-trading-bot",
     "base_url": "https://tg.i-c-a.su",
-    "messages_db_path": "telegram-trading-bot.db",
+    "messages_db_path": "telegram-messages.db",
     "storage_type": "sqlite", // sqlite, json
     "check_interval": 300, // seconds
     "max_messages_per_channel": 100,

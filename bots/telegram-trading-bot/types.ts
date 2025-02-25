@@ -24,6 +24,29 @@ export interface AIConfig {
     temperature: number;
 }
 
+export interface RugCheckConfig {
+    verbose_log: boolean;
+    simulation_mode: boolean;
+    allow_mint_authority: boolean;
+    allow_not_initialized: boolean;
+    allow_freeze_authority: boolean;
+    allow_rugged: boolean;
+    allow_mutable: boolean;
+    block_returning_token_names: boolean;
+    block_returning_token_creators: boolean;
+    block_symbols: string[];
+    block_names: string[];
+    allow_insider_topholders: boolean;
+    max_alowed_pct_topholders: number;
+    exclude_lp_from_topholders: boolean;
+    min_total_markets: number;
+    min_total_lp_providers: number;
+    min_total_market_Liquidity: number;
+    ignore_pump_fun: boolean;
+    max_score: number;
+    legacy_not_allowed: string[];
+}
+
 export interface TelegramConfig {
     environment: string;
     name: string;
@@ -39,4 +62,5 @@ export interface TelegramConfig {
     log_level: string;
     channels: TelegramChannel[];
     ai_config: AIConfig;
+    rug_check: RugCheckConfig;
 }
