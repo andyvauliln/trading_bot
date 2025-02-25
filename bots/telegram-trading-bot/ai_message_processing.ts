@@ -2,6 +2,7 @@ import { ChatOpenAI } from "@langchain/openai";
 import { PromptTemplate } from "@langchain/core/prompts";
 import { StringOutputParser, JsonOutputParser } from "@langchain/core/output_parsers";
 import * as dotenv from 'dotenv';
+import { config as configData } from "./telegram-trading-bot-config";
 import { AIConfig } from "./types";
 
 // Load environment variables
@@ -22,31 +23,31 @@ export class AIMessageProcessor {
   private outputParser: StringOutputParser;
 
   constructor(aiConfig?: AIConfig) {
-    const config = aiConfig || {
-      openrouter_api_key: process.env.OPEN_ROUTER_API_KEY || "",
-      initial_model: "mistralai/mistral-7b-instruct",
-      detailed_model: "",
-      base_url: "https://openrouter.ai/api/v1",
-      temperature: 0.2
+    const aiConfigFromEnv = {
+      openrouter_api_key: process.env.OPEN_ROUTER_API_KEY || configData.ai_config.openrouter_api_key,
+      initial_model: configData.ai_config.initial_model,
+      detailed_model: configData.ai_config.detailed_model,
+      base_url: configData.ai_config.base_url,
+      temperature: configData.ai_config.temperature
     };
 
     // Initialize the initial model (cheaper/free model)
     this.initialModel = new ChatOpenAI({
-      modelName: config.initial_model,
-      temperature: config.temperature,
-      openAIApiKey: config.openrouter_api_key,
+      modelName: aiConfigFromEnv.initial_model,
+      temperature: aiConfigFromEnv.temperature,
+      openAIApiKey: aiConfigFromEnv.openrouter_api_key,
       configuration: {
-        baseURL: config.base_url,
+        baseURL: aiConfigFromEnv.base_url,
       },
     });
 
     // Initialize the detailed model if provided (more powerful model)
-    this.detailedModel = config.detailed_model ? new ChatOpenAI({
-      modelName: config.detailed_model,
-      temperature: config.temperature,
-      openAIApiKey: config.openrouter_api_key,
+    this.detailedModel = aiConfigFromEnv.detailed_model ? new ChatOpenAI({
+      modelName: aiConfigFromEnv.detailed_model,
+      temperature: aiConfigFromEnv.temperature,
+      openAIApiKey: aiConfigFromEnv.openrouter_api_key,
       configuration: {
-        baseURL: config.base_url,
+        baseURL: aiConfigFromEnv.base_url,
       },
     }) : null;
 

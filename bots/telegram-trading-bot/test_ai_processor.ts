@@ -1,19 +1,7 @@
-#!/usr/bin/env ts-node
-
-type Error = {
-  message: string;
-  stack?: string;
-};
-
-function isError(error: unknown): error is Error {
-  return typeof error === 'object' && error !== null && 'message' in error && 'stack' in error;
-}
-
 import { AIMessageProcessor } from './ai_message_processing';
 import * as dotenv from 'dotenv';
-import * as fs from 'fs';
-import * as path from 'path';
 import { AIConfig } from './types';
+import { config as configData } from './telegram-trading-bot-config';
 
 // Load environment variables
 dotenv.config();
@@ -21,13 +9,7 @@ dotenv.config();
 async function testAIProcessor() {
     console.log("Loading AI configuration from config file...");
     
-    // Load configuration from telegram-trading-bot-config.json
-    const configPath = path.resolve(__dirname, 'telegram-trading-bot-config.json');
-    
     try {
-        const rawConfig = fs.readFileSync(configPath, 'utf-8');
-        const configData = JSON.parse(rawConfig);
-        
         if (!configData.ai_config) {
             throw new Error("AI configuration section is missing from config file");
         }
@@ -105,6 +87,15 @@ async function testAIProcessor() {
     }
 }
 
+type Error = {
+    message: string;
+    stack?: string;
+};
+  
+function isError(error: unknown): error is Error {
+return typeof error === 'object' && error !== null && 'message' in error && 'stack' in error;
+}
+  
 // Run the test
 console.log("Starting AI processor test...");
 testAIProcessor()

@@ -384,9 +384,7 @@ class TelegramReader {
     }
 }
 
-// Load configuration from telegram-trading-bot-config.json
-const rawConfig = fs.readFileSync(path.resolve(__dirname, 'telegram-trading-bot-config.json'), 'utf-8');
-const configData = JSON.parse(rawConfig);
+import { config as configData } from './telegram-trading-bot-config';
 
 // Create TelegramChannel objects from the channels array
 const channels: TelegramChannel[] = configData.channels.map((channel: any) => ({
