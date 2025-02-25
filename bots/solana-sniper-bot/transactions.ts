@@ -3,7 +3,7 @@ import { Connection, Keypair, VersionedTransaction, PublicKey } from "@solana/we
 import { Wallet } from "@project-serum/anchor";
 import bs58 from "bs58";
 import dotenv from "dotenv";
-import { config } from "../solana-sniper-bot/config";
+import { config } from "./config";
 import {
   TransactionDetailsResponseArray,
   MintsDataReponse,
@@ -14,8 +14,8 @@ import {
   RugResponseExtended,
   NewTokenRecord,
   createSellTransactionResponse,
-} from "../solana-sniper-bot/types";
-import { insertHolding, insertNewToken, removeHolding, selectTokenByMint, selectTokenByNameAndCreator } from "./tracker/db";
+} from "./types";
+import { insertHolding, insertNewToken, removeHolding, selectTokenByMint, selectTokenByNameAndCreator } from "../tracker-bot/db";
 
 // Load environment variables from the .env file
 dotenv.config();
@@ -457,11 +457,11 @@ export async function getRugCheckConfirmed(tokenMint: string): Promise<boolean> 
 
     // Verify if duplicate token or creator was returned
     if (duplicate.length !== 0) {
-      if (config.rug_check.block_returning_token_names && duplicate.some((token) => token.name === tokenName)) {
+      if (config.rug_check.block_returning_token_names && duplicate.some((token: any) => token.name === tokenName)) {
         console.log("🚫 Token with this name was already created");
         return false;
       }
-      if (config.rug_check.block_returning_token_creators && duplicate.some((token) => token.creator === tokenCreator)) {
+      if (config.rug_check.block_returning_token_creators && duplicate.some((token: any) => token.creator === tokenCreator)) {
         console.log("🚫 Token from this creator was already created");
         return false;
       }

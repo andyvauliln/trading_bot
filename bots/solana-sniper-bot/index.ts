@@ -1,7 +1,7 @@
 import WebSocket from "ws";
 import { WebSocketRequest } from "./types";
 import { config } from "./config"; // Configuration parameters for our bot
-import { fetchTransactionDetails, createSwapTransaction, getRugCheckConfirmed, fetchAndSaveSwapDetails } from "../utils/transactions";
+import { fetchTransactionDetails, createSwapTransaction, getRugCheckConfirmed, fetchAndSaveSwapDetails } from "./transactions";
 import { validateEnv } from "../utils/env-validator";
 
 // Regional Variables

@@ -5,6 +5,7 @@ import * as sqlite3 from 'sqlite3';
 import { Database } from 'sqlite3';
 import { TelegramConfig, TelegramChannel, StorageType, Message } from './types';
 import { AIMessageProcessor } from './ai_message_processing';
+import { config as configData } from './telegram-trading-bot-config';
 
 class TelegramReader {
     private config: TelegramConfig;
@@ -384,7 +385,7 @@ class TelegramReader {
     }
 }
 
-import { config as configData } from './telegram-trading-bot-config';
+
 
 // Create TelegramChannel objects from the channels array
 const channels: TelegramChannel[] = configData.channels.map((channel: any) => ({

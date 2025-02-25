@@ -11,6 +11,24 @@ export const config = {
     "retry_delay": 60, // seconds
     "rate_limit_delay": 4, // seconds
     "log_level": "INFO",
+    "tx": {
+        "fetch_tx_max_retries": 10,
+        "fetch_tx_initial_delay": 3000, // Initial delay before fetching LP creation transaction details (3 seconds)
+        "swap_tx_initial_delay": 1000, // Initial delay before first buy (1 second)
+        "get_timeout": 10000, // Timeout for API requests
+        "concurrent_transactions": 1, // Number of simultaneous transactions
+        "retry_delay": 500, // Delay between retries (0.5 seconds)
+    },
+    "swap": {
+        "verbose_log": false,
+        "prio_fee_max_lamports": 1000000, // 0.001 SOL
+        "prio_level": "veryHigh", // If you want to land transaction fast, set this to use `veryHigh`. You will pay on average higher priority fee.
+        "amount": "10000000", //0.01 SOL
+        "slippageBps": "200", // 2%
+        "db_name_tracker_holdings": "src/tracker/holdings.db", // Sqlite Database location
+        "token_not_tradable_400_error_retries": 5, // How many times should the bot try to get a quote if the token is not tradable yet
+        "token_not_tradable_400_error_delay": 2000, // How many seconds should the bot wait before retrying to get a quote again
+    },
     "channels": [
         {
             "username": "ghastlygems",
