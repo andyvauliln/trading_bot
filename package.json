@@ -4,11 +4,14 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/index.js",
-    "start:tracker": "node dist/tracker/index.js",
-    "dev": "ts-node src/index.ts",
-    "tracker": "ts-node src/tracker/index.ts",
-    "test_gmgn": "ts-node gmgn_api/test.ts",
+    "start-telegram-bot": "node dist/bots/telegram-trading-bot/index.js",
+    "start-tracker-bot": "node dist/bots/tracker-bot/index.js",
+    "start-sniper-bot": "node dist/bots/solana-sniper-bot/index.js",
+
+    "test-tracker-bot": "ts-node bots/tracker-bot/index.ts",
+    "test-telegram-trading-bot": "ts-node bots/telegram-trading-bot/index.ts",
+    "test-solana-sniper-bot": "ts-node bots/solana-sniper-bot/index.ts",
+    "test-gmgn": "ts-node gmgn_api/test.ts",
     "clean": "rm -rf dist"
   },
   "keywords": [],

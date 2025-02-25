@@ -1,0 +1,28 @@
+{
+    "environment": "development",
+    "name": "telegram-trading-bot",
+    "base_url": "https://tg.i-c-a.su",
+    "messages_db_path": "telegram-trading-bot.db",
+    "storage_type": "sqlite",
+    "check_interval": 300,
+    "max_messages_per_channel": 100,
+    "request_timeout": 30,
+    "max_retries": 3,
+    "retry_delay": 60,
+    "rate_limit_delay": 4,
+    "log_level": "INFO",
+    "channels": [
+        {
+            "username": "ghastlygems",
+            "description": "First channel to monitor"
+        },
+        {
+            "username": "eveesL",
+            "description": "Second channel to monitor"
+        },
+        {
+            "username": "prosacalls",
+            "description": "Third channel to monitor"
+        }
+    ]
+}

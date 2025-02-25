@@ -14,7 +14,7 @@ import {
   RugResponseExtended,
   NewTokenRecord,
   createSellTransactionResponse,
-} from "../types";
+} from "../solana-sniper-bot/types";
 import { insertHolding, insertNewToken, removeHolding, selectTokenByMint, selectTokenByNameAndCreator } from "./tracker/db";
 
 // Load environment variables from the .env file
