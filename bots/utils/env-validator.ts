@@ -11,6 +11,7 @@ export interface EnvConfig {
   JUP_HTTPS_SWAP_URI: string;
   JUP_HTTPS_PRICE_URI: string;
   DEX_HTTPS_LATEST_TOKENS: string;
+  OPEN_ROUTER_API_KEY: string;
 }
 
 export function validateEnv(): EnvConfig {
@@ -23,6 +24,7 @@ export function validateEnv(): EnvConfig {
     "JUP_HTTPS_SWAP_URI",
     "JUP_HTTPS_PRICE_URI",
     "DEX_HTTPS_LATEST_TOKENS",
+    "OPEN_ROUTER_API_KEY",
   ] as const;
 
   const missingVars = requiredEnvVars.filter((envVar) => {
@@ -78,5 +80,6 @@ export function validateEnv(): EnvConfig {
     JUP_HTTPS_SWAP_URI: process.env.JUP_HTTPS_SWAP_URI!,
     JUP_HTTPS_PRICE_URI: process.env.JUP_HTTPS_PRICE_URI!,
     DEX_HTTPS_LATEST_TOKENS: process.env.DEX_HTTPS_LATEST_TOKENS!,
+    OPEN_ROUTER_API_KEY: process.env.OPEN_ROUTER_API_KEY!,
   };
 }

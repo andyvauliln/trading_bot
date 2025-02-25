@@ -16,6 +16,14 @@ export interface Message {
     processed: boolean;
 }
 
+export interface AIConfig {
+    openrouter_api_key: string;
+    initial_model: string;  // Free/cheaper model for initial analysis
+    detailed_model?: string; // Optional more powerful model for detailed analysis
+    base_url: string;
+    temperature: number;
+}
+
 export interface TelegramConfig {
     environment: string;
     name: string;
@@ -30,4 +38,5 @@ export interface TelegramConfig {
     rate_limit_delay: number;
     log_level: string;
     channels: TelegramChannel[];
+    ai_config: AIConfig;
 }

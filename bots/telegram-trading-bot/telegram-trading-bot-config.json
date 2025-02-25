@@ -24,5 +24,12 @@
             "username": "prosacalls",
             "description": "Third channel to monitor"
         }
-    ]
+    ],
+    "ai_config": {
+        "openrouter_api_key": "",
+        "initial_model": "deepseek/deepseek-r1-distill-llama-70b:free",
+        "detailed_model": "",
+        "base_url": "https://openrouter.ai/api/v1",
+        "temperature": 0.2
+    }
 }

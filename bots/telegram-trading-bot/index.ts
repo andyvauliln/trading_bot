@@ -4,6 +4,7 @@ import * as path from 'path';
 import * as sqlite3 from 'sqlite3';
 import { Database } from 'sqlite3';
 import { TelegramConfig, TelegramChannel, StorageType, Message } from './types';
+import { AIMessageProcessor } from './ai_message_processing';
 
 class TelegramReader {
     private config: TelegramConfig;
@@ -11,6 +12,7 @@ class TelegramReader {
     private db: Database | null;
     private knownMessages: Set<string>; // Will store "channelName:messageId" as composite key
     private jsonStoragePath: string;
+    private aiProcessor: AIMessageProcessor;
 
     constructor(config: TelegramConfig) {
         this.config = config;
@@ -19,6 +21,8 @@ class TelegramReader {
         this.knownMessages = new Set<string>();
         // Store in root project directory's data folder
         this.jsonStoragePath = path.resolve(process.cwd(), 'data', 'telegram_messages.json');
+        // Initialize AI message processor with config
+        this.aiProcessor = new AIMessageProcessor(config.ai_config);
     }
 
     async start() {
@@ -246,13 +250,34 @@ class TelegramReader {
     }
 
     private async sendMessageToAI(message: Message): Promise<void> {
-        // Mock function for sending messages to AI
         console.log(`[AI] Processing message ID ${message.id} from channel ${message.channelName}`);
         console.log(`[AI] Message content: ${message.message.substring(0, 50)}...`);
         
-        // In a real implementation, this would send the message to an AI service
-        // For now, we'll just mark it as processed
-        await this.markMessageAsProcessed(message.id, message.channelName);
+        try {
+            // Process the message with AI
+            const analysisResults = await this.aiProcessor.processMessage(message.message);
+            
+            // Log the results
+            if (analysisResults.length === 0) {
+                console.log(`[AI] No Solana tokens found in message ID ${message.id}`);
+            } else {
+                console.log(`[AI] Found ${analysisResults.length} token(s) in message ID ${message.id}:`);
+                analysisResults.forEach(result => {
+                    console.log(`[AI] Token: ${result.solana_token_address}`);
+                    console.log(`[AI] Analysis: ${result.analysis}`);
+                    console.log(`[AI] Buy recommendation: ${result.is_potential_to_buy_token ? 'YES' : 'NO'}`);
+                });
+            }
+            
+            // Here you would implement logic to act on the analysis results
+            // For example, if is_potential_to_buy_token is true, you might trigger a purchase
+            
+        } catch (error) {
+            console.error(`[AI] Error processing message: ${error}`);
+        } finally {
+            // Mark the message as processed regardless of the outcome
+            await this.markMessageAsProcessed(message.id, message.channelName);
+        }
     }
 
     private async markMessageAsProcessed(messageId: number, channelName: string): Promise<void> {
@@ -385,6 +410,13 @@ const config: TelegramConfig = {
     rate_limit_delay: configData.rate_limit_delay,
     log_level: configData.log_level,
     channels: channels,
+    ai_config: {
+        openrouter_api_key: process.env.OPEN_ROUTER_API_KEY || configData.ai_config.openrouter_api_key,
+        initial_model: configData.ai_config.initial_model,
+        detailed_model: configData.ai_config.detailed_model,
+        base_url: configData.ai_config.base_url,
+        temperature: configData.ai_config.temperature
+    }
 };
 
 async function main() {
