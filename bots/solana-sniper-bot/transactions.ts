@@ -10,11 +10,11 @@ import {
   QuoteResponse,
   SerializedQuoteResponse,
   SwapEventDetailsResponse,
-  HoldingRecord,
   RugResponseExtended,
   NewTokenRecord,
 } from "./types";
 import { insertHolding, insertNewToken, selectTokenByMint } from "../tracker-bot/holding.db";
+import { HoldingRecord } from "../tracker-bot/types";
 
 // Load environment variables from the .env file
 dotenv.config();
@@ -568,6 +568,7 @@ export async function fetchAndSaveSwapDetails(tx: string, processRunCounter: num
       PerTokenPaidUSDC: perTokenUsdcPrice,
       Slot: swapTransactionData.slot,
       Program: swapTransactionData.programInfo ? swapTransactionData.programInfo.source : "N/A",
+      BotName: "solana-sniper-bot",
     };
 
     await insertHolding(newHolding, processRunCounter).catch((err: any) => {

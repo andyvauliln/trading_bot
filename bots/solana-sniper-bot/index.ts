@@ -4,14 +4,6 @@ import { config } from "./config";
 import { fetchTransactionDetails, createSwapTransaction, getRugCheckConfirmed, fetchAndSaveSwapDetails } from "./transactions";
 import { validateEnv } from "../utils/env-validator";
 
-// Add startup message
-console.log(`[${new Date().toISOString()}] Solana Sniper Bot Starting...`);
-console.log(`[${new Date().toISOString()}] Configuration loaded:`, {
-  maxConcurrent: config.tx.concurrent_transactions,
-  simulationMode: config.rug_check.simulation_mode,
-  ignorePumpFun: config.rug_check.ignore_pump_fun
-});
-
 // Regional Variables
 let activeTransactions = 0;
 const MAX_CONCURRENT = config.tx.concurrent_transactions;
@@ -182,14 +174,14 @@ async function websocketHandler(): Promise<void> {
           console.log(`[solana-sniper-bot]|[websocketHandler]|CYCLE_END`, processRunCounter, result);
         })
         .catch((error) => {
-          console.error(`[solana-sniper-bot]|[websocketHandler]|💥 Error processing transaction:`, error);
-          console.log(`[solana-sniper-bot]|[websocketHandler]|CYCLE_END`, false);
+          console.error(`[solana-sniper-bot]|[websocketHandler]|💥 Error processing transaction:`, processRunCounter, error);
+          console.log(`[solana-sniper-bot]|[websocketHandler]|CYCLE_END`, processRunCounter, false);
         })
         .finally(() => {
-          console.log(`[solana-sniper-bot]|[websocketHandler]|🔎 Decrementing active transactions`);
+          console.log(`[solana-sniper-bot]|[websocketHandler]|🔎 Decrementing active transactions`, processRunCounter);
           activeTransactions--;
           processRunCounter++; // Increment the process run counter
-          console.log(`[solana-sniper-bot]|[websocketHandler]|CYCLE_END`, false);
+          console.log(`[solana-sniper-bot]|[websocketHandler]|CYCLE_END`, processRunCounter, false);
         });
     } catch (error) {
       console.error(`[solana-sniper-bot]|[websocketHandler]|💥 Error processing message:`, processRunCounter, {

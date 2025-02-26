@@ -215,11 +215,14 @@ class TelegramReader {
      * Batch save messages to database for better performance
      */
     private async batchSaveMessages(messages: Message[]): Promise<void> {
+        console.log(`[telegram-trading-bot]|[batchSaveMessages]|MAINLOGS|Saving ${messages.length} messages to database`, this.processRunCounter);
         if (!this.db || messages.length === 0) return;
+
+        messages = messages.filter(message => message.id);
         
         return new Promise<void>((resolve, reject) => {
             const stmt = this.db!.prepare(
-                'INSERT INTO messages (id, date, message, channel_name, processed) VALUES (?, ?, ?, ?, ?)'
+                'INSERT OR IGNORE INTO messages (id, date, message, channel_name, processed) VALUES (?, ?, ?, ?, ?)'
             );
             
             this.db!.serialize(() => {

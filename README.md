@@ -78,3 +78,52 @@ Will run all bots simultaneously in different processes
 
 
 ### HOW TO USE LOGGER
+## Notes
+- console.log it's overrided function for orignal console.log
+- logger possible to configure with next configurations
+    - terminal-logs - true/false - if true logs will be shown in terminal
+    - db-logs - true/false - if true logs will be saved in db
+    - file-logs - true/false - if true logs will be saved in file
+    - db-logs-path - string - path to the db
+    - file-logs-path - string - path to the file
+- all 3 methods can be used simultaneously
+- logger should be initialized in the main file
+
+### LOGGER DB TEMPLATE
+id - `id` - id of the log
+date - `date` - date of the log
+time - `time` - time of the log
+full_message - `full_message` - fullmessage of the log
+message - `message` - message of the log
+module - `module` - module of the log
+function - `function` - function of the log
+type - `type` - type of the log, can be `info`, `error`, `warn`
+data - `data` - additional data for the log as json string
+cycle - `cycle` - number of the cycle
+category - `category` - category of the log, can be `main`, `cycle`
+tag - `tag` - any additional tag for the logs, for example if cycle finished with some swap action it's can be `swap_action`
+
+## Use Examples 
+`console.log("Message", "processRunCounter", data)`
+`console.error("Message", "processRunCounter", data)`
+`console.warn("Message", "processRunCounter", data)`
+
+Message - `[module]|[function]| Message` - Message to log. 
+ - if Message contains MAINLOGS it's means it's logs out of current loop cycle
+ - if Message contains CYCLE_START it's means start of the cycle
+ - if Message contains CYCLE_END it's means end of the cycle
+ - if Message contains CYCLE_END and data value it's data should be or true or false to highlight that acction was made
+processRunCounter - `processRunCounter` - counter to divide logs by every run in multi thread application where all logs mixed
+data - `data` - additional data for the logs
+
+
+## Logger UI
+takes data from db logs by api , as result grouped logs
+
+Collapsed view
+- date(highlighted with a tag, error, warning, info) -+-
+    - [modules] -+-
+        - [ mainLogs(highlighted with a tag, error, warning, info)] -+-
+        - [ cycleLogs(highlighted with a tag, error, warning, info)] -+-
+            - [cycle][type][time][function][message] [tag] -+-
+              - [data]

@@ -12,6 +12,7 @@ const tokenAnalysisResult = z.array(z.object({
   is_message_has_any_mentioned_token: z.boolean().describe("Whether the message has any mentioned token"),
   analysis: z.string().describe("Analysis of signal from the message and reasoning why to buy or not"),
   is_potential_to_buy_token: z.boolean().describe("Whether the token is potential to buy"),
+  message_text: z.string().describe("The text of the message"),
 }));
 
 export interface TokenAnalysisResult {
@@ -19,6 +20,7 @@ export interface TokenAnalysisResult {
   is_message_has_any_mentioned_token: boolean;
   analysis: string;
   is_potential_to_buy_token: boolean;
+  message_text: string;
 }
 
 export class AIMessageProcessor {
@@ -57,7 +59,7 @@ export class AIMessageProcessor {
       - is_message_has_any_mentioned_token: whether the message has any mentioned token
       - analysis: analysis of signal from the message and reasoning why to buy or not
       - is_potential_to_buy_token: whether the token is potential to buy, false only if message specifically says not to buy
-
+      - message_text: the text of the message
       if you are not sure about the token or if message contains, return an empty array
       Messages:
       ${telegram_message}

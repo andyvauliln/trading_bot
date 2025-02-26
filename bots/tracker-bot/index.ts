@@ -59,7 +59,7 @@ async function main() {
       const currentPrices = priceResponse.data.data;
       if (!currentPrices) {
         console.log(`[tracker-bot]|[main]| ⛔ Latest prices from Jupiter Agregator could not be fetched. Trying again...`);
-        console.log(`[tracker-bot]|[main]| CYCLE_END: ${processRunCounter}`, processRunCounter);
+        console.log(`[tracker-bot]|[main]| CYCLE_END: ${processRunCounter}`, processRunCounter, false);
         return;
       }
 
@@ -90,7 +90,8 @@ async function main() {
           }, []);
 
         if (!currentPrices) {
-          saveLogTo(actionsLogs, `⛔ Latest prices from Dexscreener Tokens API could not be fetched. Trying again...`);
+          console.log(`[tracker-bot]|[main]| ⛔ Latest prices from Dexscreener Tokens API could not be fetched. Trying again...`);
+          console.log(`[tracker-bot]|[main]| CYCLE_END: ${processRunCounter}`, false);
           return;
         }
       }
@@ -111,7 +112,7 @@ async function main() {
           const tokenPerTokenPaidUSDC = holding.PerTokenPaidUSDC;
           const tokenSlot = holding.Slot;
           const tokenProgram = holding.Program;
-
+          const tokenBotName = holding.BotName;
           // Conver Trade Time
           const tradeTime = DateTime.fromMillis(tokenTime).toLocal();
           const hrTradeTime = tradeTime.toFormat("HH:mm:ss");
@@ -147,11 +148,14 @@ async function main() {
                 // Add success to log output
                 if (txSuccess) {
                   console.log(`[tracker-bot]|[main]| ✅🟢 ${hrTradeTime}: Took profit for ${tokenName}\nTx: ${tXtransaction}`, processRunCounter);
+                  console.log(`[tracker-bot]|[main]| CYCLE_END`, processRunCounter, true);
                 } else {
                   console.error(`[tracker-bot]|[main]| ⚠️ ERROR when taking profit for ${tokenName}: ${txErrorMsg}`, processRunCounter);
+                  console.log(`[tracker-bot]|[main]| CYCLE_END`, processRunCounter, false);
                 }
               } catch (error: any) {
                 console.error(`[tracker-bot]|[main]| ⚠️  ERROR when taking profit for ${tokenName}: ${error.message}`, processRunCounter);
+                console.log(`[tracker-bot]|[main]| CYCLE_END`, processRunCounter, false);
               }
             }
 
@@ -165,11 +169,14 @@ async function main() {
                 // Add success to log output
                 if (txSuccess) {
                   console.log(`[tracker-bot]|[main]| ✅🔴 ${hrTradeTime}: Triggered Stop Loss for ${tokenName}\nTx: ${tXtransaction}`, processRunCounter);
+                  console.log(`[tracker-bot]|[main]| CYCLE_END`, processRunCounter, true);
                 } else {
                   console.error(`[tracker-bot]|[main]| ⚠️ ERROR when triggering Stop Loss for ${tokenName}: ${txErrorMsg}`, processRunCounter);
+                  console.log(`[tracker-bot]|[main]| CYCLE_END`, processRunCounter, false);
                 }
               } catch (error: any) {
                 console.error(`[tracker-bot]|[main]| ⚠️ ERROR when triggering Stop Loss for ${tokenName}: ${error.message}: \n`, processRunCounter);
+                console.log(`[tracker-bot]|[main]| CYCLE_END`, processRunCounter, false);
               }
             }
           }
@@ -185,7 +192,7 @@ async function main() {
     }
 
     // Output Current Holdings
-    console.log(`[tracker-bot]|[main]| 📈 Current Holdings via ✅ ${currentPriceSource}`, processRunCounter);
+    // console.log(`[tracker-bot]|[main]| 📈 Current Holdings via ✅ ${currentPriceSource}`, processRunCounter);
     if (holdings.length === 0) {
       console.log(`[tracker-bot]|[main]| No token holdings yet as of ${new Date().toISOString()}`, processRunCounter);
     }
@@ -197,7 +204,8 @@ async function main() {
 
     await db.close();
   }
-
+  console.log(`[tracker-bot]|[main]| WAITING ${config.check_interval} seconds before next check...`, processRunCounter);
+  processRunCounter++;
   setTimeout(main, config.check_interval * 1000); // Call main again interval seconds
 }
 

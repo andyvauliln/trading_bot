@@ -10,8 +10,8 @@ module.exports = {
         NODE_ENV: 'production',
       },
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
-      out_file: '.pm2/logs/tracker-bot.log',
-      error_file: '.pm2/logs/tracker-bot-error.log',
+      out_file: 'logs/tracker-bot.log',
+      error_file: 'logs/tracker-bot-error.log',
       merge_logs: true,
       time: true
     },
@@ -25,8 +25,8 @@ module.exports = {
         NODE_ENV: 'production',
       },
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
-      out_file: '.pm2/logs/telegram-bot.log',
-      error_file: '.pm2/logs/telegram-bot-error.log',
+      out_file: 'logs/telegram-bot.log',
+      error_file: 'logs/telegram-bot-error.log',
       merge_logs: true,
       time: true
     },
@@ -40,8 +40,8 @@ module.exports = {
         NODE_ENV: 'production',
       },
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
-      out_file: '.pm2/logs/solana-sniper-bot.log',
-      error_file: '.pm2/logs/solana-sniper-bot-error.log',
+      out_file: 'logs/solana-sniper-bot.log',
+      error_file: 'logs/solana-sniper-bot-error.log',
       merge_logs: true,
       time: true
     }

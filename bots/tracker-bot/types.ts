@@ -271,6 +271,7 @@ export interface HoldingRecord {
   PerTokenPaidUSDC: number;
   Slot: number;
   Program: string;
+  BotName: string;
 }
 
 export interface NewTokenRecord {

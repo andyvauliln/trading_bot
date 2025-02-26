@@ -9,11 +9,10 @@ import {
   QuoteResponse,
   SerializedQuoteResponse,
   SwapEventDetailsResponse,
-  HoldingRecord,
   NewTokenRecord,
 } from "./types";
 import { insertHolding, selectTokenByMint } from "../tracker-bot/holding.db";
-
+import { HoldingRecord } from "../tracker-bot/types";
 dotenv.config();
 
 
@@ -288,6 +287,7 @@ export async function fetchAndSaveSwapDetails(tx: string, processRunCounter: num
       PerTokenPaidUSDC: perTokenUsdcPrice,
       Slot: swapTransactionData.slot,
       Program: swapTransactionData.programInfo ? swapTransactionData.programInfo.source : "N/A",
+      BotName: "telegram-trading-bot",
     };
 
     await insertHolding(newHolding, processRunCounter).catch((err: any) => {

@@ -19,7 +19,8 @@ export async function createTableHoldings(database: any): Promise<boolean> {
       SolFeePaidUSDC REAL NOT NULL,
       PerTokenPaidUSDC REAL NOT NULL,
       Slot INTEGER NOT NULL,
-      Program TEXT NOT NULL
+      Program TEXT NOT NULL,
+      BotName TEXT NOT NULL
     );
   `);
     return true;
@@ -63,6 +64,13 @@ export async function removeHolding(tokenMint: string, processRunCounter: number
     filename: config.db_name_tracker_holdings,
     driver: sqlite3.Database,
   });
+
+  // Create Table if not exists
+  const holdingsTableExist = await createTableHoldings(db);
+  if (!holdingsTableExist) {
+    await db.close();
+    return;
+  }
 
   // Proceed with deleting the holding
   await db.run(
@@ -244,6 +252,13 @@ export async function getHoldingRecord(token: string, processRunCounter: number)
     driver: sqlite3.Database,
   });
 
+  // Create Table if not exists
+  const holdingsTableExist = await createTableHoldings(db);
+  if (!holdingsTableExist) {
+    await db.close();
+    return null;
+  }
+  
   const tokenRecord = await db.get(
     `
     SELECT * 
