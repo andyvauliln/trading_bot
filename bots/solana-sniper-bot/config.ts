@@ -41,9 +41,9 @@
 **/
 import path from "path";
 export const config = {
-  verbose_log: true,
-  "logs_db_path": path.resolve(process.cwd(), 'data', 'app-logs.db'),
   name: "solana-sniper-bot",
+  verbose_log: true,
+  logs_db_path: path.resolve(process.cwd(), 'data', 'app-logs.db'),
   environment: process.env.NODE_ENV || "test", // development, production, test
   liquidity_pool: {
     radiyum_program_id: "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8",
@@ -62,19 +62,8 @@ export const config = {
     prio_level: "veryHigh", // If you want to land transaction fast, set this to use `veryHigh`. You will pay on average higher priority fee.
     amount: "100000", //0.0001 SOL
     slippageBps: "200", // 2%
-    db_name_tracker_holdings: "src/tracker/holdings.db", // Sqlite Database location
     token_not_tradable_400_error_retries: 5, // How many times should the bot try to get a quote if the token is not tradable yet
     token_not_tradable_400_error_delay: 2000, // How many seconds should the bot wait before retrying to get a quote again
-  },
-  sell: {
-    price_source: "dex", // dex=Dexscreener,jup=Jupiter Agregator (Dex is most accurate and Jupiter is always used as fallback)
-    prio_fee_max_lamports: 1000000, // 0.001 SOL
-    prio_level: "veryHigh", // If you want to land transaction fast, set this to use `veryHigh`. You will pay on average higher priority fee.
-    slippageBps: "200", // 2%
-    auto_sell: false, // If set to true, stop loss and take profit triggers automatically when set.
-    stop_loss_percent: 5,
-    take_profit_percent: 50,
-    track_public_wallet: "", // If set an additional log line will be shown with a link to track your wallet
   },
   rug_check: {
     simulation_mode: true,
@@ -100,15 +89,15 @@ export const config = {
     ignore_pump_fun: true,
     max_score: 1, // Set to 0 to ignore
     legacy_not_allowed: [
-      "Low Liquidity",
-      "Freeze Authority still enabled",
-      "Single holder ownership",
-      "High holder concentration",
-      "Freeze Authority still enabled",
-      "Large Amount of LP Unlocked",
-      "Low Liquidity",
-      "Copycat token",
-      "Low amount of LP Providers",
+      // "Low Liquidity",
+      // "Freeze Authority still enabled",
+      // "Single holder ownership",
+      // "High holder concentration",
+      // "Freeze Authority still enabled",
+      // "Large Amount of LP Unlocked",
+      // "Low Liquidity",
+      // "Copycat token",
+      // "Low amount of LP Providers",
     ],
   },
 };

@@ -1,7 +1,7 @@
 {
-  "name": "sol_token_sniper",
+  "name": "trading-bot",
   "version": "1.0.0",
-  "main": "dist/index.js",
+  "main": "start-bots.sh",
   "scripts": {
     "build": "tsc",
     "start-telegram-bot": "node dist/bots/telegram-trading-bot/index.js",

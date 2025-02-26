@@ -10,13 +10,17 @@ import { createSellTransaction } from "./transactions";
 
 dotenv.config();
 
+let processRunCounter = 1;
+
 async function main() {
   const priceUrl = process.env.JUP_HTTPS_PRICE_URI || "";
   const dexPriceUrl = process.env.DEX_HTTPS_LATEST_TOKENS || "";
   const priceSource = config.sell.price_source || "jup";
   const solMint = config.liquidity_pool.wsol_pc_mint;
+  console.log(`[tracker-bot]|[main]|CYCLE_START: ${processRunCounter}`, processRunCounter);
 
   // Connect to database and create if not exists
+  console.log(`[tracker-bot]|[main]|Opening DB: ${config.db_name_tracker_holdings}`);
   const db = await open({
     filename: config.db_name_tracker_holdings,
     driver: sqlite3.Database,
@@ -25,7 +29,7 @@ async function main() {
   // Create Table if not exists
   const holdingsTableExist = await createTableHoldings(db);
   if (!holdingsTableExist) {
-    console.log("Holdings table not present.");
+    console.error(`[tracker-bot]|[main]| Holdings table not present.`, processRunCounter);
     // Close the database connection when done
     await db.close();
   }
@@ -38,6 +42,8 @@ async function main() {
 
     // Get all our current holdings
     const holdings = await db.all("SELECT * FROM holdings");
+
+    console.log(`[tracker-bot]|[main]|Found Holdings: ${holdings.length}`, processRunCounter, holdings);
     if (holdings.length !== 0) {
       // Get all token ids
       const tokenValues = holdings.map((holding) => holding.Token).join(",");
@@ -53,8 +59,11 @@ async function main() {
       const currentPrices = priceResponse.data.data;
       if (!currentPrices) {
         console.log(`[tracker-bot]|[main]| ⛔ Latest prices from Jupiter Agregator could not be fetched. Trying again...`);
+        console.log(`[tracker-bot]|[main]| CYCLE_END: ${processRunCounter}`, processRunCounter);
         return;
       }
+
+      console.log(`[tracker-bot]|[main]| Got Token Prices`, processRunCounter, currentPrices);
 
       // DexScreener Agragator Price
       let dexRaydiumPairs = null;
@@ -87,6 +96,7 @@ async function main() {
       }
 
       // Loop trough all our current holdings
+      console.log(`[tracker-bot]|[main]| Processing Holdings`, processRunCounter, holdings);
       await Promise.all(
         holdings.map(async (row) => {
           const holding: HoldingRecord = row;
@@ -103,8 +113,8 @@ async function main() {
           const tokenProgram = holding.Program;
 
           // Conver Trade Time
-          const centralEuropenTime = DateTime.fromMillis(tokenTime).toLocal();
-          const hrTradeTime = centralEuropenTime.toFormat("HH:mm:ss");
+          const tradeTime = DateTime.fromMillis(tokenTime).toLocal();
+          const hrTradeTime = tradeTime.toFormat("HH:mm:ss");
 
           // Get current price
           let tokenCurrentPrice = currentPrices[token]?.extraInfo?.lastSwappedPrice?.lastJupiterSellPrice;
@@ -114,7 +124,7 @@ async function main() {
               const pair = dexRaydiumPairs.find((p: any) => p.baseToken.address === token);
               tokenCurrentPrice = pair ? pair.priceUsd : tokenCurrentPrice;
             } else {
-              console.log(`[tracker-bot]|[main]| 🚩 Latest prices from Dexscreener Tokens API not fetched. Falling back to Jupiter.`);
+              console.log(`[tracker-bot]|[main]| 🚩 Latest prices from Dexscreener Tokens API not fetched. Falling back to Jupiter.`, processRunCounter);
             }
           }
 
@@ -136,12 +146,12 @@ async function main() {
                 const tXtransaction = result.tx;
                 // Add success to log output
                 if (txSuccess) {
-                  console.log(`[tracker-bot]|[main]| ✅🟢 ${hrTradeTime}: Took profit for ${tokenName}\nTx: ${tXtransaction}`);
+                  console.log(`[tracker-bot]|[main]| ✅🟢 ${hrTradeTime}: Took profit for ${tokenName}\nTx: ${tXtransaction}`, processRunCounter);
                 } else {
-                  console.log(`[tracker-bot]|[main]| ⚠️ ERROR when taking profit for ${tokenName}: ${txErrorMsg}`);
+                  console.error(`[tracker-bot]|[main]| ⚠️ ERROR when taking profit for ${tokenName}: ${txErrorMsg}`, processRunCounter);
                 }
               } catch (error: any) {
-                console.log(`[tracker-bot]|[main]| ⚠️  ERROR when taking profit for ${tokenName}: ${error.message}`);
+                console.error(`[tracker-bot]|[main]| ⚠️  ERROR when taking profit for ${tokenName}: ${error.message}`, processRunCounter);
               }
             }
 
@@ -154,37 +164,35 @@ async function main() {
                 const tXtransaction = result.tx;
                 // Add success to log output
                 if (txSuccess) {
-                  console.log(`[tracker-bot]|[main]| ✅🔴 ${hrTradeTime}: Triggered Stop Loss for ${tokenName}\nTx: ${tXtransaction}`);
+                  console.log(`[tracker-bot]|[main]| ✅🔴 ${hrTradeTime}: Triggered Stop Loss for ${tokenName}\nTx: ${tXtransaction}`, processRunCounter);
                 } else {
-                  console.log(`[tracker-bot]|[main]| ⚠️ ERROR when triggering Stop Loss for ${tokenName}: ${txErrorMsg}`);
+                  console.error(`[tracker-bot]|[main]| ⚠️ ERROR when triggering Stop Loss for ${tokenName}: ${txErrorMsg}`, processRunCounter);
                 }
               } catch (error: any) {
-                console.log(`[tracker-bot]|[main]| ⚠️ ERROR when triggering Stop Loss for ${tokenName}: ${error.message}: \n`);
+                console.error(`[tracker-bot]|[main]| ⚠️ ERROR when triggering Stop Loss for ${tokenName}: ${error.message}: \n`, processRunCounter);
               }
             }
           }
 
           // Get the current price
           console.log(
-            `${hrTradeTime}: Buy $${tokenSolPaidUSDC.toFixed(2)} | ${iconPnl} Unrealized PnL: $${unrealizedPnLUSDC.toFixed(
+            `[tracker-bot]|[main]| ${hrTradeTime}: Buy $${tokenSolPaidUSDC.toFixed(2)} | ${iconPnl} Unrealized PnL: $${unrealizedPnLUSDC.toFixed(
               2
-            )} (${unrealizedPnLPercentage.toFixed(2)}%) | ${tokenBalance} ${tokenName}`
+            )} (${unrealizedPnLPercentage.toFixed(2)}%) | ${tokenBalance} ${tokenName}`, processRunCounter
           );
         })
       );
     }
 
     // Output Current Holdings
-    console.clear();
-    console.log(`[tracker-bot]|[main]| 📈 Current Holdings via ✅ ${currentPriceSource}`);
+    console.log(`[tracker-bot]|[main]| 📈 Current Holdings via ✅ ${currentPriceSource}`, processRunCounter);
     if (holdings.length === 0) {
-      console.log(`[tracker-bot]|[main]| No token holdings yet as of ${new Date().toISOString()}`);
+      console.log(`[tracker-bot]|[main]| No token holdings yet as of ${new Date().toISOString()}`, processRunCounter);
     }
-    console.log(`[tracker-bot]|[main]| ${holdingLogs.join("\n")}`);
 
     // Output wallet tracking if set in config
     if (config.sell.track_public_wallet) {
-      console.log(`[tracker-bot]|[main]| Check your wallet: https://gmgn.ai/sol/address/${config.sell.track_public_wallet}`);
+      console.log(`[tracker-bot]|[main]| Check your wallet: https://gmgn.ai/sol/address/${config.sell.track_public_wallet}`, processRunCounter);
     }
 
     await db.close();

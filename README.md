@@ -29,7 +29,17 @@ The Solana tokens trading bots is a Node.js project built with TypeScript, desig
 
 
 ### Prerequisites, Installation and Usage Instructions
-npm install
+## Local runing (for now)
+set env variables example in .env.backup
+`npm install`
+run in different terminals
+`npm run test-solana-sniper-bot`
+`npm run test-telegram-trading-bot`
+`npm run test-tracker-bot`
+
+## Server runing
+Will run all bots simultaneously in different processes
+`pm2 start ecosystem.config.js --env production`
 
 
 ### Third Party documentation
@@ -61,6 +71,10 @@ npm install
 - [ ] Self improvement
 - [ ] Easy deploying
 - [ ] Configuration inheritance
+- [ ] Portfolio and profit tracking
 
 ### Architecture, system design, and visual knowledge base
 [Link](https://computer.tldraw.com/p/2nWRFbhCC27zMUioEqX1Wp)
+
+
+### HOW TO USE LOGGER

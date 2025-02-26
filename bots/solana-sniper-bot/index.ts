@@ -4,6 +4,14 @@ import { config } from "./config";
 import { fetchTransactionDetails, createSwapTransaction, getRugCheckConfirmed, fetchAndSaveSwapDetails } from "./transactions";
 import { validateEnv } from "../utils/env-validator";
 
+// Add startup message
+console.log(`[${new Date().toISOString()}] Solana Sniper Bot Starting...`);
+console.log(`[${new Date().toISOString()}] Configuration loaded:`, {
+  maxConcurrent: config.tx.concurrent_transactions,
+  simulationMode: config.rug_check.simulation_mode,
+  ignorePumpFun: config.rug_check.ignore_pump_fun
+});
+
 // Regional Variables
 let activeTransactions = 0;
 const MAX_CONCURRENT = config.tx.concurrent_transactions;
