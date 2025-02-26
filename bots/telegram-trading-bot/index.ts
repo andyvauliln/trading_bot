@@ -314,14 +314,14 @@ class TelegramReader {
             
             return response.data.messages;
         } catch (error: any) {
-            console.error(`Error fetching messages for ${channelName}: ${error}`, this.processRunCounter);
+            console.error(`[telegram-trading-bot]|[fetchMessages]|Error fetching messages for ${channelName}: ${error}`, this.processRunCounter);
             return [];
         }
     }
 
     async monitorChannels() {
        
-        console.log(`[telegram-trading-bot]|[monitorChannels]|Starting to monitor ${this.config.channels.length} channels...`, this.processRunCounter);
+        console.log(`[telegram-trading-bot]|[monitorChannels]|INITAPPLICATION Start Monitoring Channels`);
         
         while (true) {
             try {
@@ -358,10 +358,10 @@ class TelegramReader {
                     }
                 }
 
-                console.log(`Completed monitoring cycle. Waiting ${this.config.check_interval} seconds before next check...`);
+                console.log(`[telegram-trading-bot]|[monitorChannels]| Completed monitoring channels. Waiting ${this.config.check_interval} seconds before next check...`, this.processRunCounter);
                 await new Promise(resolve => setTimeout(resolve, this.config.check_interval * 1000));
             } catch (e) {
-                console.error(`Error in monitor loop: ${e}`);
+                console.error(`[telegram-trading-bot]|[monitorChannels]|INITAPPLICATION Error in monitor loop: ${e}`);
                 await new Promise(resolve => setTimeout(resolve, this.config.retry_delay * 1000));
             }
         }
