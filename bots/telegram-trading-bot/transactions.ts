@@ -1,12 +1,11 @@
 import axios from "axios";
-import { Connection, Keypair, VersionedTransaction, PublicKey } from "@solana/web3.js";
+import { Connection, Keypair, VersionedTransaction } from "@solana/web3.js";
 import { Wallet } from "@project-serum/anchor";
 import bs58 from "bs58";
 import dotenv from "dotenv";
 import { config } from "./config";
 import {
   TransactionDetailsResponseArray,
-  MintsDataReponse,
   QuoteResponse,
   SerializedQuoteResponse,
   SwapEventDetailsResponse,
@@ -15,7 +14,6 @@ import {
 } from "./types";
 import { insertHolding, selectTokenByMint } from "../tracker-bot/db";
 
-// Load environment variables from the .env file
 dotenv.config();
 
 
@@ -27,6 +25,8 @@ export async function createSwapTransaction(solMint: string, tokenMint: string):
   let serializedQuoteResponseData: SerializedQuoteResponse | null = null;
   const connection = new Connection(rpcUrl);
   const myWallet = new Wallet(Keypair.fromSecretKey(bs58.decode(process.env.PRIV_KEY_WALLET_2 || "")));
+
+  console.log(`[telegram-trading-bot]|[createSwapTransaction]|Going to swap for token: ${tokenMint} with amount: ${config.swap.amount} and slippage: ${config.swap.slippageBps} for wallet: ${myWallet.publicKey.toString()}`);
 
   // Get Swap Quote
   let retryCount = 0;
@@ -46,8 +46,7 @@ export async function createSwapTransaction(solMint: string, tokenMint: string):
       if (!quoteResponse.data) return null;
 
       if (config.verbose_log && config.verbose_log === true) {
-        console.log("\nVerbose log:");
-        console.log(quoteResponse.data);
+        console.log("[telegram-trading-bot]|[createSwapTransaction]| Quote response data:", quoteResponse.data);
       }
 
       quoteResponseData = quoteResponse.data; // Store the successful response
@@ -57,6 +56,7 @@ export async function createSwapTransaction(solMint: string, tokenMint: string):
       if (error.response && error.response.status === 400) {
         const errorData = error.response.data;
         if (errorData.errorCode === "TOKEN_NOT_TRADABLE") {
+          console.warn(`[telegram-trading-bot]|[createSwapTransaction]|Token not tradable. Retrying...`);
           retryCount++;
           await new Promise((resolve) => setTimeout(resolve, config.swap.token_not_tradable_400_error_delay));
           continue; // Retry
@@ -64,32 +64,31 @@ export async function createSwapTransaction(solMint: string, tokenMint: string):
       }
 
       // Throw error (null) when error is not TOKEN_NOT_TRADABLE
-      console.error("Error while requesting a new swap quote:", error.message);
+      console.error(`[telegram-trading-bot]|[createSwapTransaction]| ⛔ Error while requesting a new swap quote: ${error.message}`);
       if (config.verbose_log && config.verbose_log === true) {
-        console.log("Verbose Error Message:");
         if (error.response) {
           // Server responded with a status other than 2xx
-          console.error("Error Status:", error.response.status);
-          console.error("Error Status Text:", error.response.statusText);
-          console.error("Error Data:", error.response.data); // API error message
-          console.error("Error Headers:", error.response.headers);
+          console.error(`[telegram-trading-bot]|[createSwapTransaction]| ⛔ Error Status: ${error.response.status} - ${error.response.statusText}`, error.response.data);
         } else if (error.request) {
           // Request was made but no response was received
-          console.error("No Response:", error.request);
+          console.error("[telegram-trading-bot]|[createSwapTransaction]| ⛔ No Response:", error.request);
         } else {
           // Other errors
-          console.error("Error Message:", error.message);
+          console.error("[telegram-trading-bot]|[createSwapTransaction]| ⛔ Error Message:", error.message);
         }
       }
       return null;
     }
   }
 
-  if (quoteResponseData) console.log("✅ Swap quote recieved.");
+  if (quoteResponseData) console.log("[telegram-trading-bot]|[createSwapTransaction]| ✅ Swap quote recieved.", quoteResponseData);
 
   // Serialize the quote into a swap transaction that can be submitted on chain
   try {
-    if (!quoteResponseData) return null;
+    if (!quoteResponseData) {
+      console.log("[telegram-trading-bot]|[createSwapTransaction]| ⛔ No quote response data.", quoteResponseData);
+      return null;
+    }
 
     const swapResponse = await axios.post<SerializedQuoteResponse>(
       swapUrl,
@@ -122,32 +121,28 @@ export async function createSwapTransaction(solMint: string, tokenMint: string):
     if (!swapResponse.data) return null;
 
     if (config.verbose_log && config.verbose_log === true) {
-      console.log(swapResponse.data);
+      console.log("[telegram-trading-bot]|[createSwapTransaction]| ⛔ Swap response data:", swapResponse.data);
     }
 
     serializedQuoteResponseData = swapResponse.data; // Store the successful response
   } catch (error: any) {
-    console.error("Error while sending the swap quote:", error.message);
+    console.error(`[telegram-trading-bot]|[createSwapTransaction]| ⛔ Error while sending the swap quote: ${error.message}`);
     if (config.verbose_log && config.verbose_log === true) {
-      console.log("Verbose Error Message:");
       if (error.response) {
         // Server responded with a status other than 2xx
-        console.error("Error Status:", error.response.status);
-        console.error("Error Status Text:", error.response.statusText);
-        console.error("Error Data:", error.response.data); // API error message
-        console.error("Error Headers:", error.response.headers);
+        console.error(`[telegram-trading-bot]|[createSwapTransaction]| ⛔ Error Status: ${error.response.status} - ${error.response.statusText}`, error.response.data);
       } else if (error.request) {
         // Request was made but no response was received
-        console.error("No Response:", error.request);
+        console.error(`[telegram-trading-bot]|[createSwapTransaction]| ⛔ No Response: ${error.request}`);
       } else {
         // Other errors
-        console.error("Error Message:", error.message);
+        console.error(`[telegram-trading-bot]|[createSwapTransaction]| ⛔ Error Message: ${error.message}`);
       }
     }
     return null;
   }
 
-  if (serializedQuoteResponseData) console.log("✅ Swap quote serialized.");
+  if (serializedQuoteResponseData) console.log(`[telegram-trading-bot]|[createSwapTransaction]| ✅ Swap quote serialized.`);
 
   // deserialize, sign and send the transaction
   try {
@@ -156,12 +151,15 @@ export async function createSwapTransaction(solMint: string, tokenMint: string):
     var transaction = VersionedTransaction.deserialize(swapTransactionBuf);
 
     // sign the transaction
+    console.log(`[telegram-trading-bot]|[createSwapTransaction]| Signing transaction with wallet: ${myWallet.publicKey.toString()}`);
     transaction.sign([myWallet.payer]);
 
     // get the latest block hash
+    console.log(`[telegram-trading-bot]|[createSwapTransaction]| Getting the latest block hash`);
     const latestBlockHash = await connection.getLatestBlockhash();
 
     // Execute the transaction
+    console.log(`[telegram-trading-bot]|[createSwapTransaction]| Executing the transaction`);
     const rawTransaction = transaction.serialize();
     const txid = await connection.sendRawTransaction(rawTransaction, {
       skipPreflight: true, // If True, This will skip transaction simulation entirely.
@@ -170,44 +168,41 @@ export async function createSwapTransaction(solMint: string, tokenMint: string):
 
     // Return null when no tx was returned
     if (!txid) {
-      console.log("🚫 No id received for sent raw transaction.");
+      console.log(`[telegram-trading-bot]|[createSwapTransaction]| ⛔ No id received for sent raw transaction.`);
       return null;
     }
 
-    if (txid) console.log("✅ Raw transaction id received.");
+    if (txid) console.log(`[telegram-trading-bot]|[createSwapTransaction]| ✅ Raw transaction id received.`);
 
     // Fetch the current status of a transaction signature (processed, confirmed, finalized).
+    console.log(`[telegram-trading-bot]|[createSwapTransaction]| Fetching the current status of a transaction signature (processed, confirmed, finalized).`);
     const conf = await connection.confirmTransaction({
       blockhash: latestBlockHash.blockhash,
       lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
       signature: txid,
     });
 
-    if (txid) console.log("🔎 Checking transaction confirmation ...");
 
     // Return null when an error occured when confirming the transaction
     if (conf.value.err || conf.value.err !== null) {
-      console.log("🚫 Transaction confirmation failed.");
+      console.log(`[telegram-trading-bot]|[createSwapTransaction]| ⛔ Transaction confirmation failed.`);
       return null;
     }
 
     return txid;
   } catch (error: any) {
-    console.error("Error while signing and sending the transaction:", error.message);
+    console.error(`[telegram-trading-bot]|[createSwapTransaction]| ⛔ Error while signing and sending the transaction: ${error.message}`);
     if (config.verbose_log && config.verbose_log === true) {
-      console.log("Verbose Error Message:");
+      console.log(`[telegram-trading-bot]|[createSwapTransaction]| ⛔ Verbose Error Message:`);
       if (error.response) {
         // Server responded with a status other than 2xx
-        console.error("Error Status:", error.response.status);
-        console.error("Error Status Text:", error.response.statusText);
-        console.error("Error Data:", error.response.data); // API error message
-        console.error("Error Headers:", error.response.headers);
+        console.error(`[telegram-trading-bot]|[createSwapTransaction]| ⛔ Error Status: ${error.response.status} Error Status Text: ${error.response.statusText}`, error.response.data);
       } else if (error.request) {
         // Request was made but no response was received
-        console.error("No Response:", error.request);
+        console.error(`[telegram-trading-bot]|[createSwapTransaction]| ⛔ No Response`, error.request);
       } else {
         // Other errors
-        console.error("Error Message:", error.message);
+        console.error(`[telegram-trading-bot]|[createSwapTransaction]| ⛔ Error Message: ${error.message}`);
       }
     }
     return null;
@@ -218,7 +213,7 @@ export async function createSwapTransaction(solMint: string, tokenMint: string):
 export async function fetchAndSaveSwapDetails(tx: string): Promise<boolean> {
   const txUrl = process.env.HELIUS_HTTPS_URI_TX || "";
   const priceUrl = process.env.JUP_HTTPS_PRICE_URI || "";
-
+  console.log(`[telegram-trading-bot]|[fetchAndSaveSwapDetails]| Fetching swap details for tx: ${tx}`);
   try {
     const response = await axios.post<any>(
       txUrl,
@@ -233,9 +228,7 @@ export async function fetchAndSaveSwapDetails(tx: string): Promise<boolean> {
 
     // Verify if we received tx reponse data
     if (!response.data || response.data.length === 0) {
-      console.log("⛔ Could not fetch swap details: No response received from API.", response);
-      console.log("txUrl", txUrl);
-      console.log("tx", tx);
+      console.log("[telegram-trading-bot]|[fetchAndSaveSwapDetails]| ⛔ Could not fetch swap details: No response received from API.", response);
       return false;
     }
 
@@ -250,8 +243,10 @@ export async function fetchAndSaveSwapDetails(tx: string): Promise<boolean> {
       timestamp: transactions[0]?.timestamp,
       description: transactions[0]?.description,
     };
+    console.log(`[telegram-trading-bot]|[fetchAndSaveSwapDetails]| Swap transaction data:`, swapTransactionData);
 
     // Get latest Sol Price
+    console.log(`[telegram-trading-bot]|[fetchAndSaveSwapDetails]| Getting latest Sol Price`);
     const priceResponse = await axios.get<any>(priceUrl, {
       params: {
         ids: config.sol_mint,
@@ -260,18 +255,23 @@ export async function fetchAndSaveSwapDetails(tx: string): Promise<boolean> {
     });
 
     // Verify if we received the price response data
-    if (!priceResponse.data.data[config.sol_mint]?.price) return false;
-
+    if (!priceResponse.data.data[config.sol_mint]?.price) {
+      console.log(`[telegram-trading-bot]|[fetchAndSaveSwapDetails]| ⛔ Could not fetch latest Sol Price: No response received from API.`, priceResponse);
+      return false;
+    }
+    console.log(`[telegram-trading-bot]|[fetchAndSaveSwapDetails]| Latest Sol Price:`, priceResponse.data.data[config.sol_mint]?.price);
     // Calculate estimated price paid in sol
+    console.log(`[telegram-trading-bot]|[fetchAndSaveSwapDetails]| Calculating estimated price paid in sol`);
     const solUsdcPrice = priceResponse.data.data[config.sol_mint]?.price;
     const solPaidUsdc = swapTransactionData.tokenInputs[0].tokenAmount * solUsdcPrice;
     const solFeePaidUsdc = (swapTransactionData.fee / 1_000_000_000) * solUsdcPrice;
     const perTokenUsdcPrice = solPaidUsdc / swapTransactionData.tokenOutputs[0].tokenAmount;
 
     // Get token meta data
+    console.log(`[telegram-trading-bot]|[fetchAndSaveSwapDetails]| Caclulated Prices`, {solPaidUsdc, solFeePaidUsdc, perTokenUsdcPrice});
     let tokenName = "N/A";
     const tokenData: NewTokenRecord[] = await selectTokenByMint(swapTransactionData.tokenOutputs[0].mint);
-    if (tokenData) {
+    if (tokenData && tokenData.length > 0) {
       tokenName = tokenData[0].name;
     }
 
@@ -291,13 +291,13 @@ export async function fetchAndSaveSwapDetails(tx: string): Promise<boolean> {
     };
 
     await insertHolding(newHolding).catch((err: any) => {
-      console.log("⛔ Database Error: " + err);
+      console.log(`[telegram-trading-bot]|[fetchAndSaveSwapDetails]| ⛔ Insert Holding Database Error: ${err}`);
       return false;
     });
 
     return true;
   } catch (error: any) {
-    console.error("Error during request:", error.message);
+    console.error(`[telegram-trading-bot]|[fetchAndSaveSwapDetails]| ⛔ Fetch and Save Swap Details Error: ${error.message}`);
     return false;
   }
 }

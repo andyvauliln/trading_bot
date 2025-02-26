@@ -13,27 +13,27 @@ import {
   HoldingRecord,
   RugResponseExtended,
   NewTokenRecord,
-  createSellTransactionResponse,
 } from "./types";
-import { insertHolding, insertNewToken, removeHolding, selectTokenByMint, selectTokenByNameAndCreator } from "../tracker-bot/db";
+import { insertHolding, insertNewToken, selectTokenByMint, selectTokenByNameAndCreator } from "../tracker-bot/db";
 
 // Load environment variables from the .env file
 dotenv.config();
 
 export async function fetchTransactionDetails(signature: string): Promise<MintsDataReponse | null> {
   // Set function constants
+  console.log(`[solana-sniper-bot]|[fetchTransactionDetails]| Fetching transaction details for signature: ${signature}`);
   const txUrl = process.env.HELIUS_HTTPS_URI_TX || "";
   const maxRetries = config.tx.fetch_tx_max_retries;
   let retryCount = 0;
 
   // Add longer initial delay to allow transaction to be processed
-  console.log("Waiting " + config.tx.fetch_tx_initial_delay / 1000 + " seconds for transaction to be confirmed...");
+  console.log(`[solana-sniper-bot]|[fetchTransactionDetails]| Waiting ${config.tx.fetch_tx_initial_delay / 1000} seconds for transaction to be confirmed...`);
   await new Promise((resolve) => setTimeout(resolve, config.tx.fetch_tx_initial_delay));
 
   while (retryCount < maxRetries) {
     try {
       // Output logs
-      console.log(`Attempt ${retryCount + 1} of ${maxRetries} to fetch transaction details...`);
+      console.log(`[solana-sniper-bot]|[fetchTransactionDetails]| Attempt ${retryCount + 1} of ${maxRetries} to fetch transaction details...`);
 
       const response = await axios.post<any>(
         txUrl,
@@ -52,44 +52,48 @@ export async function fetchTransactionDetails(signature: string): Promise<MintsD
 
       // Verify if a response was received
       if (!response.data) {
-        throw new Error("No response data received");
+        throw new Error(`[solana-sniper-bot]|[fetchTransactionDetails]| No response data received`);
       }
 
       // Verify if the response was in the correct format and not empty
       if (!Array.isArray(response.data) || response.data.length === 0) {
-        throw new Error("Response data array is empty");
+        throw new Error(`[solana-sniper-bot]|[fetchTransactionDetails]| Response data array is empty`);
       }
 
       // Access the `data` property which contains the array of transactions
       const transactions: TransactionDetailsResponseArray = response.data;
+      console.log(`[solana-sniper-bot]|[fetchTransactionDetails]| Transactions Data Received`, transactions);
 
       // Verify if transaction details were found
       if (!transactions[0]) {
-        throw new Error("Transaction not found");
+        throw new Error(`[solana-sniper-bot]|[fetchTransactionDetails]| Transaction not found`);
       }
 
       // Access the `instructions` property which contains account instructions
+      console.log(`[solana-sniper-bot]|[fetchTransactionDetails]| Instructions Data Received`, transactions[0].instructions);
       const instructions = transactions[0].instructions;
       if (!instructions || !Array.isArray(instructions) || instructions.length === 0) {
-        throw new Error("No instructions found in transaction");
+        throw new Error(`[solana-sniper-bot]|[fetchTransactionDetails]| No instructions found in transaction`);
       }
 
       // Verify and find the instructions for the correct market maker id
       const instruction = instructions.find((ix) => ix.programId === config.liquidity_pool.radiyum_program_id);
+      console.log(`[solana-sniper-bot]|[fetchTransactionDetails]| Verify and find the instructions for the correct market maker id`, instruction);
       if (!instruction || !instruction.accounts) {
-        throw new Error("No market maker instruction found");
+        throw new Error(`[solana-sniper-bot]|[fetchTransactionDetails]| No market maker instruction found`);
       }
       if (!Array.isArray(instruction.accounts) || instruction.accounts.length < 10) {
-        throw new Error("Invalid accounts array in instruction");
+        throw new Error(`[solana-sniper-bot]|[fetchTransactionDetails]| Invalid accounts array in instruction`);
       }
 
       // Store quote and token mints
       const accountOne = instruction.accounts[8];
       const accountTwo = instruction.accounts[9];
-
+      console.log(`[solana-sniper-bot]|[fetchTransactionDetails]| Store quote and token mints accounts`, accountOne, accountTwo);
+      
       // Verify if we received both quote and token mints
       if (!accountOne || !accountTwo) {
-        throw new Error("Required accounts not found");
+        throw new Error(`[solana-sniper-bot]|[fetchTransactionDetails]| Required accounts not found`);
       }
 
       // Set new token and SOL mint
@@ -104,9 +108,9 @@ export async function fetchTransactionDetails(signature: string): Promise<MintsD
       }
 
       // Output logs
-      console.log("Successfully fetched transaction details!");
-      console.log(`SOL Token Account: ${solTokenAccount}`);
-      console.log(`New Token Account: ${newTokenAccount}`);
+      console.log(`[solana-sniper-bot]|[fetchTransactionDetails]| Successfully fetched transaction details!`);
+      console.log(`[solana-sniper-bot]|[fetchTransactionDetails]| SOL Token Account: ${solTokenAccount}`);
+      console.log(`[solana-sniper-bot]|[fetchTransactionDetails]| New Token Account: ${newTokenAccount}`);
 
       const displayData: MintsDataReponse = {
         tokenMint: newTokenAccount,
@@ -115,19 +119,19 @@ export async function fetchTransactionDetails(signature: string): Promise<MintsD
 
       return displayData;
     } catch (error: any) {
-      console.log(`Attempt ${retryCount + 1} failed: ${error.message}`);
+      console.error(`[solana-sniper-bot]|[fetchTransactionDetails]| Attempt ${retryCount + 1} failed: ${error.message}`);
 
       retryCount++;
 
       if (retryCount < maxRetries) {
         const delay = Math.min(4000 * Math.pow(1.5, retryCount), 15000);
-        console.log(`Waiting ${delay / 1000} seconds before next attempt...`);
+        console.log(`[solana-sniper-bot]|[fetchTransactionDetails]| Waiting ${delay / 1000} seconds before next attempt...`);
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
   }
 
-  console.log("All attempts to fetch transaction details failed");
+  console.log(`[solana-sniper-bot]|[fetchTransactionDetails]| All attempts to fetch transaction details failed`);
   return null;
 }
 
@@ -139,6 +143,8 @@ export async function createSwapTransaction(solMint: string, tokenMint: string):
   let serializedQuoteResponseData: SerializedQuoteResponse | null = null;
   const connection = new Connection(rpcUrl);
   const myWallet = new Wallet(Keypair.fromSecretKey(bs58.decode(process.env.PRIV_KEY_WALLET_2 || "")));
+
+  console.log(`[solana-sniper-bot]|[createSwapTransaction]|Going to swap for token: ${tokenMint} with amount: ${config.swap.amount} and slippage: ${config.swap.slippageBps} for wallet: ${myWallet.publicKey.toString()}`);
 
   // Get Swap Quote
   let retryCount = 0;
@@ -158,8 +164,7 @@ export async function createSwapTransaction(solMint: string, tokenMint: string):
       if (!quoteResponse.data) return null;
 
       if (config.verbose_log && config.verbose_log === true) {
-        console.log("\nVerbose log:");
-        console.log(quoteResponse.data);
+        console.log("[solana-sniper-bot]|[createSwapTransaction]| Quote response data:", quoteResponse.data);
       }
 
       quoteResponseData = quoteResponse.data; // Store the successful response
@@ -169,6 +174,7 @@ export async function createSwapTransaction(solMint: string, tokenMint: string):
       if (error.response && error.response.status === 400) {
         const errorData = error.response.data;
         if (errorData.errorCode === "TOKEN_NOT_TRADABLE") {
+          console.warn(`[solana-sniper-bot]|[createSwapTransaction]|Token not tradable. Retrying...`);
           retryCount++;
           await new Promise((resolve) => setTimeout(resolve, config.swap.token_not_tradable_400_error_delay));
           continue; // Retry
@@ -176,32 +182,31 @@ export async function createSwapTransaction(solMint: string, tokenMint: string):
       }
 
       // Throw error (null) when error is not TOKEN_NOT_TRADABLE
-      console.error("Error while requesting a new swap quote:", error.message);
+      console.error(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ Error while requesting a new swap quote: ${error.message}`);
       if (config.verbose_log && config.verbose_log === true) {
-        console.log("Verbose Error Message:");
         if (error.response) {
           // Server responded with a status other than 2xx
-          console.error("Error Status:", error.response.status);
-          console.error("Error Status Text:", error.response.statusText);
-          console.error("Error Data:", error.response.data); // API error message
-          console.error("Error Headers:", error.response.headers);
+          console.error(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ Error Status: ${error.response.status} - ${error.response.statusText}`, error.response.data);
         } else if (error.request) {
           // Request was made but no response was received
-          console.error("No Response:", error.request);
+          console.error("[solana-sniper-bot]|[createSwapTransaction]| ⛔ No Response:", error.request);
         } else {
           // Other errors
-          console.error("Error Message:", error.message);
+          console.error("[solana-sniper-bot]|[createSwapTransaction]| ⛔ Error Message:", error.message);
         }
       }
       return null;
     }
   }
 
-  if (quoteResponseData) console.log("✅ Swap quote recieved.");
+  if (quoteResponseData) console.log("[solana-sniper-bot]|[createSwapTransaction]| ✅ Swap quote recieved.", quoteResponseData);
 
   // Serialize the quote into a swap transaction that can be submitted on chain
   try {
-    if (!quoteResponseData) return null;
+    if (!quoteResponseData) {
+      console.log("[solana-sniper-bot]|[createSwapTransaction]| ⛔ No quote response data.", quoteResponseData);
+      return null;
+    }
 
     const swapResponse = await axios.post<SerializedQuoteResponse>(
       swapUrl,
@@ -234,32 +239,28 @@ export async function createSwapTransaction(solMint: string, tokenMint: string):
     if (!swapResponse.data) return null;
 
     if (config.verbose_log && config.verbose_log === true) {
-      console.log(swapResponse.data);
+      console.log("[solana-sniper-bot]|[createSwapTransaction]| ⛔ Swap response data:", swapResponse.data);
     }
 
     serializedQuoteResponseData = swapResponse.data; // Store the successful response
   } catch (error: any) {
-    console.error("Error while sending the swap quote:", error.message);
+    console.error(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ Error while sending the swap quote: ${error.message}`);
     if (config.verbose_log && config.verbose_log === true) {
-      console.log("Verbose Error Message:");
       if (error.response) {
         // Server responded with a status other than 2xx
-        console.error("Error Status:", error.response.status);
-        console.error("Error Status Text:", error.response.statusText);
-        console.error("Error Data:", error.response.data); // API error message
-        console.error("Error Headers:", error.response.headers);
+        console.error(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ Error Status: ${error.response.status} - ${error.response.statusText}`, error.response.data);
       } else if (error.request) {
         // Request was made but no response was received
-        console.error("No Response:", error.request);
+        console.error(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ No Response: ${error.request}`);
       } else {
         // Other errors
-        console.error("Error Message:", error.message);
+        console.error(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ Error Message: ${error.message}`);
       }
     }
     return null;
   }
 
-  if (serializedQuoteResponseData) console.log("✅ Swap quote serialized.");
+  if (serializedQuoteResponseData) console.log(`[solana-sniper-bot]|[createSwapTransaction]| ✅ Swap quote serialized.`);
 
   // deserialize, sign and send the transaction
   try {
@@ -268,12 +269,15 @@ export async function createSwapTransaction(solMint: string, tokenMint: string):
     var transaction = VersionedTransaction.deserialize(swapTransactionBuf);
 
     // sign the transaction
+    console.log(`[solana-sniper-bot]|[createSwapTransaction]| Signing transaction with wallet: ${myWallet.publicKey.toString()}`);
     transaction.sign([myWallet.payer]);
 
     // get the latest block hash
+    console.log(`[solana-sniper-bot]|[createSwapTransaction]| Getting the latest block hash`);
     const latestBlockHash = await connection.getLatestBlockhash();
 
     // Execute the transaction
+    console.log(`[solana-sniper-bot]|[createSwapTransaction]| Executing the transaction`);
     const rawTransaction = transaction.serialize();
     const txid = await connection.sendRawTransaction(rawTransaction, {
       skipPreflight: true, // If True, This will skip transaction simulation entirely.
@@ -282,219 +286,209 @@ export async function createSwapTransaction(solMint: string, tokenMint: string):
 
     // Return null when no tx was returned
     if (!txid) {
-      console.log("🚫 No id received for sent raw transaction.");
+      console.log(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ No id received for sent raw transaction.`);
       return null;
     }
 
-    if (txid) console.log("✅ Raw transaction id received.");
+    if (txid) console.log(`[solana-sniper-bot]|[createSwapTransaction]| ✅ Raw transaction id received.`);
 
     // Fetch the current status of a transaction signature (processed, confirmed, finalized).
+    console.log(`[solana-sniper-bot]|[createSwapTransaction]| Fetching the current status of a transaction signature (processed, confirmed, finalized).`);
     const conf = await connection.confirmTransaction({
       blockhash: latestBlockHash.blockhash,
       lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
       signature: txid,
     });
 
-    if (txid) console.log("🔎 Checking transaction confirmation ...");
 
     // Return null when an error occured when confirming the transaction
     if (conf.value.err || conf.value.err !== null) {
-      console.log("🚫 Transaction confirmation failed.");
+      console.log(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ Transaction confirmation failed.`);
       return null;
     }
 
     return txid;
   } catch (error: any) {
-    console.error("Error while signing and sending the transaction:", error.message);
+    console.error(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ Error while signing and sending the transaction: ${error.message}`);
     if (config.verbose_log && config.verbose_log === true) {
-      console.log("Verbose Error Message:");
+      console.log(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ Verbose Error Message:`);
       if (error.response) {
         // Server responded with a status other than 2xx
-        console.error("Error Status:", error.response.status);
-        console.error("Error Status Text:", error.response.statusText);
-        console.error("Error Data:", error.response.data); // API error message
-        console.error("Error Headers:", error.response.headers);
+        console.error(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ Error Status: ${error.response.status} Error Status Text: ${error.response.statusText}`, error.response.data);
       } else if (error.request) {
         // Request was made but no response was received
-        console.error("No Response:", error.request);
+        console.error(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ No Response`, error.request);
       } else {
         // Other errors
-        console.error("Error Message:", error.message);
+        console.error(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ Error Message: ${error.message}`);
       }
     }
     return null;
   }
 }
 
-export async function getRugCheckConfirmed(tokenMint: string): Promise<boolean> {
-  const rugResponse = await axios.get<RugResponseExtended>("https://api.rugcheck.xyz/v1/tokens/" + tokenMint + "/report", {
-    timeout: config.tx.get_timeout,
-  });
-
-  if (!rugResponse.data) return false;
-
-  if (config.verbose_log && config.verbose_log === true) {
-    console.log(rugResponse.data);
-  }
-
-  // Extract information
-  const tokenReport: RugResponseExtended = rugResponse.data;
-  const tokenCreator = tokenReport.creator ? tokenReport.creator : tokenMint;
-  const mintAuthority = tokenReport.token.mintAuthority;
-  const freezeAuthority = tokenReport.token.freezeAuthority;
-  const isInitialized = tokenReport.token.isInitialized;
-  const supply = tokenReport.token.supply;
-  const decimals = tokenReport.token.decimals;
-  const tokenName = tokenReport.tokenMeta.name;
-  const tokenSymbol = tokenReport.tokenMeta.symbol;
-  const tokenMutable = tokenReport.tokenMeta.mutable;
-  let topHolders = tokenReport.topHolders;
-  const marketsLength = tokenReport.markets ? tokenReport.markets.length : 0;
-  const totalLPProviders = tokenReport.totalLPProviders;
-  const totalMarketLiquidity = tokenReport.totalMarketLiquidity;
-  const isRugged = tokenReport.rugged;
-  const rugScore = tokenReport.score;
-  const rugRisks = tokenReport.risks
-    ? tokenReport.risks
-    : [
-        {
-          name: "Good",
-          value: "",
-          description: "",
-          score: 0,
-          level: "good",
-        },
-      ];
-
-  // Update topholders if liquidity pools are excluded
-  if (config.rug_check.exclude_lp_from_topholders) {
-    // local types
-    type Market = {
-      liquidityA?: string;
-      liquidityB?: string;
-    };
-
-    const markets: Market[] | undefined = tokenReport.markets;
-    if (markets) {
-      // Safely extract liquidity addresses from markets
-      const liquidityAddresses: string[] = (markets ?? [])
-        .flatMap((market) => [market.liquidityA, market.liquidityB])
-        .filter((address): address is string => !!address);
-
-      // Filter out topHolders that match any of the liquidity addresses
-      topHolders = topHolders.filter((holder) => !liquidityAddresses.includes(holder.address));
-    }
-  }
-
-  // Get config
-  const rugCheckConfig = config.rug_check;
-  const rugCheckLegacy = rugCheckConfig.legacy_not_allowed;
-
-  // Set conditions
-  const conditions = [
-    {
-      check: !rugCheckConfig.allow_mint_authority && mintAuthority !== null,
-      message: "🚫 Mint authority should be null",
-    },
-    {
-      check: !rugCheckConfig.allow_not_initialized && !isInitialized,
-      message: "🚫 Token is not initialized",
-    },
-    {
-      check: !rugCheckConfig.allow_freeze_authority && freezeAuthority !== null,
-      message: "🚫 Freeze authority should be null",
-    },
-    {
-      check: !rugCheckConfig.allow_mutable && tokenMutable !== false,
-      message: "🚫 Mutable should be false",
-    },
-    {
-      check: !rugCheckConfig.allow_insider_topholders && topHolders.some((holder) => holder.insider),
-      message: "🚫 Insider accounts should not be part of the top holders",
-    },
-    {
-      check: topHolders.some((holder) => holder.pct > rugCheckConfig.max_alowed_pct_topholders),
-      message: `🚫 An individual top holder cannot hold more than the allowed percentage of the total supply: Current: ${topHolders[0].pct}% - Allowed: ${rugCheckConfig.max_alowed_pct_topholders}%`,
-    },
-    {
-      check: totalLPProviders < rugCheckConfig.min_total_lp_providers,
-      message: "🚫 Not enough LP Providers.",
-    },
-    {
-      check: marketsLength < rugCheckConfig.min_total_markets,
-      message: "🚫 Not enough Markets.",
-    },
-    {
-      check: totalMarketLiquidity < rugCheckConfig.min_total_market_Liquidity,
-      message: "🚫 Not enough Market Liquidity.",
-    },
-    {
-      check: !rugCheckConfig.allow_rugged && isRugged, //true
-      message: "🚫 Token is rugged",
-    },
-    {
-      check: rugCheckConfig.block_symbols.includes(tokenSymbol),
-      message: "🚫 Symbol is blocked",
-    },
-    {
-      check: rugCheckConfig.block_names.includes(tokenName),
-      message: "🚫 Name is blocked",
-    },
-    {
-      check: rugScore > rugCheckConfig.max_score && rugCheckConfig.max_score !== 0,
-      message: "🚫 Rug score to high.",
-    },
-    {
-      check: rugRisks.some((risk) => rugCheckLegacy.includes(risk.name)),
-      message: "🚫 Token has legacy risks that are not allowed.",
-    },
-  ];
-
-  // If tracking duplicate tokens is enabled
-  if (config.rug_check.block_returning_token_names || config.rug_check.block_returning_token_creators) {
-    // Get duplicates based on token min and creator
-    const duplicate = await selectTokenByNameAndCreator(tokenName, tokenCreator);
-
-    // Verify if duplicate token or creator was returned
-    if (duplicate.length !== 0) {
-      if (config.rug_check.block_returning_token_names && duplicate.some((token: any) => token.name === tokenName)) {
-        console.log("🚫 Token with this name was already created");
-        return false;
-      }
-      if (config.rug_check.block_returning_token_creators && duplicate.some((token: any) => token.creator === tokenCreator)) {
-        console.log("🚫 Token from this creator was already created");
-        return false;
-      }
-    }
-  }
-
-  // Create new token record
-  const newToken: NewTokenRecord = {
-    time: Date.now(),
-    mint: tokenMint,
-    name: tokenName,
-    creator: tokenCreator,
-  };
-  await insertNewToken(newToken).catch((err) => {
-      console.log("⛔ Unable to store new token for tracking duplicate tokens: " + err);
-  });
-
-  //Validate conditions
-  for (const condition of conditions) {
-    if (condition.check) {
-      console.log(condition.message);
+export async function getRugCheckConfirmed(token: string): Promise<boolean> {
+  console.log(`[telegram-trading-bot]|[getRugCheckConfirmed]| Getting Rug Check for token: ${token}`);
+    const rugResponse = await axios.get<RugResponseExtended>("https://api.rugcheck.xyz/v1/tokens/" + token + "/report", {
+      timeout: 100000,
+    });
+  
+    if (!rugResponse.data) {
+      console.log(`[telegram-trading-bot]|[getRugCheckConfirmed]| ⛔ Could not fetch Rug Check: No response received from API.`, rugResponse);
       return false;
     }
-  }
+  
+    if (config.verbose_log && config.verbose_log === true) {
+      console.log(`[telegram-trading-bot]|[getRugCheckConfirmed]| Rug Check Response:`, rugResponse.data);
+    }
+  
+    // Extract information
+    console.log(`[telegram-trading-bot]|[getRugCheckConfirmed]| Extracting information from Rug Check Response`);
+    const tokenReport: RugResponseExtended = rugResponse.data;
+    const tokenCreator = tokenReport.creator ? tokenReport.creator : token;
+    const mintAuthority = tokenReport.token.mintAuthority;
+    const freezeAuthority = tokenReport.token.freezeAuthority;
+    const isInitialized = tokenReport.token.isInitialized;
+    const supply = tokenReport.token.supply;
+    const decimals = tokenReport.token.decimals;
+    const tokenName = tokenReport.tokenMeta.name;
+    const tokenSymbol = tokenReport.tokenMeta.symbol;
+    const tokenMutable = tokenReport.tokenMeta.mutable;
+    let topHolders = tokenReport.topHolders;
+    const marketsLength = tokenReport.markets ? tokenReport.markets.length : 0;
+    const totalLPProviders = tokenReport.totalLPProviders;
+    const totalMarketLiquidity = tokenReport.totalMarketLiquidity;
+    const isRugged = tokenReport.rugged;
+    const rugScore = tokenReport.score;
+    const rugRisks = tokenReport.risks
+      ? tokenReport.risks
+      : [
+          {
+            name: "Good",
+            value: "",
+            description: "",
+            score: 0,
+            level: "good",
+          },
+        ];
+  
+    // Update topholders if liquidity pools are excluded
+    if (config.rug_check.exclude_lp_from_topholders) {
+      console.log(`[telegram-trading-bot]|[getRugCheckConfirmed]| Excluding liquidity pools from top holders`);
+      // local types
+      type Market = {
+        liquidityA?: string;
+        liquidityB?: string;
+      };
+  
+      const markets: Market[] | undefined = tokenReport.markets;
+      if (markets) {
+        console.log(`[telegram-trading-bot]|[getRugCheckConfirmed]| Extracting liquidity addresses from markets`);
+        // Safely extract liquidity addresses from markets
+        const liquidityAddresses: string[] = (markets ?? [])
+          .flatMap((market) => [market.liquidityA, market.liquidityB])
+          .filter((address): address is string => !!address);
+  
+        // Filter out topHolders that match any of the liquidity addresses
+        topHolders = topHolders.filter((holder) => !liquidityAddresses.includes(holder.address));
+        console.log(`[telegram-trading-bot]|[getRugCheckConfirmed]| Top Holders after filtering:`, topHolders);
+      }
+    }
+  
+    // Get config
+    console.log(`[telegram-trading-bot]|[getRugCheckConfirmed]| Getting bot config`, config);
+    const rugCheckConfig = config.rug_check;
+    const rugCheckLegacy = rugCheckConfig.legacy_not_allowed;
+  
+    // Set conditions
+    console.log(`[telegram-trading-bot]|[getRugCheckConfirmed]| Setting conditions`);
+    const conditions = [
+      {
+        check: !rugCheckConfig.allow_mint_authority && mintAuthority !== null,
+        message: `🚫 Mint authority should be null: Config: ${rugCheckConfig.allow_mint_authority} - Current: ${mintAuthority}`,
+      },
+      {
+        check: !rugCheckConfig.allow_not_initialized && !isInitialized,
+        message: `🚫 Token is not initialized: Config: ${rugCheckConfig.allow_not_initialized} - Current: ${isInitialized}`,
+      },
+      {
+        check: !rugCheckConfig.allow_freeze_authority && freezeAuthority !== null,
+        message: `🚫 Freeze authority should be null: Config: ${rugCheckConfig.allow_freeze_authority} - Current: ${freezeAuthority}`,
+      },
+      {
+        check: !rugCheckConfig.allow_mutable && tokenMutable !== false,
+        message: `🚫 Mutable should be false: Config: ${rugCheckConfig.allow_mutable} - Current: ${tokenMutable}`,
+      },
+      {
+        check: !rugCheckConfig.allow_insider_topholders && topHolders.some((holder) => holder.insider),
+        message: `🚫 Insider accounts should not be part of the top holders: Config: ${rugCheckConfig.allow_insider_topholders} - Current: ${topHolders.map((holder) => holder.insider).join(", ")}`,
+      },
+      {
+        check: topHolders.some((holder) => holder.pct > rugCheckConfig.max_alowed_pct_topholders),
+        message: `🚫 An individual top holder cannot hold more than the allowed percentage of the total supply: Config: ${rugCheckConfig.max_alowed_pct_topholders} - Current: ${topHolders.map((holder) => holder.pct).join(", ")}`,
+      },
+      {
+        check: totalLPProviders < rugCheckConfig.min_total_lp_providers,
+        message: `🚫 Not enough LP Providers: Config: ${rugCheckConfig.min_total_lp_providers} - Current: ${totalLPProviders}`,
+      },
+      {
+        check: marketsLength < rugCheckConfig.min_total_markets,
+        message: `🚫 Not enough Markets: Config: ${rugCheckConfig.min_total_markets} - Current: ${marketsLength}`,
+      },
+      {
+        check: totalMarketLiquidity < rugCheckConfig.min_total_market_Liquidity,
+        message: `🚫 Not enough Market Liquidity: Config: ${rugCheckConfig.min_total_market_Liquidity} - Current: ${totalMarketLiquidity}`,
+      },
+      {
+        check: !rugCheckConfig.allow_rugged && isRugged, //true
+        message: `🚫 Token is rugged: Config: ${rugCheckConfig.allow_rugged} - Current: ${isRugged}`,
+      },
+      {
+        check: rugCheckConfig.block_symbols.includes(tokenSymbol),
+        message: `🚫 Symbol is blocked: Config: ${rugCheckConfig.block_symbols} - Current: ${tokenSymbol}`,
+      },
+      {
+        check: rugCheckConfig.block_names.includes(tokenName),
+        message: `🚫 Name is blocked: Config: ${rugCheckConfig.block_names} - Current: ${tokenName}`,
+      },
+      {
+        check: rugScore > rugCheckConfig.max_score && rugCheckConfig.max_score !== 0,
+        message: `🚫 Rug score to high: Config: ${rugCheckConfig.max_score} - Current: ${rugScore}`,
+      },
+      {
+        check: rugRisks.some((risk) => rugCheckLegacy.includes(risk.name)),
+        message: `🚫 Token has legacy risks that are not allowed: Config: ${rugCheckLegacy} - Current: ${rugRisks.map((risk) => risk.name).join(", ")}`,
+      },
+    ];
 
-  return true;
-}
+    console.log(`[telegram-trading-bot]|[getRugCheckConfirmed]| Conditions:`, conditions);
+  
+    // Create new token record
+    const newToken: NewTokenRecord = {
+      time: Date.now(),
+      mint: token,
+      name: tokenName,
+      creator: tokenCreator,
+    };
+    await insertNewToken(newToken).catch((err) => {
+        console.log(`[telegram-trading-bot]|[getRugCheckConfirmed]| ⛔ Unable to store new token for tracking duplicate tokens: ${err}`);
+    });
+  
+    //Validate conditions
+    for (const condition of conditions) {
+      if (condition.check) {
+        console.log(`[telegram-trading-bot]|[getRugCheckConfirmed]| ⛔ Condition failed: ${condition.message}`);
+        return false;
+      }
+    }
+  
+    return true;
+  }
 
 export async function fetchAndSaveSwapDetails(tx: string): Promise<boolean> {
   const txUrl = process.env.HELIUS_HTTPS_URI_TX || "";
   const priceUrl = process.env.JUP_HTTPS_PRICE_URI || "";
-  const rpcUrl = process.env.HELIUS_HTTPS_URI || "";
-
+  console.log(`[solana-sniper-bot]|[fetchAndSaveSwapDetails]| Fetching swap details for tx: ${tx}`);
   try {
     const response = await axios.post<any>(
       txUrl,
@@ -509,7 +503,7 @@ export async function fetchAndSaveSwapDetails(tx: string): Promise<boolean> {
 
     // Verify if we received tx reponse data
     if (!response.data || response.data.length === 0) {
-      console.log("⛔ Could not fetch swap details: No response received from API.");
+      console.log("[solana-sniper-bot]|[fetchAndSaveSwapDetails]| ⛔ Could not fetch swap details: No response received from API.", response);
       return false;
     }
 
@@ -524,29 +518,35 @@ export async function fetchAndSaveSwapDetails(tx: string): Promise<boolean> {
       timestamp: transactions[0]?.timestamp,
       description: transactions[0]?.description,
     };
+    console.log(`[solana-sniper-bot]|[fetchAndSaveSwapDetails]| Swap transaction data:`, swapTransactionData);
 
     // Get latest Sol Price
-    const solMint = config.liquidity_pool.wsol_pc_mint;
+    console.log(`[solana-sniper-bot]|[fetchAndSaveSwapDetails]| Getting latest Sol Price`);
     const priceResponse = await axios.get<any>(priceUrl, {
       params: {
-        ids: solMint,
+        ids: config.liquidity_pool.wsol_pc_mint,
       },
       timeout: config.tx.get_timeout,
     });
 
     // Verify if we received the price response data
-    if (!priceResponse.data.data[solMint]?.price) return false;
-
+    if (!priceResponse.data.data[config.liquidity_pool.wsol_pc_mint]?.price) {
+      console.log(`[solana-sniper-bot]|[fetchAndSaveSwapDetails]| ⛔ Could not fetch latest Sol Price: No response received from API.`, priceResponse);
+      return false;
+    }
+    console.log(`[solana-sniper-bot]|[fetchAndSaveSwapDetails]| Latest Sol Price:`, priceResponse.data.data[config.liquidity_pool.wsol_pc_mint]?.price);
     // Calculate estimated price paid in sol
-    const solUsdcPrice = priceResponse.data.data[solMint]?.price;
+    console.log(`[solana-sniper-bot]|[fetchAndSaveSwapDetails]| Calculating estimated price paid in sol`);
+    const solUsdcPrice = priceResponse.data.data[config.liquidity_pool.wsol_pc_mint]?.price;
     const solPaidUsdc = swapTransactionData.tokenInputs[0].tokenAmount * solUsdcPrice;
     const solFeePaidUsdc = (swapTransactionData.fee / 1_000_000_000) * solUsdcPrice;
     const perTokenUsdcPrice = solPaidUsdc / swapTransactionData.tokenOutputs[0].tokenAmount;
 
     // Get token meta data
+    console.log(`[solana-sniper-bot]|[fetchAndSaveSwapDetails]| Caclulated Prices`, {solPaidUsdc, solFeePaidUsdc, perTokenUsdcPrice});
     let tokenName = "N/A";
     const tokenData: NewTokenRecord[] = await selectTokenByMint(swapTransactionData.tokenOutputs[0].mint);
-    if (tokenData) {
+    if (tokenData && tokenData.length > 0) {
       tokenName = tokenData[0].name;
     }
 
@@ -566,149 +566,13 @@ export async function fetchAndSaveSwapDetails(tx: string): Promise<boolean> {
     };
 
     await insertHolding(newHolding).catch((err: any) => {
-      console.log("⛔ Database Error: " + err);
+      console.log(`[solana-sniper-bot]|[fetchAndSaveSwapDetails]| ⛔ Insert Holding Database Error: ${err}`);
       return false;
     });
 
     return true;
   } catch (error: any) {
-    console.error("Error during request:", error.message);
+    console.error(`[solana-sniper-bot]|[fetchAndSaveSwapDetails]| ⛔ Fetch and Save Swap Details Error: ${error.message}`);
     return false;
-  }
-}
-
-export async function createSellTransaction(solMint: string, tokenMint: string, amount: string): Promise<createSellTransactionResponse> {
-  const quoteUrl = process.env.JUP_HTTPS_QUOTE_URI || "";
-  const swapUrl = process.env.JUP_HTTPS_SWAP_URI || "";
-  const rpcUrl = process.env.HELIUS_HTTPS_URI || "";
-  const myWallet = new Wallet(Keypair.fromSecretKey(bs58.decode(process.env.PRIV_KEY_WALLET_2 || "")));
-  const connection = new Connection(rpcUrl);
-
-  try {
-    // Check token balance using RPC connection
-    const tokenAccounts = await connection.getParsedTokenAccountsByOwner(myWallet.publicKey, {
-      mint: new PublicKey(tokenMint),
-    });
-
-    //Check if token exists in wallet with non-zero balance
-    const totalBalance = tokenAccounts.value.reduce((sum, account) => {
-      const tokenAmount = account.account.data.parsed.info.tokenAmount.amount;
-      return sum + BigInt(tokenAmount); // Use BigInt for precise calculations
-    }, BigInt(0));
-
-    // Verify returned balance
-    if (totalBalance <= 0n) {
-      await removeHolding(tokenMint).catch((err: any) => {
-        console.log("⛔ Database Error: " + err);
-      });
-      throw new Error(`Token has 0 balance - Already sold elsewhere. Removing from tracking.`);
-    }
-
-    // Verify amount with tokenBalance
-    if (totalBalance !== BigInt(amount)) {
-      throw new Error(`Wallet and tracker balance mismatch. Sell manually and token will be removed during next price check.`);
-    }
-
-    // Request a quote in order to swap SOL for new token
-    const quoteResponse = await axios.get<QuoteResponse>(quoteUrl, {
-      params: {
-        inputMint: tokenMint,
-        outputMint: solMint,
-        amount: amount,
-        slippageBps: config.sell.slippageBps,
-      },
-      timeout: config.tx.get_timeout,
-    });
-
-    // Throw error if no quote was received
-    if (!quoteResponse.data) {
-      throw new Error("No valid quote for selling the token was received from Jupiter!");
-    }
-
-    // Serialize the quote into a swap transaction that can be submitted on chain
-    const swapTransaction = await axios.post<SerializedQuoteResponse>(
-      swapUrl,
-      JSON.stringify({
-        // quoteResponse from /quote api
-        quoteResponse: quoteResponse.data,
-        // user public key to be used for the swap
-        userPublicKey: myWallet.publicKey.toString(),
-        // auto wrap and unwrap SOL. default is true
-        wrapAndUnwrapSol: true,
-        //dynamicComputeUnitLimit: true, // allow dynamic compute limit instead of max 1,400,000
-        dynamicSlippage: {
-          // This will set an optimized slippage to ensure high success rate
-          maxBps: 300, // Make sure to set a reasonable cap here to prevent MEV
-        },
-        prioritizationFeeLamports: {
-          priorityLevelWithMaxLamports: {
-            maxLamports: config.sell.prio_fee_max_lamports,
-            priorityLevel: config.sell.prio_level,
-          },
-        },
-      }),
-      {
-        headers: {
-          "Content-Type": "application/json",
-        },
-        timeout: config.tx.get_timeout,
-      }
-    );
-
-    // Throw error if no quote was received
-    if (!swapTransaction.data) {
-      throw new Error("No valid swap transaction was received from Jupiter!");
-    }
-
-    // deserialize the transaction
-    const swapTransactionBuf = Buffer.from(swapTransaction.data.swapTransaction, "base64");
-    var transaction = VersionedTransaction.deserialize(swapTransactionBuf);
-
-    // sign the transaction
-    transaction.sign([myWallet.payer]);
-
-    // Execute the transaction
-    const rawTransaction = transaction.serialize();
-    const txid = await connection.sendRawTransaction(rawTransaction, {
-      skipPreflight: true, // If True, This will skip transaction simulation entirely.
-      maxRetries: 2,
-    });
-
-    // Return null when no tx was returned
-    if (!txid) {
-      throw new Error("Could not send transaction that was signed and serialized!");
-    }
-
-    // get the latest block hash
-    const latestBlockHash = await connection.getLatestBlockhash();
-
-    // Fetch the current status of a transaction signature (processed, confirmed, finalized).
-    const conf = await connection.confirmTransaction({
-      blockhash: latestBlockHash.blockhash,
-      lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
-      signature: txid,
-    });
-
-    // Return null when an error occured when confirming the transaction
-    if (conf.value.err || conf.value.err !== null) {
-      throw new Error("Transaction was not successfully confirmed!");
-    }
-
-    // Delete holding
-    await removeHolding(tokenMint).catch((err:any) => {
-      console.log("⛔ Database Error: " + err);
-    });
-
-    return {
-      success: true,
-      msg: null,
-      tx: txid,
-    };
-  } catch (error: any) {
-    return {
-      success: false,
-      msg: error instanceof Error ? error.message : "Unknown error",
-      tx: null,
-    };
   }
 }

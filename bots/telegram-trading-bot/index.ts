@@ -390,6 +390,7 @@ class TelegramReader {
 }
 
 async function main() {
+    console.log(`[telegram-trading-bot]|[main]|APPLICATION STARTED`);
     const reader = new TelegramReader(config);
     await reader.start();
 

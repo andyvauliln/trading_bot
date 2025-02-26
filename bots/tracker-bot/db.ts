@@ -29,6 +29,7 @@ export async function createTableHoldings(database: any): Promise<boolean> {
 }
 
 export async function insertHolding(holding: HoldingRecord) {
+  console.log(`[holding-db]|[insertHolding]| Inserting holding:`, holding);
   const db = await open({
     filename: config.swap.db_name_tracker_holdings,
     driver: sqlite3.Database,
@@ -50,6 +51,8 @@ export async function insertHolding(holding: HoldingRecord) {
   `,
       [Time, Token, TokenName, Balance, SolPaid, SolFeePaid, SolPaidUSDC, SolFeePaidUSDC, PerTokenPaidUSDC, Slot, Program]
     );
+
+    console.log(`[holding-db]|[insertHolding]| Holding inserted successfully`);
 
     await db.close();
   }
@@ -92,6 +95,7 @@ export async function createTableNewTokens(database: any): Promise<boolean> {
 }
 
 export async function insertNewToken(newToken: NewTokenRecord) {
+  console.log(`[holding-db]|[insertNewToken]| Inserting new token:`, newToken);
   const db = await open({
     filename: config.swap.db_name_tracker_holdings,
     driver: sqlite3.Database,
@@ -101,22 +105,36 @@ export async function insertNewToken(newToken: NewTokenRecord) {
   const newTokensTableExist = await createTableNewTokens(db);
   if (!newTokensTableExist) {
     await db.close();
+    return;
   }
 
-  // Proceed with adding holding
-  if (newTokensTableExist) {
-    const { time, name, mint, creator } = newToken;
+  // Check if token already exists
+  const { time, name, mint, creator } = newToken;
+  const existingToken = await db.get(
+    `
+    SELECT * FROM tokens 
+    WHERE mint = ?;
+    LIMIT 1;
+    `,
+    [mint]
+  );
+  console.log(`[holding-db]|[insertNewToken]| Existing token: ${existingToken ? "Found" : "Not Found"}`, existingToken);
+  if (existingToken) {
+    await db.close();
+    return;
+  }
 
-    await db.run(
-      `
+  // Proceed with adding new token if it doesn't exist
+  await db.run(
+    `
     INSERT INTO tokens (time, name, mint, creator)
     VALUES (?, ?, ?, ?);
-  `,
-      [time, name, mint, creator]
-    );
+    `,
+    [time, name, mint, creator]
+  );
+  console.log(`[holding-db]|[insertNewToken]| New token inserted successfully`);
 
-    await db.close();
-  }
+  await db.close();
 }
 
 export async function selectTokenByNameAndCreator(name: string, creator: string): Promise<NewTokenRecord[]> {
@@ -151,6 +169,7 @@ export async function selectTokenByNameAndCreator(name: string, creator: string)
 }
 
 export async function selectTokenByMint(mint: string): Promise<NewTokenRecord[]> {
+  console.log(`[holding-db]|[selectTokenByMint]| Selecting token by mint: ${mint}`);
   // Open the database
   const db = await open({
     filename: config.swap.db_name_tracker_holdings,
@@ -170,9 +189,12 @@ export async function selectTokenByMint(mint: string): Promise<NewTokenRecord[]>
     SELECT * 
     FROM tokens
     WHERE mint = ?;
+    LIMIT 1;
   `,
     [mint]
   );
+
+  console.log(`[holding-db]|[selectTokenByMint]| Found token number: ${tokens.length}`, tokens);
 
   // Close the database
   await db.close();
