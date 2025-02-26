@@ -6,7 +6,7 @@ import { createSwapTransaction, fetchAndSaveSwapDetails } from "./transactions";
 
 export async function getRugCheckConfirmed(token: string): Promise<boolean> {
     const rugResponse = await axios.get<RugResponseExtended>("https://api.rugcheck.xyz/v1/tokens/" + token + "/report", {
-      timeout: 10000,
+      timeout: 100000,
     });
   
     if (!rugResponse.data) return false;

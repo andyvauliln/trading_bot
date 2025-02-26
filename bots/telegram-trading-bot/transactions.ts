@@ -11,9 +11,7 @@ import {
   SerializedQuoteResponse,
   SwapEventDetailsResponse,
   HoldingRecord,
-  RugResponseExtended,
   NewTokenRecord,
-  createSellTransactionResponse,
 } from "./types";
 import { insertHolding, insertNewToken, removeHolding, selectTokenByMint, selectTokenByNameAndCreator } from "../tracker-bot/db";
 

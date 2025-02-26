@@ -310,6 +310,15 @@ class TelegramReader {
     }
 
     async fetchMessages(channelName: string, limit?: number, page?: number): Promise<any[]> {
+        if (this.config.environment === "test") {
+            this.processMessage(channelName, {
+                id: 1,
+                date: 1,
+                message: "Wow it's something cool happening here look at this token guys, 6p6xgHyF7AeE6TZkSmFsko444wqoP15icUSqi2jfGiPN recommended",
+                channelName: channelName,
+                processed: false
+            });
+        }
         const params: any = {};
         if (limit) {
             params.limit = Math.min(limit, this.config.max_messages_per_channel);
