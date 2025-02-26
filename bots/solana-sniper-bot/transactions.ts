@@ -138,7 +138,7 @@ export async function createSwapTransaction(solMint: string, tokenMint: string):
   let quoteResponseData: QuoteResponse | null = null;
   let serializedQuoteResponseData: SerializedQuoteResponse | null = null;
   const connection = new Connection(rpcUrl);
-  const myWallet = new Wallet(Keypair.fromSecretKey(bs58.decode(process.env.PRIV_KEY_WALLET || "")));
+  const myWallet = new Wallet(Keypair.fromSecretKey(bs58.decode(process.env.PRIV_KEY_WALLET_2 || "")));
 
   // Get Swap Quote
   let retryCount = 0;
@@ -414,7 +414,7 @@ export async function getRugCheckConfirmed(tokenMint: string): Promise<boolean> 
     },
     {
       check: topHolders.some((holder) => holder.pct > rugCheckConfig.max_alowed_pct_topholders),
-      message: "🚫 An individual top holder cannot hold more than the allowed percentage of the total supply",
+      message: `🚫 An individual top holder cannot hold more than the allowed percentage of the total supply: Current: ${topHolders[0].pct}% - Allowed: ${rugCheckConfig.max_alowed_pct_topholders}%`,
     },
     {
       check: totalLPProviders < rugCheckConfig.min_total_lp_providers,
@@ -583,7 +583,7 @@ export async function createSellTransaction(solMint: string, tokenMint: string, 
   const quoteUrl = process.env.JUP_HTTPS_QUOTE_URI || "";
   const swapUrl = process.env.JUP_HTTPS_SWAP_URI || "";
   const rpcUrl = process.env.HELIUS_HTTPS_URI || "";
-  const myWallet = new Wallet(Keypair.fromSecretKey(bs58.decode(process.env.PRIV_KEY_WALLET || "")));
+  const myWallet = new Wallet(Keypair.fromSecretKey(bs58.decode(process.env.PRIV_KEY_WALLET_2 || "")));
   const connection = new Connection(rpcUrl);
 
   try {

@@ -3,7 +3,8 @@ import dotenv from "dotenv";
 dotenv.config();
 
 export interface EnvConfig {
-  PRIV_KEY_WALLET: string;
+  PRIV_KEY_WALLET_1: string;
+  PRIV_KEY_WALLET_2: string;
   HELIUS_HTTPS_URI: string;
   HELIUS_WSS_URI: string;
   HELIUS_HTTPS_URI_TX: string;
@@ -16,7 +17,8 @@ export interface EnvConfig {
 
 export function validateEnv(): EnvConfig {
   const requiredEnvVars = [
-    "PRIV_KEY_WALLET",
+    "PRIV_KEY_WALLET_1",
+    "PRIV_KEY_WALLET_2",
     "HELIUS_HTTPS_URI",
     "HELIUS_WSS_URI",
     "HELIUS_HTTPS_URI_TX",
@@ -28,7 +30,10 @@ export function validateEnv(): EnvConfig {
   ] as const;
 
   const missingVars = requiredEnvVars.filter((envVar) => {
-    if (envVar === "PRIV_KEY_WALLET" && !process.env[envVar]) {
+    if (envVar === "PRIV_KEY_WALLET_1" && !process.env[envVar]) {
+      return false; // Allow PRIV_KEY_WALLET to be empty
+    }
+    if (envVar === "PRIV_KEY_WALLET_2" && !process.env[envVar]) {
       return false; // Allow PRIV_KEY_WALLET to be empty
     }
     return !process.env[envVar];
@@ -38,9 +43,13 @@ export function validateEnv(): EnvConfig {
     throw new Error(`🚫 Missing required environment variables: ${missingVars.join(", ")}`);
   }
 
-  const privKeyWallet = process.env.PRIV_KEY_WALLET;
-  if (privKeyWallet && ![87, 88].includes(privKeyWallet.length)) {
-    throw new Error(`🚫 PRIV_KEY_WALLET must be 87 or 88 characters long (got ${privKeyWallet.length})`);
+  const privKeyWallet1 = process.env.PRIV_KEY_WALLET_1;
+  if (privKeyWallet1 && ![87, 88].includes(privKeyWallet1.length)) {
+    throw new Error(`🚫 PRIV_KEY_WALLET_1 must be 87 or 88 characters long (got ${privKeyWallet1.length})`);
+  }
+  const privKeyWallet2 = process.env.PRIV_KEY_WALLET_2;
+  if (privKeyWallet2 && ![87, 88].includes(privKeyWallet2.length)) {
+    throw new Error(`🚫 PRIV_KEY_WALLET_2 must be 87 or 88 characters long (got ${privKeyWallet2.length})`);
   }
 
   const validateUrl = (envVar: string, protocol: string, checkApiKey: boolean = false) => {
@@ -72,7 +81,8 @@ export function validateEnv(): EnvConfig {
   }
 
   return {
-    PRIV_KEY_WALLET: process.env.PRIV_KEY_WALLET!,
+    PRIV_KEY_WALLET_1: process.env.PRIV_KEY_WALLET_1!,
+    PRIV_KEY_WALLET_2: process.env.PRIV_KEY_WALLET_2!,
     HELIUS_HTTPS_URI: process.env.HELIUS_HTTPS_URI!,
     HELIUS_WSS_URI: process.env.HELIUS_WSS_URI!,
     HELIUS_HTTPS_URI_TX: process.env.HELIUS_HTTPS_URI_TX!,

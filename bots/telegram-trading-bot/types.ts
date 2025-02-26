@@ -3,11 +3,6 @@ export interface TelegramChannel {
     description: string;
 }
 
-export enum StorageType {
-    SQLITE = 'sqlite',
-    JSON = 'json'
-}
-
 export interface Message {
     id: number;
     date: number;
@@ -52,7 +47,8 @@ export interface TelegramConfig {
     name: string;
     base_url: string;
     messages_db_path: string;
-    storage_type: StorageType;
+    messages_json_path: string;
+    storage_type: string | "sqlite" | "json";
     check_interval: number;
     max_messages_per_channel: number;
     request_timeout: number;
@@ -65,6 +61,7 @@ export interface TelegramConfig {
     rug_check: RugCheckConfig;
     tx: TxConfig;
     swap: SwapConfig;
+    sol_mint: string;
 }
 
 export interface TxConfig {
@@ -85,6 +82,8 @@ export interface SwapConfig {
     db_name_tracker_holdings: string;
     token_not_tradable_400_error_retries: number;
     token_not_tradable_400_error_delay: number;
+    is_additional_holding: boolean;
+    additional_holding_amount: number;
 }
 
 export interface RugResponseExtended {

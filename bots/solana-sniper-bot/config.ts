@@ -93,7 +93,7 @@ export const config = {
     exclude_lp_from_topholders: false, // If true, Liquidity Pools will not be seen as top holders
     // Warning
     min_total_markets: 999,
-    min_total_lp_providers: 999,
+    min_total_lp_providers: 999000,
     min_total_market_Liquidity: 1000000,
     // Misc
     ignore_pump_fun: true,

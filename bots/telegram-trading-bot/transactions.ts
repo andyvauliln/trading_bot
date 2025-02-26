@@ -28,7 +28,7 @@ export async function createSwapTransaction(solMint: string, tokenMint: string):
   let quoteResponseData: QuoteResponse | null = null;
   let serializedQuoteResponseData: SerializedQuoteResponse | null = null;
   const connection = new Connection(rpcUrl);
-  const myWallet = new Wallet(Keypair.fromSecretKey(bs58.decode(process.env.PRIV_KEY_WALLET || "")));
+  const myWallet = new Wallet(Keypair.fromSecretKey(bs58.decode(process.env.PRIV_KEY_WALLET_2 || "")));
 
   // Get Swap Quote
   let retryCount = 0;
@@ -220,7 +220,6 @@ export async function createSwapTransaction(solMint: string, tokenMint: string):
 export async function fetchAndSaveSwapDetails(tx: string): Promise<boolean> {
   const txUrl = process.env.HELIUS_HTTPS_URI_TX || "";
   const priceUrl = process.env.JUP_HTTPS_PRICE_URI || "";
-  const rpcUrl = process.env.HELIUS_HTTPS_URI || "";
 
   try {
     const response = await axios.post<any>(
@@ -236,7 +235,9 @@ export async function fetchAndSaveSwapDetails(tx: string): Promise<boolean> {
 
     // Verify if we received tx reponse data
     if (!response.data || response.data.length === 0) {
-      console.log("⛔ Could not fetch swap details: No response received from API.");
+      console.log("⛔ Could not fetch swap details: No response received from API.", response);
+      console.log("txUrl", txUrl);
+      console.log("tx", tx);
       return false;
     }
 
@@ -253,19 +254,18 @@ export async function fetchAndSaveSwapDetails(tx: string): Promise<boolean> {
     };
 
     // Get latest Sol Price
-    const solMint = "So11111111111111111111111111111111111111112";
     const priceResponse = await axios.get<any>(priceUrl, {
       params: {
-        ids: solMint,
+        ids: config.sol_mint,
       },
       timeout: config.tx.get_timeout,
     });
 
     // Verify if we received the price response data
-    if (!priceResponse.data.data[solMint]?.price) return false;
+    if (!priceResponse.data.data[config.sol_mint]?.price) return false;
 
     // Calculate estimated price paid in sol
-    const solUsdcPrice = priceResponse.data.data[solMint]?.price;
+    const solUsdcPrice = priceResponse.data.data[config.sol_mint]?.price;
     const solPaidUsdc = swapTransactionData.tokenInputs[0].tokenAmount * solUsdcPrice;
     const solFeePaidUsdc = (swapTransactionData.fee / 1_000_000_000) * solUsdcPrice;
     const perTokenUsdcPrice = solPaidUsdc / swapTransactionData.tokenOutputs[0].tokenAmount;

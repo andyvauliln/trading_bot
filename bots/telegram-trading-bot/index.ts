@@ -3,9 +3,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as sqlite3 from 'sqlite3';
 import { Database } from 'sqlite3';
-import { TelegramConfig, TelegramChannel, StorageType, Message } from './types';
+import { TelegramConfig, Message } from './types';
 import { AIMessageProcessor } from './ai_message_processing';
 import { config as configData } from './telegram-trading-bot-config';
+import { validateAndSwapToken } from './validate_token';
 
 class TelegramReader {
     private config: TelegramConfig;
@@ -39,7 +40,7 @@ class TelegramReader {
 
     async close() {
         // Close database connection if using SQLite
-        if (this.config.storage_type === StorageType.SQLITE && this.db) {
+        if (this.config.storage_type === "sqlite" && this.db) {
             return new Promise<void>((resolve, reject) => {
                 this.db!.close((err) => {
                     if (err) {
@@ -55,9 +56,9 @@ class TelegramReader {
     }
 
     private async initializeStorage() {
-        if (this.config.storage_type === StorageType.SQLITE) {
+        if (this.config.storage_type === "sqlite") {
             await this.initializeSqliteDb();
-        } else if (this.config.storage_type === StorageType.JSON) {
+        } else if (this.config.storage_type === "json") {
             await this.initializeJsonStorage();
         } else {
             throw new Error(`Unsupported storage type: ${this.config.storage_type}`);
@@ -112,7 +113,7 @@ class TelegramReader {
 
     private async loadKnownMessageIds(): Promise<void> {
         return new Promise<void>((resolve, reject) => {
-            if (this.config.storage_type === StorageType.SQLITE && this.db) {
+            if (this.config.storage_type === "sqlite" && this.db) {
                 this.db.all('SELECT id, channel_name FROM messages', (err, rows: any[]) => {
                     if (err) {
                         console.error(`Error loading known message IDs: ${err}`);
@@ -124,7 +125,7 @@ class TelegramReader {
                     console.log(`Loaded ${this.knownMessages.size} known messages from database`);
                     resolve();
                 });
-            } else if (this.config.storage_type === StorageType.JSON) {
+            } else if (this.config.storage_type === "json") {
                 try {
                     if (fs.existsSync(this.jsonStoragePath)) {
                         const data = JSON.parse(fs.readFileSync(this.jsonStoragePath, 'utf-8'));
@@ -165,14 +166,6 @@ class TelegramReader {
         await this.loadKnownMessageIds();
     }
 
-    async loadChannelsFromJson(jsonPath: string) {
-        const rawData = fs.readFileSync(path.resolve(__dirname, jsonPath), 'utf-8');
-        const data = JSON.parse(rawData);
-        for (const channel of data.channels) {
-            console.log(`Adding channel: ${channel.username}`);
-        }
-    }
-
     async processMessage(channelName: string, messageData: any): Promise<boolean> {
         if (!messageData.id || !messageData.date || !messageData.message) {
             console.warn(`Skipping message with missing required fields: ${JSON.stringify(messageData)}`);
@@ -204,6 +197,10 @@ class TelegramReader {
             // Add to known messages using composite key
             this.knownMessages.add(`${channelName}:${messageData.id}`);
 
+            if (this.config.environment === "test") {
+                messageData.message = "Wow it's something cool happening here look at this token guys, 6p6xgHyF7AeE6TZkSmFsko444wqoP15icUSqi2jfGiPN recommended";
+            }
+
             // Send to AI for processing
             await this.sendMessageToAI({
                 id: messageData.id,
@@ -221,7 +218,7 @@ class TelegramReader {
     }
 
     private async saveMessage(message: Message): Promise<void> {
-        if (this.config.storage_type === StorageType.SQLITE && this.db) {
+        if (this.config.storage_type === "sqlite" && this.db) {
             return new Promise<void>((resolve, reject) => {
                 this.db!.run(
                     'INSERT INTO messages (id, date, message, channel_name, processed) VALUES (?, ?, ?, ?, ?)',
@@ -237,7 +234,7 @@ class TelegramReader {
                     }
                 );
             });
-        } else if (this.config.storage_type === StorageType.JSON) {
+        } else if (this.config.storage_type === "json") {
             try {
                 const data = JSON.parse(fs.readFileSync(this.jsonStoragePath, 'utf-8'));
                 data.messages.push(message);
@@ -267,11 +264,12 @@ class TelegramReader {
                     console.log(`[AI] Token: ${result.solana_token_address}`);
                     console.log(`[AI] Analysis: ${result.analysis}`);
                     console.log(`[AI] Buy recommendation: ${result.is_potential_to_buy_token ? 'YES' : 'NO'}`);
+                    if (result.is_potential_to_buy_token) {
+                        validateAndSwapToken(result.solana_token_address);
+                    }
                 });
             }
-            
-            // Here you would implement logic to act on the analysis results
-            // For example, if is_potential_to_buy_token is true, you might trigger a purchase
+           
             
         } catch (error) {
             console.error(`[AI] Error processing message: ${error}`);
@@ -282,7 +280,7 @@ class TelegramReader {
     }
 
     private async markMessageAsProcessed(messageId: number, channelName: string): Promise<void> {
-        if (this.config.storage_type === StorageType.SQLITE && this.db) {
+        if (this.config.storage_type === "sqlite" && this.db) {
             return new Promise<void>((resolve, reject) => {
                 this.db!.run(
                     'UPDATE messages SET processed = 1 WHERE id = ? AND channel_name = ?',
@@ -297,7 +295,7 @@ class TelegramReader {
                     }
                 );
             });
-        } else if (this.config.storage_type === StorageType.JSON) {
+        } else if (this.config.storage_type === "json") {
             try {
                 const data = JSON.parse(fs.readFileSync(this.jsonStoragePath, 'utf-8'));
                 const message = data.messages.find((m: Message) =>
@@ -385,42 +383,8 @@ class TelegramReader {
     }
 }
 
-
-
-// Create TelegramChannel objects from the channels array
-const channels: TelegramChannel[] = configData.channels.map((channel: any) => ({
-    username: channel.username,
-    description: channel.description,
-}));
-
-// Create TelegramConfig object
-const config: TelegramConfig = {
-    environment: configData.environment,
-    name: configData.name,
-    base_url: configData.base_url,
-    // Update database path to use root project directory's data folder
-    messages_db_path: path.resolve(process.cwd(), 'data', configData.messages_db_path),
-    storage_type: configData.storage_type as StorageType,
-    check_interval: configData.check_interval,
-    max_messages_per_channel: configData.max_messages_per_channel,
-    request_timeout: configData.request_timeout,
-    max_retries: configData.max_retries,
-    retry_delay: configData.retry_delay,
-    rate_limit_delay: configData.rate_limit_delay,
-    log_level: configData.log_level,
-    channels: channels,
-    ai_config: {
-        openrouter_api_key: process.env.OPEN_ROUTER_API_KEY || configData.ai_config.openrouter_api_key,
-        initial_model: configData.ai_config.initial_model,
-        detailed_model: configData.ai_config.detailed_model,
-        base_url: configData.ai_config.base_url,
-        temperature: configData.ai_config.temperature
-    },
-    rug_check: configData.rug_check
-};
-
 async function main() {
-    const reader = new TelegramReader(config);
+    const reader = new TelegramReader(configData);
     await reader.start();
 
     try {

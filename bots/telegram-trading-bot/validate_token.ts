@@ -72,79 +72,79 @@ export async function getRugCheckConfirmed(token: string): Promise<boolean> {
     const conditions = [
       {
         check: !rugCheckConfig.allow_mint_authority && mintAuthority !== null,
-        message: "🚫 Mint authority should be null",
+        message: `🚫 Mint authority should be null: Current: ${mintAuthority} - Allowed: ${null}`,
       },
       {
         check: !rugCheckConfig.allow_not_initialized && !isInitialized,
-        message: "🚫 Token is not initialized",
+        message: `🚫 Token is not initialized: Current: ${isInitialized} - Allowed: ${false}`,
       },
       {
         check: !rugCheckConfig.allow_freeze_authority && freezeAuthority !== null,
-        message: "🚫 Freeze authority should be null",
+        message: `🚫 Freeze authority should be null: Current: ${freezeAuthority} - Allowed: ${null}`,
       },
       {
         check: !rugCheckConfig.allow_mutable && tokenMutable !== false,
-        message: "🚫 Mutable should be false",
+        message: `🚫 Mutable should be false: Current: ${tokenMutable} - Allowed: ${false}`,
       },
       {
         check: !rugCheckConfig.allow_insider_topholders && topHolders.some((holder) => holder.insider),
-        message: "🚫 Insider accounts should not be part of the top holders",
+        message: `🚫 Insider accounts should not be part of the top holders: Current: ${topHolders.map((holder) => holder.insider).join(", ")} - Allowed: ${false}`,
       },
       {
         check: topHolders.some((holder) => holder.pct > rugCheckConfig.max_alowed_pct_topholders),
-        message: "🚫 An individual top holder cannot hold more than the allowed percentage of the total supply",
+        message: `🚫 An individual top holder cannot hold more than the allowed percentage of the total supply: Current: ${topHolders.map((holder) => holder.pct).join(", ")} - Allowed: ${rugCheckConfig.max_alowed_pct_topholders}%`,
       },
       {
         check: totalLPProviders < rugCheckConfig.min_total_lp_providers,
-        message: "🚫 Not enough LP Providers.",
+        message: `🚫 Not enough LP Providers: Current: ${totalLPProviders} - Allowed: ${rugCheckConfig.min_total_lp_providers}`,
       },
       {
         check: marketsLength < rugCheckConfig.min_total_markets,
-        message: "🚫 Not enough Markets.",
+        message: `🚫 Not enough Markets: Current: ${marketsLength} - Allowed: ${rugCheckConfig.min_total_markets}`,
       },
       {
         check: totalMarketLiquidity < rugCheckConfig.min_total_market_Liquidity,
-        message: "🚫 Not enough Market Liquidity.",
+        message: `🚫 Not enough Market Liquidity: Current: ${totalMarketLiquidity} - Allowed: ${rugCheckConfig.min_total_market_Liquidity}`,
       },
       {
         check: !rugCheckConfig.allow_rugged && isRugged, //true
-        message: "🚫 Token is rugged",
+        message: `🚫 Token is rugged: Current: ${isRugged} - Allowed: ${false}`,
       },
       {
         check: rugCheckConfig.block_symbols.includes(tokenSymbol),
-        message: "🚫 Symbol is blocked",
+        message: `🚫 Symbol is blocked: Current: ${tokenSymbol} - Allowed: ${false}`,
       },
       {
         check: rugCheckConfig.block_names.includes(tokenName),
-        message: "🚫 Name is blocked",
+        message: `🚫 Name is blocked: Current: ${tokenName} - Allowed: ${false}`,
       },
       {
         check: rugScore > rugCheckConfig.max_score && rugCheckConfig.max_score !== 0,
-        message: "🚫 Rug score to high.",
+        message: `🚫 Rug score to high: Current: ${rugScore} - Allowed: ${rugCheckConfig.max_score}`,
       },
       {
         check: rugRisks.some((risk) => rugCheckLegacy.includes(risk.name)),
-        message: "🚫 Token has legacy risks that are not allowed.",
+        message: `🚫 Token has legacy risks that are not allowed: Current: ${rugRisks.map((risk) => risk.name).join(", ")} - Allowed: ${false}`,
       },
     ];
   
-    // If tracking duplicate tokens is enabled
-    if (config.rug_check.block_returning_token_names || config.rug_check.block_returning_token_creators) {
-      // Get duplicates based on token min and creator
-      const duplicate = await selectTokenByNameAndCreator(tokenName, tokenCreator);
+    // // If tracking duplicate tokens is enabled
+    // if (config.rug_check.block_returning_token_names || config.rug_check.block_returning_token_creators) {
+    //   // Get duplicates based on token min and creator
+    //   const duplicate = await selectTokenByNameAndCreator(tokenName, tokenCreator);
   
-      // Verify if duplicate token or creator was returned
-      if (duplicate.length !== 0) {
-        if (config.rug_check.block_returning_token_names && duplicate.some((token: any) => token.name === tokenName)) {
-          console.log("🚫 Token with this name was already created");
-          return false;
-        }
-        if (config.rug_check.block_returning_token_creators && duplicate.some((token: any) => token.creator === tokenCreator)) {
-          console.log("🚫 Token from this creator was already created");
-          return false;
-        }
-      }
-    }
+    //   // Verify if duplicate token or creator was returned
+    //   if (duplicate.length !== 0) {
+    //     if (config.rug_check.block_returning_token_names && duplicate.some((token: any) => token.name === tokenName)) {
+    //       console.log("🚫 Token with this name was already created");
+    //       return false;
+    //     }
+    //     if (config.rug_check.block_returning_token_creators && duplicate.some((token: any) => token.creator === tokenCreator)) {
+    //       console.log("🚫 Token from this creator was already created");
+    //       return false;
+    //     }
+    //   }
+    // }
   
     // Create new token record
     const newToken: NewTokenRecord = {
@@ -171,12 +171,14 @@ export async function getRugCheckConfirmed(token: string): Promise<boolean> {
   }
   
   export async function validateAndSwapToken(token: string): Promise<void> {
+    console.log("🚀 Validating token: " + token);
     const isRugCheckPassed = await getRugCheckConfirmed(token);
     if (!isRugCheckPassed) {
         console.log("🚫 Rug Check not passed! Transaction aborted.");
         console.log("🟢 Resuming looking for new tokens...\n");
         return;
     }
+    console.log("🚀 Rug Check passed! Swapping token: " + token);
 
     // Handle ignored tokens
     if (token.trim().toLowerCase().endsWith("pump") && config.rug_check.ignore_pump_fun) {
@@ -201,7 +203,7 @@ export async function getRugCheckConfirmed(token: string): Promise<boolean> {
   await new Promise((resolve) => setTimeout(resolve, config.tx.swap_tx_initial_delay));
 
   // Create Swap transaction
-  const tx = await createSwapTransaction("So11111111111111111111111111111111111111112", token);
+  const tx = await createSwapTransaction(config.sol_mint, token);
   if (!tx) {
     console.log("⛔ Transaction aborted.");
     console.log("🟢 Resuming looking for new tokens...\n");
