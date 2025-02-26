@@ -1,4 +1,4 @@
-import { config } from "./telegram-trading-bot-config";
+import { config } from "./config";
 import axios from "axios";
 import { RugResponseExtended, NewTokenRecord } from "./types";
 import { selectTokenByNameAndCreator, insertNewToken } from "../tracker-bot/db";
@@ -11,7 +11,7 @@ export async function getRugCheckConfirmed(token: string): Promise<boolean> {
   
     if (!rugResponse.data) return false;
   
-    if (config.rug_check.verbose_log && config.rug_check.verbose_log === true) {
+    if (config.verbose_log && config..verbose_log === true) {
       console.log(rugResponse.data);
     }
   

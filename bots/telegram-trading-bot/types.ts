@@ -42,6 +42,7 @@ export interface RugCheckConfig {
 }
 
 export interface TelegramConfig {
+    verbose_log: boolean;
     environment: string;
     name: string;
     base_url: string;

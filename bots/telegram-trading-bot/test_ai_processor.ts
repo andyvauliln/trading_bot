@@ -1,7 +1,7 @@
 import { AIMessageProcessor } from './ai_message_processing';
 import * as dotenv from 'dotenv';
 import { AIConfig } from './types';
-import { config as configData } from './telegram-trading-bot-config';
+import { config as configData } from './config';
 
 // Load environment variables
 dotenv.config();

@@ -157,7 +157,7 @@ export async function createSwapTransaction(solMint: string, tokenMint: string):
 
       if (!quoteResponse.data) return null;
 
-      if (config.swap.verbose_log && config.swap.verbose_log === true) {
+      if (config.verbose_log && config.verbose_log === true) {
         console.log("\nVerbose log:");
         console.log(quoteResponse.data);
       }
@@ -177,7 +177,7 @@ export async function createSwapTransaction(solMint: string, tokenMint: string):
 
       // Throw error (null) when error is not TOKEN_NOT_TRADABLE
       console.error("Error while requesting a new swap quote:", error.message);
-      if (config.swap.verbose_log && config.swap.verbose_log === true) {
+      if (config.verbose_log && config.verbose_log === true) {
         console.log("Verbose Error Message:");
         if (error.response) {
           // Server responded with a status other than 2xx
@@ -233,14 +233,14 @@ export async function createSwapTransaction(solMint: string, tokenMint: string):
     );
     if (!swapResponse.data) return null;
 
-    if (config.swap.verbose_log && config.swap.verbose_log === true) {
+    if (config.verbose_log && config.verbose_log === true) {
       console.log(swapResponse.data);
     }
 
     serializedQuoteResponseData = swapResponse.data; // Store the successful response
   } catch (error: any) {
     console.error("Error while sending the swap quote:", error.message);
-    if (config.swap.verbose_log && config.swap.verbose_log === true) {
+    if (config.verbose_log && config.verbose_log === true) {
       console.log("Verbose Error Message:");
       if (error.response) {
         // Server responded with a status other than 2xx
@@ -306,7 +306,7 @@ export async function createSwapTransaction(solMint: string, tokenMint: string):
     return txid;
   } catch (error: any) {
     console.error("Error while signing and sending the transaction:", error.message);
-    if (config.swap.verbose_log && config.swap.verbose_log === true) {
+    if (config.verbose_log && config.verbose_log === true) {
       console.log("Verbose Error Message:");
       if (error.response) {
         // Server responded with a status other than 2xx
@@ -333,7 +333,7 @@ export async function getRugCheckConfirmed(tokenMint: string): Promise<boolean> 
 
   if (!rugResponse.data) return false;
 
-  if (config.rug_check.verbose_log && config.rug_check.verbose_log === true) {
+  if (config.verbose_log && config.verbose_log === true) {
     console.log(rugResponse.data);
   }
 

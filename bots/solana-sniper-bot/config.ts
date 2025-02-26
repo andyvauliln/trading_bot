@@ -40,6 +40,8 @@
 * This can be risky, as if these providers decide to withdraw their funds, it could destabilize the market.
 **/
 export const config = {
+  verbose_log: true,
+  environment: "test", // development, production, test
   liquidity_pool: {
     radiyum_program_id: "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8",
     wsol_pc_mint: "So11111111111111111111111111111111111111112",
@@ -53,7 +55,6 @@ export const config = {
     retry_delay: 500, // Delay between retries (0.5 seconds)
   },
   swap: {
-    verbose_log: false,
     prio_fee_max_lamports: 1000000, // 0.001 SOL
     prio_level: "veryHigh", // If you want to land transaction fast, set this to use `veryHigh`. You will pay on average higher priority fee.
     amount: "10000000", //0.01 SOL
@@ -73,7 +74,6 @@ export const config = {
     track_public_wallet: "", // If set an additional log line will be shown with a link to track your wallet
   },
   rug_check: {
-    verbose_log: false,
     simulation_mode: true,
     // Dangerous
     allow_mint_authority: false, // The mint authority is the address that has permission to mint (create) new tokens. Strongly Advised to set to false.

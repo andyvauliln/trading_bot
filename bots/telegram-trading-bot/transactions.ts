@@ -3,7 +3,7 @@ import { Connection, Keypair, VersionedTransaction, PublicKey } from "@solana/we
 import { Wallet } from "@project-serum/anchor";
 import bs58 from "bs58";
 import dotenv from "dotenv";
-import { config } from "./telegram-trading-bot-config";
+import { config } from "./config";
 import {
   TransactionDetailsResponseArray,
   MintsDataReponse,
@@ -45,7 +45,7 @@ export async function createSwapTransaction(solMint: string, tokenMint: string):
 
       if (!quoteResponse.data) return null;
 
-      if (config.swap.verbose_log && config.swap.verbose_log === true) {
+      if (config.verbose_log && config.verbose_log === true) {
         console.log("\nVerbose log:");
         console.log(quoteResponse.data);
       }
@@ -65,7 +65,7 @@ export async function createSwapTransaction(solMint: string, tokenMint: string):
 
       // Throw error (null) when error is not TOKEN_NOT_TRADABLE
       console.error("Error while requesting a new swap quote:", error.message);
-      if (config.swap.verbose_log && config.swap.verbose_log === true) {
+      if (config.verbose_log && config.verbose_log === true) {
         console.log("Verbose Error Message:");
         if (error.response) {
           // Server responded with a status other than 2xx
@@ -121,14 +121,14 @@ export async function createSwapTransaction(solMint: string, tokenMint: string):
     );
     if (!swapResponse.data) return null;
 
-    if (config.swap.verbose_log && config.swap.verbose_log === true) {
+    if (config.verbose_log && config.verbose_log === true) {
       console.log(swapResponse.data);
     }
 
     serializedQuoteResponseData = swapResponse.data; // Store the successful response
   } catch (error: any) {
     console.error("Error while sending the swap quote:", error.message);
-    if (config.swap.verbose_log && config.swap.verbose_log === true) {
+    if (config.verbose_log && config.verbose_log === true) {
       console.log("Verbose Error Message:");
       if (error.response) {
         // Server responded with a status other than 2xx
@@ -194,7 +194,7 @@ export async function createSwapTransaction(solMint: string, tokenMint: string):
     return txid;
   } catch (error: any) {
     console.error("Error while signing and sending the transaction:", error.message);
-    if (config.swap.verbose_log && config.swap.verbose_log === true) {
+    if (config.verbose_log && config.verbose_log === true) {
       console.log("Verbose Error Message:");
       if (error.response) {
         // Server responded with a status other than 2xx

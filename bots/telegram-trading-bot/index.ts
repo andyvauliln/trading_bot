@@ -5,7 +5,7 @@ import * as sqlite3 from 'sqlite3';
 import { Database } from 'sqlite3';
 import { TelegramConfig, Message } from './types';
 import { AIMessageProcessor } from './ai_message_processing';
-import { config } from './telegram-trading-bot-config';
+import { config } from './config';
 import { validateAndSwapToken } from './validate_token';
 
 class TelegramReader {

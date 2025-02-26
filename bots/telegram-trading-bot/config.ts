@@ -17,6 +17,7 @@ export const config: TelegramConfig = {
     "retry_delay": 60, // seconds
     "rate_limit_delay": 10, // seconds
     "log_level": "INFO",
+    "verbose_log": true,
     "sol_mint": "So11111111111111111111111111111111111111112",
     "tx": {
         "fetch_tx_max_retries": 10,
