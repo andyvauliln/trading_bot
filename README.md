@@ -77,7 +77,7 @@ Will run all bots simultaneously in different processes
 [Link](https://computer.tldraw.com/p/2nWRFbhCC27zMUioEqX1Wp)
 
 
-### HOW TO USE LOGGER
+### LOGGER DOCUMENTATION
 ## Notes
 - console.log it's overrided function for orignal console.log
 - logger possible to configure with next configurations
