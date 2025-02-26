@@ -5,7 +5,7 @@ import * as sqlite3 from 'sqlite3';
 import { Database } from 'sqlite3';
 import { TelegramConfig, Message } from './types';
 import { AIMessageProcessor } from './ai_message_processing';
-import { config as configData } from './telegram-trading-bot-config';
+import { config } from './telegram-trading-bot-config';
 import { validateAndSwapToken } from './validate_token';
 
 class TelegramReader {
@@ -13,18 +13,15 @@ class TelegramReader {
     private session: any;
     private db: Database | null;
     private knownMessages: Set<string>; // Will store "channelName:messageId" as composite key
-    private jsonStoragePath: string;
     private aiProcessor: AIMessageProcessor;
 
-    constructor(config: TelegramConfig) {
-        this.config = config;
+    constructor(param_config: TelegramConfig) {
+        this.config = param_config || config;
         this.db = null;
         this.session = null;
         this.knownMessages = new Set<string>();
-        // Store in root project directory's data folder
-        this.jsonStoragePath = path.resolve(process.cwd(), 'data', 'telegram_messages.json');
         // Initialize AI message processor with config
-        this.aiProcessor = new AIMessageProcessor(config.ai_config);
+        this.aiProcessor = new AIMessageProcessor(this.config?.ai_config);
     }
 
     async start() {
@@ -127,8 +124,8 @@ class TelegramReader {
                 });
             } else if (this.config.storage_type === "json") {
                 try {
-                    if (fs.existsSync(this.jsonStoragePath)) {
-                        const data = JSON.parse(fs.readFileSync(this.jsonStoragePath, 'utf-8'));
+                    if (fs.existsSync(this.config.messages_json_path)) {
+                        const data = JSON.parse(fs.readFileSync(this.config.messages_json_path, 'utf-8'));
                         data.messages.forEach((msg: Message) => this.knownMessages.add(`${msg.channelName}:${msg.id}`));
                         console.log(`Loaded ${this.knownMessages.size} known messages from JSON`);
                     }
@@ -145,7 +142,7 @@ class TelegramReader {
 
     private async initializeJsonStorage() {
         // Ensure the data directory exists
-        const jsonDir = path.dirname(this.jsonStoragePath);
+        const jsonDir = path.dirname(this.config.messages_json_path);
         if (!fs.existsSync(jsonDir)) {
             try {
                 fs.mkdirSync(jsonDir, { recursive: true });
@@ -157,9 +154,9 @@ class TelegramReader {
         }
 
         // Create JSON storage file if it doesn't exist
-        if (!fs.existsSync(this.jsonStoragePath)) {
-            fs.writeFileSync(this.jsonStoragePath, JSON.stringify({ messages: [] }), 'utf-8');
-            console.log(`Created JSON storage file: ${this.jsonStoragePath}`);
+        if (!fs.existsSync(this.config.messages_json_path)) {
+            fs.writeFileSync(this.config.messages_json_path, JSON.stringify({ messages: [] }), 'utf-8');
+            console.log(`Created JSON storage file: ${this.config.messages_json_path}`);
         }
         
         // Load known message IDs
@@ -236,9 +233,9 @@ class TelegramReader {
             });
         } else if (this.config.storage_type === "json") {
             try {
-                const data = JSON.parse(fs.readFileSync(this.jsonStoragePath, 'utf-8'));
+                const data = JSON.parse(fs.readFileSync(this.config.messages_json_path, 'utf-8'));
                 data.messages.push(message);
-                fs.writeFileSync(this.jsonStoragePath, JSON.stringify(data, null, 2), 'utf-8');
+                fs.writeFileSync(this.config.messages_json_path, JSON.stringify(data, null, 2), 'utf-8');
                 console.log(`Message ID ${message.id} saved to JSON storage`);
             } catch (error) {
                 console.error(`Error saving message to JSON: ${error}`);
@@ -297,13 +294,13 @@ class TelegramReader {
             });
         } else if (this.config.storage_type === "json") {
             try {
-                const data = JSON.parse(fs.readFileSync(this.jsonStoragePath, 'utf-8'));
+                const data = JSON.parse(fs.readFileSync(this.config.messages_json_path, 'utf-8'));
                 const message = data.messages.find((m: Message) =>
                     m.id === messageId && m.channelName === channelName
                 );
                 if (message) {
                     message.processed = true;
-                    fs.writeFileSync(this.jsonStoragePath, JSON.stringify(data, null, 2), 'utf-8');
+                    fs.writeFileSync(this.config.messages_json_path, JSON.stringify(data, null, 2), 'utf-8');
                 }
             } catch (error) {
                 console.error(`Error marking message as processed in JSON: ${error}`);
@@ -384,7 +381,7 @@ class TelegramReader {
 }
 
 async function main() {
-    const reader = new TelegramReader(configData);
+    const reader = new TelegramReader(config);
     await reader.start();
 
     try {

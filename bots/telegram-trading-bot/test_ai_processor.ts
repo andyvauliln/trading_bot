@@ -18,7 +18,6 @@ async function testAIProcessor() {
         const aiConfig: AIConfig = {
             openrouter_api_key: process.env.OPEN_ROUTER_API_KEY || configData.ai_config.openrouter_api_key,
             initial_model: configData.ai_config.initial_model,
-            detailed_model: configData.ai_config.detailed_model,
             base_url: configData.ai_config.base_url,
             temperature: configData.ai_config.temperature
         };
@@ -28,7 +27,6 @@ async function testAIProcessor() {
         }
 
         console.log(`Using initial model: ${aiConfig.initial_model}`);
-        console.log(`Using detailed model: ${aiConfig.detailed_model || 'None'}`);
         
         // Create an instance of the AI message processor with the config
         const processor = new AIMessageProcessor(aiConfig);

@@ -14,7 +14,6 @@ export interface Message {
 export interface AIConfig {
     openrouter_api_key: string;
     initial_model: string;  // Free/cheaper model for initial analysis
-    detailed_model?: string; // Optional more powerful model for detailed analysis
     base_url: string;
     temperature: number;
 }

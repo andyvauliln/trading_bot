@@ -1,6 +1,4 @@
-/** 
-*  * Detailed Explanations (To be continued)
-*  
+/**   
 * -------------------
 * prio_level:
 * -------------------

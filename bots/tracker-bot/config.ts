@@ -64,7 +64,7 @@ export const config = {
     prio_level: "veryHigh", // If you want to land transaction fast, set this to use `veryHigh`. You will pay on average higher priority fee.
     amount: "10000000", //0.01 SOL
     slippageBps: "200", // 2%
-    db_name_tracker_holdings: path.resolve(process.cwd(), 'data', 'tracker-bot.holdings.db'), // Sqlite Database location
+    db_name_tracker_holdings: path.resolve(process.cwd(), 'data', 'holdings.db'), // Sqlite Database location
     token_not_tradable_400_error_retries: 5, // How many times should the bot try to get a quote if the token is not tradable yet
     token_not_tradable_400_error_delay: 2000, // How many seconds should the bot wait before retrying to get a quote again
   },
