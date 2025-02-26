@@ -19,21 +19,21 @@ import { insertHolding, insertNewToken, selectTokenByMint, selectTokenByNameAndC
 // Load environment variables from the .env file
 dotenv.config();
 
-export async function fetchTransactionDetails(signature: string): Promise<MintsDataReponse | null> {
+export async function fetchTransactionDetails(signature: string, processRunCounter: number): Promise<MintsDataReponse | null> {
   // Set function constants
-  console.log(`[solana-sniper-bot]|[fetchTransactionDetails]| Fetching transaction details for signature: ${signature}`);
+  console.log(`[solana-sniper-bot]|[fetchTransactionDetails]| Fetching transaction details for signature: ${signature}`, processRunCounter);
   const txUrl = process.env.HELIUS_HTTPS_URI_TX || "";
   const maxRetries = config.tx.fetch_tx_max_retries;
   let retryCount = 0;
 
   // Add longer initial delay to allow transaction to be processed
-  console.log(`[solana-sniper-bot]|[fetchTransactionDetails]| Waiting ${config.tx.fetch_tx_initial_delay / 1000} seconds for transaction to be confirmed...`);
+  console.log(`[solana-sniper-bot]|[fetchTransactionDetails]| Waiting ${config.tx.fetch_tx_initial_delay / 1000} seconds for transaction to be confirmed...`, processRunCounter);
   await new Promise((resolve) => setTimeout(resolve, config.tx.fetch_tx_initial_delay));
 
   while (retryCount < maxRetries) {
     try {
       // Output logs
-      console.log(`[solana-sniper-bot]|[fetchTransactionDetails]| Attempt ${retryCount + 1} of ${maxRetries} to fetch transaction details...`);
+      console.log(`[solana-sniper-bot]|[fetchTransactionDetails]| Attempt ${retryCount + 1} of ${maxRetries} to fetch transaction details...`, processRunCounter);
 
       const response = await axios.post<any>(
         txUrl,
@@ -62,7 +62,7 @@ export async function fetchTransactionDetails(signature: string): Promise<MintsD
 
       // Access the `data` property which contains the array of transactions
       const transactions: TransactionDetailsResponseArray = response.data;
-      console.log(`[solana-sniper-bot]|[fetchTransactionDetails]| Transactions Data Received`, transactions);
+      console.log(`[solana-sniper-bot]|[fetchTransactionDetails]| Transactions Data Received`, processRunCounter, transactions);
 
       // Verify if transaction details were found
       if (!transactions[0]) {
@@ -70,7 +70,7 @@ export async function fetchTransactionDetails(signature: string): Promise<MintsD
       }
 
       // Access the `instructions` property which contains account instructions
-      console.log(`[solana-sniper-bot]|[fetchTransactionDetails]| Instructions Data Received`, transactions[0].instructions);
+      console.log(`[solana-sniper-bot]|[fetchTransactionDetails]| Instructions Data Received`, processRunCounter, transactions[0].instructions);
       const instructions = transactions[0].instructions;
       if (!instructions || !Array.isArray(instructions) || instructions.length === 0) {
         throw new Error(`[solana-sniper-bot]|[fetchTransactionDetails]| No instructions found in transaction`);
@@ -78,7 +78,7 @@ export async function fetchTransactionDetails(signature: string): Promise<MintsD
 
       // Verify and find the instructions for the correct market maker id
       const instruction = instructions.find((ix) => ix.programId === config.liquidity_pool.radiyum_program_id);
-      console.log(`[solana-sniper-bot]|[fetchTransactionDetails]| Verify and find the instructions for the correct market maker id`, instruction);
+      console.log(`[solana-sniper-bot]|[fetchTransactionDetails]| Verify and find the instructions for the correct market maker id`, processRunCounter, instruction);
       if (!instruction || !instruction.accounts) {
         throw new Error(`[solana-sniper-bot]|[fetchTransactionDetails]| No market maker instruction found`);
       }
@@ -89,7 +89,7 @@ export async function fetchTransactionDetails(signature: string): Promise<MintsD
       // Store quote and token mints
       const accountOne = instruction.accounts[8];
       const accountTwo = instruction.accounts[9];
-      console.log(`[solana-sniper-bot]|[fetchTransactionDetails]| Store quote and token mints accounts`, accountOne, accountTwo);
+      console.log(`[solana-sniper-bot]|[fetchTransactionDetails]| Store quote and token mints accounts`, processRunCounter, { accountOne, accountTwo });
       
       // Verify if we received both quote and token mints
       if (!accountOne || !accountTwo) {
@@ -108,9 +108,9 @@ export async function fetchTransactionDetails(signature: string): Promise<MintsD
       }
 
       // Output logs
-      console.log(`[solana-sniper-bot]|[fetchTransactionDetails]| Successfully fetched transaction details!`);
-      console.log(`[solana-sniper-bot]|[fetchTransactionDetails]| SOL Token Account: ${solTokenAccount}`);
-      console.log(`[solana-sniper-bot]|[fetchTransactionDetails]| New Token Account: ${newTokenAccount}`);
+      console.log(`[solana-sniper-bot]|[fetchTransactionDetails]| Successfully fetched transaction details!`, processRunCounter);
+      console.log(`[solana-sniper-bot]|[fetchTransactionDetails]| SOL Token Account: ${solTokenAccount}`, processRunCounter);
+      console.log(`[solana-sniper-bot]|[fetchTransactionDetails]| New Token Account: ${newTokenAccount}`, processRunCounter);
 
       const displayData: MintsDataReponse = {
         tokenMint: newTokenAccount,
@@ -119,23 +119,23 @@ export async function fetchTransactionDetails(signature: string): Promise<MintsD
 
       return displayData;
     } catch (error: any) {
-      console.error(`[solana-sniper-bot]|[fetchTransactionDetails]| Attempt ${retryCount + 1} failed: ${error.message}`);
+      console.error(`[solana-sniper-bot]|[fetchTransactionDetails]| Attempt ${retryCount + 1} failed: ${error.message}`, processRunCounter);
 
       retryCount++;
 
       if (retryCount < maxRetries) {
         const delay = Math.min(4000 * Math.pow(1.5, retryCount), 15000);
-        console.log(`[solana-sniper-bot]|[fetchTransactionDetails]| Waiting ${delay / 1000} seconds before next attempt...`);
+        console.log(`[solana-sniper-bot]|[fetchTransactionDetails]| Waiting ${delay / 1000} seconds before next attempt...`, processRunCounter);
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
   }
 
-  console.log(`[solana-sniper-bot]|[fetchTransactionDetails]| All attempts to fetch transaction details failed`);
+  console.log(`[solana-sniper-bot]|[fetchTransactionDetails]| All attempts to fetch transaction details failed`, processRunCounter);
   return null;
 }
 
-export async function createSwapTransaction(solMint: string, tokenMint: string): Promise<string | null> {
+export async function createSwapTransaction(solMint: string, tokenMint: string, processRunCounter: number): Promise<string | null> {
   const quoteUrl = process.env.JUP_HTTPS_QUOTE_URI || "";
   const swapUrl = process.env.JUP_HTTPS_SWAP_URI || "";
   const rpcUrl = process.env.HELIUS_HTTPS_URI || "";
@@ -144,7 +144,7 @@ export async function createSwapTransaction(solMint: string, tokenMint: string):
   const connection = new Connection(rpcUrl);
   const myWallet = new Wallet(Keypair.fromSecretKey(bs58.decode(process.env.PRIV_KEY_WALLET_2 || "")));
 
-  console.log(`[solana-sniper-bot]|[createSwapTransaction]|Going to swap for token: ${tokenMint} with amount: ${config.swap.amount} and slippage: ${config.swap.slippageBps} for wallet: ${myWallet.publicKey.toString()}`);
+  console.log(`[solana-sniper-bot]|[createSwapTransaction]|Going to swap for token: ${tokenMint} with amount: ${config.swap.amount} and slippage: ${config.swap.slippageBps} for wallet: ${myWallet.publicKey.toString()}`, processRunCounter);
 
   // Get Swap Quote
   let retryCount = 0;
@@ -164,7 +164,7 @@ export async function createSwapTransaction(solMint: string, tokenMint: string):
       if (!quoteResponse.data) return null;
 
       if (config.verbose_log && config.verbose_log === true) {
-        console.log("[solana-sniper-bot]|[createSwapTransaction]| Quote response data:", quoteResponse.data);
+        console.log("[solana-sniper-bot]|[createSwapTransaction]| Quote response data:", processRunCounter, quoteResponse.data);
       }
 
       quoteResponseData = quoteResponse.data; // Store the successful response
@@ -174,7 +174,7 @@ export async function createSwapTransaction(solMint: string, tokenMint: string):
       if (error.response && error.response.status === 400) {
         const errorData = error.response.data;
         if (errorData.errorCode === "TOKEN_NOT_TRADABLE") {
-          console.warn(`[solana-sniper-bot]|[createSwapTransaction]|Token not tradable. Retrying...`);
+          console.warn(`[solana-sniper-bot]|[createSwapTransaction]|Token not tradable. Retrying...`, processRunCounter);
           retryCount++;
           await new Promise((resolve) => setTimeout(resolve, config.swap.token_not_tradable_400_error_delay));
           continue; // Retry
@@ -182,29 +182,29 @@ export async function createSwapTransaction(solMint: string, tokenMint: string):
       }
 
       // Throw error (null) when error is not TOKEN_NOT_TRADABLE
-      console.error(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ Error while requesting a new swap quote: ${error.message}`);
+      console.error(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ Error while requesting a new swap quote: ${error.message}`, processRunCounter);
       if (config.verbose_log && config.verbose_log === true) {
         if (error.response) {
           // Server responded with a status other than 2xx
-          console.error(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ Error Status: ${error.response.status} - ${error.response.statusText}`, error.response.data);
+          console.error(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ Error Status: ${error.response.status} - ${error.response.statusText}`, processRunCounter, error.response.data);
         } else if (error.request) {
           // Request was made but no response was received
-          console.error("[solana-sniper-bot]|[createSwapTransaction]| ⛔ No Response:", error.request);
+          console.error("[solana-sniper-bot]|[createSwapTransaction]| ⛔ No Response:", processRunCounter, error.request);
         } else {
           // Other errors
-          console.error("[solana-sniper-bot]|[createSwapTransaction]| ⛔ Error Message:", error.message);
+          console.error("[solana-sniper-bot]|[createSwapTransaction]| ⛔ Error Message:", processRunCounter, error.message);
         }
       }
       return null;
     }
   }
 
-  if (quoteResponseData) console.log("[solana-sniper-bot]|[createSwapTransaction]| ✅ Swap quote recieved.", quoteResponseData);
+  if (quoteResponseData) console.log("[solana-sniper-bot]|[createSwapTransaction]| ✅ Swap quote recieved.", processRunCounter, quoteResponseData);
 
   // Serialize the quote into a swap transaction that can be submitted on chain
   try {
     if (!quoteResponseData) {
-      console.log("[solana-sniper-bot]|[createSwapTransaction]| ⛔ No quote response data.", quoteResponseData);
+      console.log("[solana-sniper-bot]|[createSwapTransaction]| ⛔ No quote response data.", processRunCounter, quoteResponseData);
       return null;
     }
 
@@ -239,28 +239,28 @@ export async function createSwapTransaction(solMint: string, tokenMint: string):
     if (!swapResponse.data) return null;
 
     if (config.verbose_log && config.verbose_log === true) {
-      console.log("[solana-sniper-bot]|[createSwapTransaction]| ⛔ Swap response data:", swapResponse.data);
+      console.log("[solana-sniper-bot]|[createSwapTransaction]| ⛔ Swap response data:", processRunCounter, swapResponse.data);
     }
 
     serializedQuoteResponseData = swapResponse.data; // Store the successful response
   } catch (error: any) {
-    console.error(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ Error while sending the swap quote: ${error.message}`);
+    console.error(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ Error while sending the swap quote: ${error.message}`, processRunCounter);
     if (config.verbose_log && config.verbose_log === true) {
       if (error.response) {
         // Server responded with a status other than 2xx
-        console.error(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ Error Status: ${error.response.status} - ${error.response.statusText}`, error.response.data);
+        console.error(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ Error Status: ${error.response.status} - ${error.response.statusText}`, processRunCounter, error.response.data);
       } else if (error.request) {
         // Request was made but no response was received
-        console.error(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ No Response: ${error.request}`);
+        console.error(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ No Response:`, processRunCounter, error.request);
       } else {
         // Other errors
-        console.error(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ Error Message: ${error.message}`);
+        console.error(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ Error Message:`, processRunCounter, error.message);
       }
     }
     return null;
   }
 
-  if (serializedQuoteResponseData) console.log(`[solana-sniper-bot]|[createSwapTransaction]| ✅ Swap quote serialized.`);
+  if (serializedQuoteResponseData) console.log(`[solana-sniper-bot]|[createSwapTransaction]| ✅ Swap quote serialized.`, processRunCounter);
 
   // deserialize, sign and send the transaction
   try {
@@ -269,15 +269,15 @@ export async function createSwapTransaction(solMint: string, tokenMint: string):
     var transaction = VersionedTransaction.deserialize(swapTransactionBuf);
 
     // sign the transaction
-    console.log(`[solana-sniper-bot]|[createSwapTransaction]| Signing transaction with wallet: ${myWallet.publicKey.toString()}`);
+    console.log(`[solana-sniper-bot]|[createSwapTransaction]| Signing transaction with wallet: ${myWallet.publicKey.toString()}`, processRunCounter);
     transaction.sign([myWallet.payer]);
 
     // get the latest block hash
-    console.log(`[solana-sniper-bot]|[createSwapTransaction]| Getting the latest block hash`);
+    console.log(`[solana-sniper-bot]|[createSwapTransaction]| Getting the latest block hash`, processRunCounter);
     const latestBlockHash = await connection.getLatestBlockhash();
 
     // Execute the transaction
-    console.log(`[solana-sniper-bot]|[createSwapTransaction]| Executing the transaction`);
+    console.log(`[solana-sniper-bot]|[createSwapTransaction]| Executing the transaction`, processRunCounter);
     const rawTransaction = transaction.serialize();
     const txid = await connection.sendRawTransaction(rawTransaction, {
       skipPreflight: true, // If True, This will skip transaction simulation entirely.
@@ -286,14 +286,14 @@ export async function createSwapTransaction(solMint: string, tokenMint: string):
 
     // Return null when no tx was returned
     if (!txid) {
-      console.log(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ No id received for sent raw transaction.`);
+      console.log(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ No id received for sent raw transaction.`, processRunCounter);
       return null;
     }
 
-    if (txid) console.log(`[solana-sniper-bot]|[createSwapTransaction]| ✅ Raw transaction id received.`);
+    if (txid) console.log(`[solana-sniper-bot]|[createSwapTransaction]| ✅ Raw transaction id received.`, processRunCounter);
 
     // Fetch the current status of a transaction signature (processed, confirmed, finalized).
-    console.log(`[solana-sniper-bot]|[createSwapTransaction]| Fetching the current status of a transaction signature (processed, confirmed, finalized).`);
+    console.log(`[solana-sniper-bot]|[createSwapTransaction]| Fetching the current status of a transaction signature (processed, confirmed, finalized).`, processRunCounter);
     const conf = await connection.confirmTransaction({
       blockhash: latestBlockHash.blockhash,
       lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
@@ -303,47 +303,48 @@ export async function createSwapTransaction(solMint: string, tokenMint: string):
 
     // Return null when an error occured when confirming the transaction
     if (conf.value.err || conf.value.err !== null) {
-      console.log(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ Transaction confirmation failed.`);
+      console.log(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ Transaction confirmation failed.`, processRunCounter);
       return null;
     }
 
     return txid;
   } catch (error: any) {
-    console.error(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ Error while signing and sending the transaction: ${error.message}`);
+    console.error(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ Error while signing and sending the transaction: ${error.message}`, processRunCounter);
     if (config.verbose_log && config.verbose_log === true) {
-      console.log(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ Verbose Error Message:`);
+      console.log(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ Verbose Error Message:`, processRunCounter);
       if (error.response) {
         // Server responded with a status other than 2xx
-        console.error(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ Error Status: ${error.response.status} Error Status Text: ${error.response.statusText}`, error.response.data);
+        console.error(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ Error Status: ${error.response.status} Error Status Text: ${error.response.statusText}`, processRunCounter, error.response.data);
       } else if (error.request) {
         // Request was made but no response was received
-        console.error(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ No Response`, error.request);
+        console.error(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ No Response`, processRunCounter, error.request);
       } else {
         // Other errors
-        console.error(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ Error Message: ${error.message}`);
+        console.error(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ Error Message:`, processRunCounter, error.message);
       }
     }
     return null;
   }
 }
 
-export async function getRugCheckConfirmed(token: string): Promise<boolean> {
-  console.log(`[telegram-trading-bot]|[getRugCheckConfirmed]| Getting Rug Check for token: ${token}`);
+export async function getRugCheckConfirmed(token: string, processRunCounter: number): Promise<boolean> {
+  try {
+    console.log(`[solana-sniper-bot]|[getRugCheckConfirmed]| Getting Rug Check for token: ${token}`, processRunCounter);
     const rugResponse = await axios.get<RugResponseExtended>("https://api.rugcheck.xyz/v1/tokens/" + token + "/report", {
       timeout: 100000,
     });
   
     if (!rugResponse.data) {
-      console.log(`[telegram-trading-bot]|[getRugCheckConfirmed]| ⛔ Could not fetch Rug Check: No response received from API.`, rugResponse);
+      console.log(`[solana-sniper-bot]|[getRugCheckConfirmed]| ⛔ Could not fetch Rug Check: No response received from API.`, processRunCounter, rugResponse);
       return false;
     }
   
     if (config.verbose_log && config.verbose_log === true) {
-      console.log(`[telegram-trading-bot]|[getRugCheckConfirmed]| Rug Check Response:`, rugResponse.data);
+      console.log(`[solana-sniper-bot]|[getRugCheckConfirmed]| Rug Check Response:`, processRunCounter, rugResponse.data);
     }
   
     // Extract information
-    console.log(`[telegram-trading-bot]|[getRugCheckConfirmed]| Extracting information from Rug Check Response`);
+    console.log(`[solana-sniper-bot]|[getRugCheckConfirmed]| Extracting information from Rug Check Response`, processRunCounter);
     const tokenReport: RugResponseExtended = rugResponse.data;
     const tokenCreator = tokenReport.creator ? tokenReport.creator : token;
     const mintAuthority = tokenReport.token.mintAuthority;
@@ -374,7 +375,7 @@ export async function getRugCheckConfirmed(token: string): Promise<boolean> {
   
     // Update topholders if liquidity pools are excluded
     if (config.rug_check.exclude_lp_from_topholders) {
-      console.log(`[telegram-trading-bot]|[getRugCheckConfirmed]| Excluding liquidity pools from top holders`);
+      console.log(`[solana-sniper-bot]|[getRugCheckConfirmed]| Excluding liquidity pools from top holders`, processRunCounter);
       // local types
       type Market = {
         liquidityA?: string;
@@ -383,7 +384,7 @@ export async function getRugCheckConfirmed(token: string): Promise<boolean> {
   
       const markets: Market[] | undefined = tokenReport.markets;
       if (markets) {
-        console.log(`[telegram-trading-bot]|[getRugCheckConfirmed]| Extracting liquidity addresses from markets`);
+        console.log(`[solana-sniper-bot]|[getRugCheckConfirmed]| Extracting liquidity addresses from markets`, processRunCounter);
         // Safely extract liquidity addresses from markets
         const liquidityAddresses: string[] = (markets ?? [])
           .flatMap((market) => [market.liquidityA, market.liquidityB])
@@ -391,17 +392,17 @@ export async function getRugCheckConfirmed(token: string): Promise<boolean> {
   
         // Filter out topHolders that match any of the liquidity addresses
         topHolders = topHolders.filter((holder) => !liquidityAddresses.includes(holder.address));
-        console.log(`[telegram-trading-bot]|[getRugCheckConfirmed]| Top Holders after filtering:`, topHolders);
+        console.log(`[solana-sniper-bot]|[getRugCheckConfirmed]| Top Holders after filtering:`, processRunCounter, topHolders);
       }
     }
   
     // Get config
-    console.log(`[telegram-trading-bot]|[getRugCheckConfirmed]| Getting bot config`, config);
+    console.log(`[solana-sniper-bot]|[getRugCheckConfirmed]| Getting bot config`, processRunCounter, config);
     const rugCheckConfig = config.rug_check;
     const rugCheckLegacy = rugCheckConfig.legacy_not_allowed;
   
     // Set conditions
-    console.log(`[telegram-trading-bot]|[getRugCheckConfirmed]| Setting conditions`);
+    console.log(`[solana-sniper-bot]|[getRugCheckConfirmed]| Setting conditions`, processRunCounter);
     const conditions = [
       {
         check: !rugCheckConfig.allow_mint_authority && mintAuthority !== null,
@@ -461,7 +462,7 @@ export async function getRugCheckConfirmed(token: string): Promise<boolean> {
       },
     ];
 
-    console.log(`[telegram-trading-bot]|[getRugCheckConfirmed]| Conditions:`, conditions);
+    console.log(`[solana-sniper-bot]|[getRugCheckConfirmed]| Conditions:`, processRunCounter, conditions);
   
     // Create new token record
     const newToken: NewTokenRecord = {
@@ -471,24 +472,28 @@ export async function getRugCheckConfirmed(token: string): Promise<boolean> {
       creator: tokenCreator,
     };
     await insertNewToken(newToken).catch((err) => {
-        console.log(`[telegram-trading-bot]|[getRugCheckConfirmed]| ⛔ Unable to store new token for tracking duplicate tokens: ${err}`);
+        console.log(`[solana-sniper-bot]|[getRugCheckConfirmed]| ⛔ Unable to store new token for tracking duplicate tokens: ${err}`, processRunCounter);
     });
   
     //Validate conditions
     for (const condition of conditions) {
       if (condition.check) {
-        console.log(`[telegram-trading-bot]|[getRugCheckConfirmed]| ⛔ Condition failed: ${condition.message}`);
+        console.log(`[solana-sniper-bot]|[getRugCheckConfirmed]| ⛔ Condition failed: ${condition.message}`, processRunCounter);
         return false;
       }
     }
   
-    return true;
+    return conditions.every((condition) => !condition.check);
+  } catch (error: any) {
+    console.error(`[solana-sniper-bot]|[getRugCheckConfirmed]| ⛔ Error during rug check: ${error.message}`, processRunCounter);
+    return false;
   }
+}
 
-export async function fetchAndSaveSwapDetails(tx: string): Promise<boolean> {
+export async function fetchAndSaveSwapDetails(tx: string, processRunCounter: number): Promise<boolean> {
   const txUrl = process.env.HELIUS_HTTPS_URI_TX || "";
   const priceUrl = process.env.JUP_HTTPS_PRICE_URI || "";
-  console.log(`[solana-sniper-bot]|[fetchAndSaveSwapDetails]| Fetching swap details for tx: ${tx}`);
+  console.log(`[solana-sniper-bot]|[fetchAndSaveSwapDetails]| Fetching swap details for tx: ${tx}`, processRunCounter);
   try {
     const response = await axios.post<any>(
       txUrl,
@@ -503,7 +508,7 @@ export async function fetchAndSaveSwapDetails(tx: string): Promise<boolean> {
 
     // Verify if we received tx reponse data
     if (!response.data || response.data.length === 0) {
-      console.log("[solana-sniper-bot]|[fetchAndSaveSwapDetails]| ⛔ Could not fetch swap details: No response received from API.", response);
+      console.log("[solana-sniper-bot]|[fetchAndSaveSwapDetails]| ⛔ Could not fetch swap details: No response received from API.", processRunCounter, response);
       return false;
     }
 
@@ -518,10 +523,10 @@ export async function fetchAndSaveSwapDetails(tx: string): Promise<boolean> {
       timestamp: transactions[0]?.timestamp,
       description: transactions[0]?.description,
     };
-    console.log(`[solana-sniper-bot]|[fetchAndSaveSwapDetails]| Swap transaction data:`, swapTransactionData);
+    console.log(`[solana-sniper-bot]|[fetchAndSaveSwapDetails]| Swap transaction data:`, processRunCounter, swapTransactionData);
 
     // Get latest Sol Price
-    console.log(`[solana-sniper-bot]|[fetchAndSaveSwapDetails]| Getting latest Sol Price`);
+    console.log(`[solana-sniper-bot]|[fetchAndSaveSwapDetails]| Getting latest Sol Price`, processRunCounter);
     const priceResponse = await axios.get<any>(priceUrl, {
       params: {
         ids: config.liquidity_pool.wsol_pc_mint,
@@ -531,19 +536,19 @@ export async function fetchAndSaveSwapDetails(tx: string): Promise<boolean> {
 
     // Verify if we received the price response data
     if (!priceResponse.data.data[config.liquidity_pool.wsol_pc_mint]?.price) {
-      console.log(`[solana-sniper-bot]|[fetchAndSaveSwapDetails]| ⛔ Could not fetch latest Sol Price: No response received from API.`, priceResponse);
+      console.log(`[solana-sniper-bot]|[fetchAndSaveSwapDetails]| ⛔ Could not fetch latest Sol Price: No response received from API.`, processRunCounter, priceResponse);
       return false;
     }
-    console.log(`[solana-sniper-bot]|[fetchAndSaveSwapDetails]| Latest Sol Price:`, priceResponse.data.data[config.liquidity_pool.wsol_pc_mint]?.price);
+    console.log(`[solana-sniper-bot]|[fetchAndSaveSwapDetails]| Latest Sol Price:`, processRunCounter, priceResponse.data.data[config.liquidity_pool.wsol_pc_mint]?.price);
     // Calculate estimated price paid in sol
-    console.log(`[solana-sniper-bot]|[fetchAndSaveSwapDetails]| Calculating estimated price paid in sol`);
+    console.log(`[solana-sniper-bot]|[fetchAndSaveSwapDetails]| Calculating estimated price paid in sol`, processRunCounter);
     const solUsdcPrice = priceResponse.data.data[config.liquidity_pool.wsol_pc_mint]?.price;
     const solPaidUsdc = swapTransactionData.tokenInputs[0].tokenAmount * solUsdcPrice;
     const solFeePaidUsdc = (swapTransactionData.fee / 1_000_000_000) * solUsdcPrice;
     const perTokenUsdcPrice = solPaidUsdc / swapTransactionData.tokenOutputs[0].tokenAmount;
 
     // Get token meta data
-    console.log(`[solana-sniper-bot]|[fetchAndSaveSwapDetails]| Caclulated Prices`, {solPaidUsdc, solFeePaidUsdc, perTokenUsdcPrice});
+    console.log(`[solana-sniper-bot]|[fetchAndSaveSwapDetails]| Caclulated Prices`, processRunCounter, {solPaidUsdc, solFeePaidUsdc, perTokenUsdcPrice});
     let tokenName = "N/A";
     const tokenData: NewTokenRecord[] = await selectTokenByMint(swapTransactionData.tokenOutputs[0].mint);
     if (tokenData && tokenData.length > 0) {
@@ -566,13 +571,13 @@ export async function fetchAndSaveSwapDetails(tx: string): Promise<boolean> {
     };
 
     await insertHolding(newHolding).catch((err: any) => {
-      console.log(`[solana-sniper-bot]|[fetchAndSaveSwapDetails]| ⛔ Insert Holding Database Error: ${err}`);
+      console.log(`[solana-sniper-bot]|[fetchAndSaveSwapDetails]| ⛔ Insert Holding Database Error: ${err}`, processRunCounter);
       return false;
     });
 
     return true;
   } catch (error: any) {
-    console.error(`[solana-sniper-bot]|[fetchAndSaveSwapDetails]| ⛔ Fetch and Save Swap Details Error: ${error.message}`);
+    console.error(`[solana-sniper-bot]|[fetchAndSaveSwapDetails]| ⛔ Fetch and Save Swap Details Error: ${error.message}`, processRunCounter);
     return false;
   }
 }
