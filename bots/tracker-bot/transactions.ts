@@ -20,6 +20,7 @@ export async function createSellTransaction(solMint: string, tokenMint: string, 
   const rpcUrl = process.env.HELIUS_HTTPS_URI || "";
   const myWallet = new Wallet(Keypair.fromSecretKey(bs58.decode(process.env.PRIV_KEY_WALLET_2 || "")));
   const connection = new Connection(rpcUrl);
+  console.log(`[tracker-bot]|[createSellTransaction]| Crating Sell Transaction for Wallet ${myWallet.publicKey.toString()}`, processRunCounter);
 
   try {
     // Check token balance using RPC connection
@@ -35,8 +36,9 @@ export async function createSellTransaction(solMint: string, tokenMint: string, 
 
     // Verify returned balance
     if (totalBalance <= 0n) {
+      console.log(`[tracker-bot]|[createSellTransaction]| Token has 0 balance - Already sold elsewhere. Removing from tracking.`, processRunCounter);
       await removeHolding(tokenMint, processRunCounter).catch((err) => {
-        console.log("⛔ Database Error: " + err);
+        console.log(`[tracker-bot]|[createSellTransaction]| ⛔ Database Error: ${err}`, processRunCounter);
       });
       throw new Error(`Token has 0 balance - Already sold elsewhere. Removing from tracking.`);
     }
@@ -47,6 +49,7 @@ export async function createSellTransaction(solMint: string, tokenMint: string, 
     }
 
     // Request a quote in order to swap SOL for new token
+    console.log(`[tracker-bot]|[createSellTransaction]| Requesting quote for swap of ${amount} ${tokenMint} to ${solMint}, slippageBps: ${config.sell.slippageBps}`, processRunCounter);
     const quoteResponse = await axios.get<QuoteResponse>(quoteUrl, {
       params: {
         inputMint: tokenMint,
@@ -63,6 +66,7 @@ export async function createSellTransaction(solMint: string, tokenMint: string, 
     }
 
     // Serialize the quote into a swap transaction that can be submitted on chain
+    console.log(`[tracker-bot]|[createSellTransaction]| Serializing quote into a swap transaction that can be submitted on chain`, processRunCounter);
     const swapTransaction = await axios.post<SerializedQuoteResponse>(
       swapUrl,
       JSON.stringify({
@@ -93,19 +97,23 @@ export async function createSellTransaction(solMint: string, tokenMint: string, 
     );
 
     // Throw error if no quote was received
+    console.log(`[tracker-bot]|[createSellTransaction]| Serialized Swap Transaction`, processRunCounter, swapTransaction.data);
     if (!swapTransaction.data) {
       throw new Error("No valid swap transaction was received from Jupiter!");
     }
 
     // deserialize the transaction
+    console.log(`[tracker-bot]|[createSellTransaction]| Deserializing Swap Transaction`, processRunCounter);
     const swapTransactionBuf = Buffer.from(swapTransaction.data.swapTransaction, "base64");
     var transaction = VersionedTransaction.deserialize(swapTransactionBuf);
 
     // sign the transaction
+    console.log(`[tracker-bot]|[createSellTransaction]| Signing Swap Transaction`, processRunCounter);
     transaction.sign([myWallet.payer]);
 
     // Execute the transaction
     const rawTransaction = transaction.serialize();
+    console.log(`[tracker-bot]|[createSellTransaction]| Sending Swap Transaction`, processRunCounter);
     const txid = await connection.sendRawTransaction(rawTransaction, {
       skipPreflight: true, // If True, This will skip transaction simulation entirely.
       maxRetries: 2,
@@ -118,8 +126,10 @@ export async function createSellTransaction(solMint: string, tokenMint: string, 
 
     // get the latest block hash
     const latestBlockHash = await connection.getLatestBlockhash();
+    console.log(`[tracker-bot]|[createSellTransaction]| Latest Block Hash`, processRunCounter, latestBlockHash);
 
     // Fetch the current status of a transaction signature (processed, confirmed, finalized).
+    console.log(`[tracker-bot]|[createSellTransaction]| Confirming Transaction`, processRunCounter);
     const conf = await connection.confirmTransaction({
       blockhash: latestBlockHash.blockhash,
       lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
@@ -131,9 +141,12 @@ export async function createSellTransaction(solMint: string, tokenMint: string, 
       throw new Error("Transaction was not successfully confirmed!");
     }
 
+    console.log(`[tracker-bot]|[createSellTransaction]| Transaction Confirmed`, processRunCounter);
+
     // Delete holding
+    console.log(`[tracker-bot]|[createSellTransaction]| Deleting Holding`, processRunCounter);
     await removeHolding(tokenMint, processRunCounter).catch((err) => {
-      console.log("⛔ Database Error: " + err);
+      console.log(`[tracker-bot]|[createSellTransaction]| ⛔ Database Error: ${err}`, processRunCounter);
     });
 
     return {
