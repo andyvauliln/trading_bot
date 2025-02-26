@@ -59,7 +59,7 @@ export class AIMessageProcessor {
       - is_potential_to_buy_token: whether the token is potential to buy, false only if message specifically says not to buy
 
       if you are not sure about the token or if message contains, return an empty array
-      Message:
+      Messages:
       ${telegram_message}
       `
       const result = await this.initialModel.withStructuredOutput(tokenAnalysisResult).invoke(ai_message);

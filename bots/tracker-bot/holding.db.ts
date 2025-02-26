@@ -28,10 +28,10 @@ export async function createTableHoldings(database: any): Promise<boolean> {
   }
 }
 
-export async function insertHolding(holding: HoldingRecord) {
-  console.log(`[holding-db]|[insertHolding]| Inserting holding:`, holding);
+export async function insertHolding(holding: HoldingRecord, processRunCounter: number) {
+  console.log(`[holding-db]|[insertHolding]| Inserting holding:`, processRunCounter, holding);
   const db = await open({
-    filename: config.swap.db_name_tracker_holdings,
+    filename: config.db_name_tracker_holdings,
     driver: sqlite3.Database,
   });
 
@@ -52,15 +52,15 @@ export async function insertHolding(holding: HoldingRecord) {
       [Time, Token, TokenName, Balance, SolPaid, SolFeePaid, SolPaidUSDC, SolFeePaidUSDC, PerTokenPaidUSDC, Slot, Program]
     );
 
-    console.log(`[holding-db]|[insertHolding]| Holding inserted successfully`);
+    console.log(`[holding-db]|[insertHolding]| Holding inserted successfully`, processRunCounter);
 
     await db.close();
   }
 }
 
-export async function removeHolding(tokenMint: string) {
+export async function removeHolding(tokenMint: string, processRunCounter: number) {
   const db = await open({
-    filename: config.swap.db_name_tracker_holdings,
+    filename: config.db_name_tracker_holdings,
     driver: sqlite3.Database,
   });
 
@@ -72,6 +72,8 @@ export async function removeHolding(tokenMint: string) {
     `,
     [tokenMint]
   );
+
+  console.log(`[holding-db]|[removeHolding]| Holding removed successfully`, processRunCounter);
 
   await db.close();
 }
@@ -94,10 +96,10 @@ export async function createTableNewTokens(database: any): Promise<boolean> {
   }
 }
 
-export async function insertNewToken(newToken: NewTokenRecord) {
-  console.log(`[holding-db]|[insertNewToken]| Inserting new token:`, newToken);
+export async function insertNewToken(newToken: NewTokenRecord, processRunCounter: number) {
+  console.log(`[holding-db]|[insertNewToken]| Inserting new token:`, processRunCounter, newToken);
   const db = await open({
-    filename: config.swap.db_name_tracker_holdings,
+    filename: config.db_name_tracker_holdings,
     driver: sqlite3.Database,
   });
 
@@ -118,7 +120,7 @@ export async function insertNewToken(newToken: NewTokenRecord) {
     `,
     [mint]
   );
-  console.log(`[holding-db]|[insertNewToken]| Existing token: ${existingToken ? "Found" : "Not Found"}`, existingToken);
+  console.log(`[holding-db]|[insertNewToken]| Existing token: ${existingToken ? "Found" : "Not Found"}`, processRunCounter, existingToken);
   if (existingToken) {
     await db.close();
     return;
@@ -132,15 +134,15 @@ export async function insertNewToken(newToken: NewTokenRecord) {
     `,
     [time, name, mint, creator]
   );
-  console.log(`[holding-db]|[insertNewToken]| New token inserted successfully`);
+  console.log(`[holding-db]|[insertNewToken]| New token inserted successfully`, processRunCounter);
 
   await db.close();
 }
 
-export async function selectTokenByNameAndCreator(name: string, creator: string): Promise<NewTokenRecord[]> {
+export async function selectTokenByNameAndCreator(name: string, creator: string, processRunCounter: number): Promise<NewTokenRecord[]> {
   // Open the database
   const db = await open({
-    filename: config.swap.db_name_tracker_holdings,
+    filename: config.db_name_tracker_holdings,
     driver: sqlite3.Database,
   });
 
@@ -161,6 +163,8 @@ export async function selectTokenByNameAndCreator(name: string, creator: string)
     [name, creator]
   );
 
+  console.log(`[holding-db]|[selectTokenByNameAndCreator]| Found token number: ${tokens.length}`, processRunCounter, tokens);
+
   // Close the database
   await db.close();
 
@@ -168,11 +172,11 @@ export async function selectTokenByNameAndCreator(name: string, creator: string)
   return tokens;
 }
 
-export async function selectTokenByMint(mint: string): Promise<NewTokenRecord[]> {
-  console.log(`[holding-db]|[selectTokenByMint]| Selecting token by mint: ${mint}`);
+export async function selectTokenByMint(mint: string, processRunCounter: number): Promise<NewTokenRecord[]> {
+  console.log(`[holding-db]|[selectTokenByMint]| Selecting token by mint: ${mint}`, processRunCounter);
   // Open the database
   const db = await open({
-    filename: config.swap.db_name_tracker_holdings,
+    filename: config.db_name_tracker_holdings,
     driver: sqlite3.Database,
   });
 
@@ -194,7 +198,7 @@ export async function selectTokenByMint(mint: string): Promise<NewTokenRecord[]>
     [mint]
   );
 
-  console.log(`[holding-db]|[selectTokenByMint]| Found token number: ${tokens.length}`, tokens);
+  console.log(`[holding-db]|[selectTokenByMint]| Found token number: ${tokens.length}`, processRunCounter, tokens);
 
   // Close the database
   await db.close();
@@ -203,10 +207,10 @@ export async function selectTokenByMint(mint: string): Promise<NewTokenRecord[]>
   return tokens;
 }
 
-export async function selectAllTokens(): Promise<NewTokenRecord[]> {
+export async function selectAllTokens(processRunCounter: number): Promise<NewTokenRecord[]> {
   // Open the database
   const db = await open({
-    filename: config.swap.db_name_tracker_holdings,
+    filename: config.db_name_tracker_holdings,
     driver: sqlite3.Database,
   });
 
@@ -225,6 +229,8 @@ export async function selectAllTokens(): Promise<NewTokenRecord[]> {
   `
   );
 
+  console.log(`[holding-db]|[selectAllTokens]| Found token number: ${tokens.length}`, processRunCounter, tokens);
+
   // Close the database
   await db.close();
 
@@ -232,9 +238,9 @@ export async function selectAllTokens(): Promise<NewTokenRecord[]> {
   return tokens;
 }
 
-export async function getHoldingRecord(token: string): Promise<HoldingRecord | null> {
+export async function getHoldingRecord(token: string, processRunCounter: number): Promise<HoldingRecord | null> {
   const db = await open({
-    filename: config.swap.db_name_tracker_holdings,
+    filename: config.db_name_tracker_holdings,
     driver: sqlite3.Database,
   });
 
@@ -249,6 +255,8 @@ export async function getHoldingRecord(token: string): Promise<HoldingRecord | n
   );
 
   await db.close();
+
+  console.log(`[holding-db]|[getHoldingRecord]| Found token: ${tokenRecord ? "Found" : "Not Found"}`, processRunCounter, tokenRecord);
 
   return tokenRecord || null;
 }

@@ -1,7 +1,7 @@
 import { config } from "./config";
 import axios from "axios";
 import { RugResponseExtended, NewTokenRecord } from "./types";
-import { insertNewToken, getHoldingRecord } from "../tracker-bot/db";
+import { insertNewToken, getHoldingRecord } from "../tracker-bot/holding.db";
 import { createSwapTransaction, fetchAndSaveSwapDetails } from "./transactions";
 
 export async function getRugCheckConfirmed(token: string, processRunCounter: number): Promise<boolean> {
@@ -148,7 +148,7 @@ export async function getRugCheckConfirmed(token: string, processRunCounter: num
       name: tokenName,
       creator: tokenCreator,
     };
-    await insertNewToken(newToken).catch((err) => {
+    await insertNewToken(newToken, processRunCounter).catch((err) => {
         console.log(`[telegram-trading-bot]|[getRugCheckConfirmed]| ⛔ Unable to store new token for tracking duplicate tokens: ${err}`, processRunCounter);
     });
   
@@ -170,7 +170,7 @@ export async function getRugCheckConfirmed(token: string, processRunCounter: num
   
   export async function validateAndSwapToken(token: string, processRunCounter: number): Promise<boolean> {
     console.log(`[telegram-trading-bot]|[validateAndSwapToken]| Validating token: ${token}`, processRunCounter);
-    const tokenRecord = await getHoldingRecord(token);
+    const tokenRecord = await getHoldingRecord(token, processRunCounter);
     console.log(`[telegram-trading-bot]|[validateAndSwapToken]| Checking if token already in holding: ${tokenRecord}, Buy additional holding: ${config.swap.is_additional_holding}`, processRunCounter);
     if(tokenRecord && config.swap.is_additional_holding) {
         console.log(`[telegram-trading-bot]|[validateAndSwapToken]| Additional holding is disabled. Skipping validation and swapping.`, processRunCounter);

@@ -14,7 +14,7 @@ import {
   RugResponseExtended,
   NewTokenRecord,
 } from "./types";
-import { insertHolding, insertNewToken, selectTokenByMint, selectTokenByNameAndCreator } from "../tracker-bot/db";
+import { insertHolding, insertNewToken, selectTokenByMint } from "../tracker-bot/holding.db";
 
 // Load environment variables from the .env file
 dotenv.config();
@@ -471,7 +471,7 @@ export async function getRugCheckConfirmed(token: string, processRunCounter: num
       name: tokenName,
       creator: tokenCreator,
     };
-    await insertNewToken(newToken).catch((err) => {
+    await insertNewToken(newToken, processRunCounter).catch((err) => {
         console.log(`[solana-sniper-bot]|[getRugCheckConfirmed]| ⛔ Unable to store new token for tracking duplicate tokens: ${err}`, processRunCounter);
     });
   
@@ -550,7 +550,7 @@ export async function fetchAndSaveSwapDetails(tx: string, processRunCounter: num
     // Get token meta data
     console.log(`[solana-sniper-bot]|[fetchAndSaveSwapDetails]| Caclulated Prices`, processRunCounter, {solPaidUsdc, solFeePaidUsdc, perTokenUsdcPrice});
     let tokenName = "N/A";
-    const tokenData: NewTokenRecord[] = await selectTokenByMint(swapTransactionData.tokenOutputs[0].mint);
+    const tokenData: NewTokenRecord[] = await selectTokenByMint(swapTransactionData.tokenOutputs[0].mint, processRunCounter);
     if (tokenData && tokenData.length > 0) {
       tokenName = tokenData[0].name;
     }
@@ -570,7 +570,7 @@ export async function fetchAndSaveSwapDetails(tx: string, processRunCounter: num
       Program: swapTransactionData.programInfo ? swapTransactionData.programInfo.source : "N/A",
     };
 
-    await insertHolding(newHolding).catch((err: any) => {
+    await insertHolding(newHolding, processRunCounter).catch((err: any) => {
       console.log(`[solana-sniper-bot]|[fetchAndSaveSwapDetails]| ⛔ Insert Holding Database Error: ${err}`, processRunCounter);
       return false;
     });

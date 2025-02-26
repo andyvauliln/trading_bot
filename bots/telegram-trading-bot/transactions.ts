@@ -12,7 +12,7 @@ import {
   HoldingRecord,
   NewTokenRecord,
 } from "./types";
-import { insertHolding, selectTokenByMint } from "../tracker-bot/db";
+import { insertHolding, selectTokenByMint } from "../tracker-bot/holding.db";
 
 dotenv.config();
 
@@ -270,7 +270,7 @@ export async function fetchAndSaveSwapDetails(tx: string, processRunCounter: num
     // Get token meta data
     console.log(`[telegram-trading-bot]|[fetchAndSaveSwapDetails]| Caclulated Prices`, processRunCounter, {solPaidUsdc, solFeePaidUsdc, perTokenUsdcPrice});
     let tokenName = "N/A";
-    const tokenData: NewTokenRecord[] = await selectTokenByMint(swapTransactionData.tokenOutputs[0].mint);
+    const tokenData: NewTokenRecord[] = await selectTokenByMint(swapTransactionData.tokenOutputs[0].mint, processRunCounter);
     if (tokenData && tokenData.length > 0) {
       tokenName = tokenData[0].name;
     }
@@ -290,7 +290,7 @@ export async function fetchAndSaveSwapDetails(tx: string, processRunCounter: num
       Program: swapTransactionData.programInfo ? swapTransactionData.programInfo.source : "N/A",
     };
 
-    await insertHolding(newHolding).catch((err: any) => {
+    await insertHolding(newHolding, processRunCounter).catch((err: any) => {
       console.log(`[telegram-trading-bot]|[fetchAndSaveSwapDetails]| ⛔ Insert Holding Database Error: ${err}`, processRunCounter);
       return false;
     });

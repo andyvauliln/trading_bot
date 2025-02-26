@@ -6,7 +6,7 @@
       "request": "launch",
       "name": "Debug Telegram Trading Bot",
       "skipFiles": ["<node_internals>/**"],
-      "program": "${workspaceFolder}/bots/telegram-trading-bot/test_transaction.ts",
+      "program": "${workspaceFolder}/bots/telegram-trading-bot/index.ts",
       "runtimeArgs": ["-r", "ts-node/register"],
       "console": "integratedTerminal",
       "outFiles": ["${workspaceFolder}/dist/**/*.js"],

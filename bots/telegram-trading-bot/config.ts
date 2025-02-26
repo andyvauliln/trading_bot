@@ -4,13 +4,14 @@ import path from "path";
 dotenv.config();
 
 export const config: TelegramConfig = {
-    "environment": "test", // development, production, test
+    "environment": process.env.NODE_ENV || "test", // development, production, test
     "name": "telegram-trading-bot",
+    "logs_db_path": path.resolve(process.cwd(), 'data', 'app-logs.db'),
     "base_url": "https://tg.i-c-a.su",
     "messages_db_path":  path.resolve(process.cwd(), 'data', 'telegram-trading-bot.messages.db'),
     "messages_json_path":  path.resolve(process.cwd(), 'data', 'telegram-trading-bot.messages.json'),
-    "storage_type": "sqlite", // sqlite, json
-    "check_interval": 10*60, // seconds
+    "storage_type": "sqlite", // sqlite,
+    "check_interval": 3*60, // seconds
     "max_messages_per_channel": 100,
     "request_timeout": 30, // seconds
     "max_retries": 3,

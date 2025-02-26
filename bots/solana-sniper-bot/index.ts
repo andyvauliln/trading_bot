@@ -11,7 +11,7 @@ let processRunCounter = 1; // Counter to track the number of process runs
 
 // Function used to open our websocket connection
 function sendSubscribeRequest(ws: WebSocket): void {
-  console.log(`[solana-sniper-bot]|[sendSubscribeRequest]|INITAPPLICATION Sending subscribe request to websocket for radiyum program id: ${config.liquidity_pool.radiyum_program_id}`);
+  console.log(`[solana-sniper-bot]|[sendSubscribeRequest]|MAINLOGS Sending subscribe request to websocket for radiyum program id: ${config.liquidity_pool.radiyum_program_id}`);
   const request: WebSocketRequest = {
     jsonrpc: "2.0",
     id: 1,
@@ -101,10 +101,10 @@ async function processTransaction(signature: string, processRunCounter: number):
 // Websocket Handler for listening to the Solana logSubscribe method
 let init = false;
 async function websocketHandler(): Promise<void> {
-  console.log(`[solana-sniper-bot]|[websocketHandler]|INITAPPLICATION APPLICATION STARTED`);
+  console.log(`[solana-sniper-bot]|[websocketHandler]|MAINLOGS APPLICATION STARTED`);
   // Load environment variables from the .env file
   const env = validateEnv();
-  console.log(`[solana-sniper-bot]|[websocketHandler]|INITAPPLICATION Environment Variables Validated`);
+  console.log(`[solana-sniper-bot]|[websocketHandler]|MAINLOGS Environment Variables Validated`);
   // Create a WebSocket connection
   let ws: WebSocket | null = new WebSocket(env.HELIUS_WSS_URI);
   if (!init) console.clear();
@@ -116,28 +116,25 @@ async function websocketHandler(): Promise<void> {
   ws.on("open", () => {
     // Subscribe
     if (ws) sendSubscribeRequest(ws); // Send a request once the WebSocket is open
-    console.log(`[solana-sniper-bot]|[websocketHandler]|INITAPPLICATION 🔓 WebSocket is open and listening.`);
+    console.log(`[solana-sniper-bot]|[websocketHandler]|MAINLOGS 🔓 WebSocket is open and listening.`);
     init = true;
   });
   // Logic for the message event for the .on event listener
   ws.on("message", async (data: WebSocket.Data) => {
-    processRunCounter++; // Increment the process run counter
-    console.log(`[solana-sniper-bot]|[websocketHandler]|RUNSTART`, processRunCounter);
+   
     try {
       const jsonString = data.toString(); // Convert data to a string
       const parsedData = JSON.parse(jsonString); // Parse the JSON string
 
       // Handle subscription response
       if (parsedData.result !== undefined && !parsedData.error) {
-        console.log(`[solana-sniper-bot]|[websocketHandler]|✅ Subscription confirmed`, processRunCounter);
-        console.log(`[solana-sniper-bot]|[websocketHandler]|RUNEND`, processRunCounter, false);
+        // console.log(`[solana-sniper-bot]|[websocketHandler]|✅ Subscription confirmed`, 0, parsedData);
         return;
       }
 
       // Only log RPC errors for debugging
       if (parsedData.error) {
-        console.error(`[solana-sniper-bot]|[websocketHandler]|🚫 RPC Error:`, processRunCounter, parsedData.error);
-        console.log(`[solana-sniper-bot]|[websocketHandler]|RUNEND`, processRunCounter, false);
+        // console.error(`[solana-sniper-bot]|[websocketHandler]|🚫 RPC Error:`, 0, parsedData.error);
         return;
       }
 
@@ -147,17 +144,15 @@ async function websocketHandler(): Promise<void> {
 
       // Validate `logs` is an array and if we have a signtature
       if (!Array.isArray(logs) || !signature) {
-        console.error(`[solana-sniper-bot]|[websocketHandler]|🚫 Invalid data received`, processRunCounter, { logs, signature });
-        console.log(`[solana-sniper-bot]|[websocketHandler]|RUNEND`, processRunCounter, false);
+        // console.error(`[solana-sniper-bot]|[websocketHandler]|🚫 Invalid data received`, 0, { logs, signature });
         return;
       }
 
       // Verify if this is a new pool creation
-      console.log(`[solana-sniper-bot]|[websocketHandler]|🔎 Verifying if this is a new pool creation`, processRunCounter);
+      // console.log(`[solana-sniper-bot]|[websocketHandler]|🔎 Verifying if this is a new pool creation`, processRunCounter);
       const containsCreate = logs.some((log: string) => typeof log === "string" && log.includes("Program log: initialize2: InitializeInstruction2"));
       if (!containsCreate || typeof signature !== "string") {
-        console.error(`[solana-sniper-bot]|[websocketHandler]|🚫 Invalid data received`, processRunCounter, { logs, signature });
-        console.log(`[solana-sniper-bot]|[websocketHandler]|RUNEND`, processRunCounter);
+        // console.error(`[solana-sniper-bot]|[websocketHandler]|🚫 Invalid data received`, processRunCounter, { logs, signature });
         return;
       }
 
@@ -165,53 +160,54 @@ async function websocketHandler(): Promise<void> {
       console.log(`[solana-sniper-bot]|[websocketHandler]|🔎 Verifying if we have reached the max concurrent transactions`);
       if (activeTransactions >= MAX_CONCURRENT) {
         console.log(`[solana-sniper-bot]|[websocketHandler]|⏳ Max concurrent transactions reached, skipping...`);
-        console.log(`[solana-sniper-bot]|[websocketHandler]|RUNEND`, false);
         return;
       }
 
       // Add additional concurrent transaction
-      console.log(`[solana-sniper-bot]|[websocketHandler]|🔎 Adding additional concurrent transaction`);
       activeTransactions++;
 
       // Process transaction asynchronously
+      
+      console.log(`[solana-sniper-bot]|[websocketHandler]|CYCLE_START`, processRunCounter);
       processTransaction(signature, processRunCounter)
         .then((result) => {
-          console.log(`[solana-sniper-bot]|[websocketHandler]|RUNEND`, processRunCounter, result);
+          console.log(`[solana-sniper-bot]|[websocketHandler]|CYCLE_END`, processRunCounter, result);
         })
         .catch((error) => {
           console.error(`[solana-sniper-bot]|[websocketHandler]|💥 Error processing transaction:`, error);
-          console.log(`[solana-sniper-bot]|[websocketHandler]|RUNEND`, false);
+          console.log(`[solana-sniper-bot]|[websocketHandler]|CYCLE_END`, false);
         })
         .finally(() => {
           console.log(`[solana-sniper-bot]|[websocketHandler]|🔎 Decrementing active transactions`);
           activeTransactions--;
-          console.log(`[solana-sniper-bot]|[websocketHandler]|RUNEND`, false);
+          processRunCounter++; // Increment the process run counter
+          console.log(`[solana-sniper-bot]|[websocketHandler]|CYCLE_END`, false);
         });
     } catch (error) {
       console.error(`[solana-sniper-bot]|[websocketHandler]|💥 Error processing message:`, processRunCounter, {
         error: error instanceof Error ? error.message : "Unknown error",
         timestamp: new Date().toISOString(),
       });
-      console.log(`[solana-sniper-bot]|[websocketHandler]|RUNEND`, processRunCounter, false);
+      console.log(`[solana-sniper-bot]|[websocketHandler]|CYCLE_END`, processRunCounter, false);
     }
   });
 
   ws.on("error", (err: Error) => {
-    console.error(`[solana-sniper-bot]|[websocketHandler]|INITAPPLICATION WebSocket error: ${err.message}`);
+    console.error(`[solana-sniper-bot]|[websocketHandler]|MAINLOGS WebSocket error: ${err.message}`);
   });
 
   ws.on("close", () => {
-    console.log(`[solana-sniper-bot]|[websocketHandler]|INITAPPLICATION 📴 WebSocket connection closed, cleaning up...`);
+    console.log(`[solana-sniper-bot]|[websocketHandler]|MAINLOGS 📴 WebSocket connection closed, cleaning up...`);
     if (ws) {
       ws.removeAllListeners();
       ws = null;
     }
-    console.log(`[solana-sniper-bot]|[websocketHandler]|INITAPPLICATION 🔄 Attempting to reconnect in 5 seconds...`);
+    console.log(`[solana-sniper-bot]|[websocketHandler]|MAINLOGS 🔄 Attempting to reconnect in 5 seconds...`);
     setTimeout(websocketHandler, 5000);
   });
 }
 
 // Start Socket Handler
 websocketHandler().catch((err) => {
-  console.error(`[solana-sniper-bot]|[websocketHandler]|INITAPPLICATION 💥 Error starting application: ${err.message}`);
+  console.error(`[solana-sniper-bot]|[websocketHandler]|MAINLOGS 💥 Error starting application: ${err.message}`);
 });
