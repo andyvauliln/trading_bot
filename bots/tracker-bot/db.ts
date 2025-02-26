@@ -209,3 +209,24 @@ export async function selectAllTokens(): Promise<NewTokenRecord[]> {
   // Return the results
   return tokens;
 }
+
+export async function getHoldingRecord(token: string): Promise<HoldingRecord | null> {
+  const db = await open({
+    filename: config.swap.db_name_tracker_holdings,
+    driver: sqlite3.Database,
+  });
+
+  const tokenRecord = await db.get(
+    `
+    SELECT * 
+    FROM holdings 
+    WHERE Token = ? 
+    LIMIT 1;
+  `,
+    [token]
+  );
+
+  await db.close();
+
+  return tokenRecord || null;
+}

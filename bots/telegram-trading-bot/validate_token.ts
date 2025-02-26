@@ -1,7 +1,7 @@
 import { config } from "./config";
 import axios from "axios";
 import { RugResponseExtended, NewTokenRecord } from "./types";
-import { selectTokenByNameAndCreator, insertNewToken } from "../tracker-bot/db";
+import { insertNewToken, getHoldingRecord } from "../tracker-bot/db";
 import { createSwapTransaction, fetchAndSaveSwapDetails } from "./transactions";
 
 export async function getRugCheckConfirmed(token: string): Promise<boolean> {
@@ -11,7 +11,7 @@ export async function getRugCheckConfirmed(token: string): Promise<boolean> {
   
     if (!rugResponse.data) return false;
   
-    if (config.verbose_log && config..verbose_log === true) {
+    if (config.verbose_log && config.verbose_log === true) {
       console.log(rugResponse.data);
     }
   
@@ -128,24 +128,6 @@ export async function getRugCheckConfirmed(token: string): Promise<boolean> {
       },
     ];
   
-    // // If tracking duplicate tokens is enabled
-    // if (config.rug_check.block_returning_token_names || config.rug_check.block_returning_token_creators) {
-    //   // Get duplicates based on token min and creator
-    //   const duplicate = await selectTokenByNameAndCreator(tokenName, tokenCreator);
-  
-    //   // Verify if duplicate token or creator was returned
-    //   if (duplicate.length !== 0) {
-    //     if (config.rug_check.block_returning_token_names && duplicate.some((token: any) => token.name === tokenName)) {
-    //       console.log("🚫 Token with this name was already created");
-    //       return false;
-    //     }
-    //     if (config.rug_check.block_returning_token_creators && duplicate.some((token: any) => token.creator === tokenCreator)) {
-    //       console.log("🚫 Token from this creator was already created");
-    //       return false;
-    //     }
-    //   }
-    // }
-  
     // Create new token record
     const newToken: NewTokenRecord = {
       time: Date.now(),
@@ -154,9 +136,7 @@ export async function getRugCheckConfirmed(token: string): Promise<boolean> {
       creator: tokenCreator,
     };
     await insertNewToken(newToken).catch((err) => {
-      if (config.rug_check.block_returning_token_names || config.rug_check.block_returning_token_creators) {
         console.log("⛔ Unable to store new token for tracking duplicate tokens: " + err);
-      }
     });
   
     //Validate conditions
@@ -172,6 +152,11 @@ export async function getRugCheckConfirmed(token: string): Promise<boolean> {
   
   export async function validateAndSwapToken(token: string): Promise<void> {
     console.log("🚀 Validating token: " + token);
+    const tokenRecord = await getHoldingRecord(token);
+    if(tokenRecord && config.swap.is_additional_holding) {
+        console.log("🚀 Additional holding is enabled. Skipping Rug Check.");
+        return;
+    }
     const isRugCheckPassed = await getRugCheckConfirmed(token);
     if (!isRugCheckPassed) {
         console.log("🚫 Rug Check not passed! Transaction aborted.");
@@ -215,8 +200,8 @@ export async function getRugCheckConfirmed(token: string): Promise<boolean> {
   console.log("Swap Transaction: ", "https://solscan.io/tx/" + tx);
 
   // Fetch and store the transaction for tracking purposes
-  const saveConfirmation = await fetchAndSaveSwapDetails(tx);
-  if (!saveConfirmation) {
-    console.log("❌ Warning: Transaction not saved for tracking! Track Manually!");
-  }
-  }
+    const saveConfirmation = await fetchAndSaveSwapDetails(tx);
+    if (!saveConfirmation) {
+      console.log("❌ Warning: Transaction not saved for tracking! Track Manually!");
+    }
+}

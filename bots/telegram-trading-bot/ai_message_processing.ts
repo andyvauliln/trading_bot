@@ -1,6 +1,4 @@
 import { ChatOpenAI } from "@langchain/openai";
-import { PromptTemplate } from "@langchain/core/prompts";
-import { StringOutputParser, JsonOutputParser } from "@langchain/core/output_parsers";
 import * as dotenv from 'dotenv';
 import { config as configData } from "./config";
 import { AIConfig } from "./types";

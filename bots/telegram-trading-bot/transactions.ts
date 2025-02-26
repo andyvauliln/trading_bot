@@ -13,7 +13,7 @@ import {
   HoldingRecord,
   NewTokenRecord,
 } from "./types";
-import { insertHolding, insertNewToken, removeHolding, selectTokenByMint, selectTokenByNameAndCreator } from "../tracker-bot/db";
+import { insertHolding, selectTokenByMint } from "../tracker-bot/db";
 
 // Load environment variables from the .env file
 dotenv.config();

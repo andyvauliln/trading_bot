@@ -476,9 +476,7 @@ export async function getRugCheckConfirmed(tokenMint: string): Promise<boolean> 
     creator: tokenCreator,
   };
   await insertNewToken(newToken).catch((err) => {
-    if (config.rug_check.block_returning_token_names || config.rug_check.block_returning_token_creators) {
       console.log("⛔ Unable to store new token for tracking duplicate tokens: " + err);
-    }
   });
 
   //Validate conditions

@@ -69,8 +69,6 @@ export const config: TelegramConfig = {
         "allow_rugged": false,
         // Critical
         "allow_mutable": false,
-        "block_returning_token_names": true,
-        "block_returning_token_creators": true,
         "block_symbols": ["XXX"],
         "block_names": ["XXX"],
         "allow_insider_topholders": false, // Allow inseder accounts to be part of the topholders

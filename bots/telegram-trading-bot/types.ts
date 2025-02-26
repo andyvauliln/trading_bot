@@ -26,8 +26,6 @@ export interface RugCheckConfig {
     allow_freeze_authority: boolean;
     allow_rugged: boolean;
     allow_mutable: boolean;
-    block_returning_token_names: boolean;
-    block_returning_token_creators: boolean;
     block_symbols: string[];
     block_names: string[];
     allow_insider_topholders: boolean;
