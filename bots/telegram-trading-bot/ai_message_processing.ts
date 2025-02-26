@@ -48,7 +48,7 @@ export class AIMessageProcessor {
    * @param message The message to analyze
    * @returns An array of token analysis results
    */
- async processMessage(telegram_message: string): Promise<TokenAnalysisResult[]> {
+ async processMessage(telegram_message: string, processRunCounter: number): Promise<TokenAnalysisResult[]> {
     try {
       const ai_message = `
       you are a trading bot that is analyzing a message from a telegram channel.
@@ -66,7 +66,7 @@ export class AIMessageProcessor {
       return result;
 
     } catch (error) {
-      console.error(`Error parsing initial model output: ${error}`);
+      console.error(`[telegram-trading-bot]|[processMessage]| Error parsing initial model output: ${error}`, processRunCounter);
       return []; // Return an empty array if parsing fails
     }
   }

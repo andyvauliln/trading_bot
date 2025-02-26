@@ -10,12 +10,12 @@ export const config: TelegramConfig = {
     "messages_db_path":  path.resolve(process.cwd(), 'data', 'telegram-trading-bot.messages.db'),
     "messages_json_path":  path.resolve(process.cwd(), 'data', 'telegram-trading-bot.messages.json'),
     "storage_type": "sqlite", // sqlite, json
-    "check_interval": 300, // seconds
+    "check_interval": 10*60, // seconds
     "max_messages_per_channel": 100,
     "request_timeout": 30, // seconds
     "max_retries": 3,
     "retry_delay": 60, // seconds
-    "rate_limit_delay": 10, // seconds
+    "rate_limit_delay": 20, // seconds
     "log_level": "INFO",
     "verbose_log": true,
     "sol_mint": "So11111111111111111111111111111111111111112",
