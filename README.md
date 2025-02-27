@@ -60,7 +60,7 @@ Will run all bots simultaneously in different processes
 - [ ] Trading api
 - [ ] Research diffirent trading strategies
 - [ ] Research trading bots projects
-- [ ] Experiment with different validation strategies
+- [ ] Research and experiments with different validation strategies
 - [ ] Research how possible to use AI for better decision making
 - [ ] Research how to use better data from gmgn
 - [ ] Perfomance optimization and research
@@ -72,6 +72,10 @@ Will run all bots simultaneously in different processes
 - [ ] Easy deploying
 - [ ] Configuration inheritance
 - [ ] Portfolio and profit tracking
+- [ ] Support diffrent chains
+- [ ] Support different liquidity pools
+- [ ] Smart address bot trading
+- [ ] Whales address trading
 
 ### Architecture, system design, and visual knowledge base
 [Link](https://computer.tldraw.com/p/2nWRFbhCC27zMUioEqX1Wp)
