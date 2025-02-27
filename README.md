@@ -52,8 +52,6 @@ Will run all bots simultaneously in different processes
 
 
 ### TODO
-- [ ] Add recomended slippage from gmgn/or something better
-- [ ] Add recomended priority fee from gmgn/or something better
 - [ ] Logger module
 - [ ] Logger ui
 - [ ] Logger api
@@ -76,6 +74,7 @@ Will run all bots simultaneously in different processes
 - [ ] Support different liquidity pools
 - [ ] Smart address bot trading
 - [ ] Whales address trading
+- [ ] Check for transactions if wallet has sufficient sol for fees
 
 ### Architecture, system design, and visual knowledge base
 [Link](https://computer.tldraw.com/p/2nWRFbhCC27zMUioEqX1Wp)

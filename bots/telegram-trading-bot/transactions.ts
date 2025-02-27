@@ -25,6 +25,13 @@ export async function createSwapTransaction(solMint: string, tokenMint: string, 
   const connection = new Connection(rpcUrl);
   const myWallet = new Wallet(Keypair.fromSecretKey(bs58.decode(process.env.PRIV_KEY_WALLET_2 || "")));
 
+   // Check if wallet has enough SOL to cover fees
+   const solBalance = await connection.getBalance(myWallet.publicKey);
+   const minRequiredBalance = config.swap.prio_fee_max_lamports + 5000 + 1000000; // prio fee + base fee + safety buffer
+   if (solBalance < minRequiredBalance) {
+     throw new Error(`Insufficient SOL balance for fees. Required: ${minRequiredBalance/1e9} SOL, Current: ${solBalance/1e9} SOL`);
+   }
+
   console.log(`[telegram-trading-bot]|[createSwapTransaction]|Going to swap for token: ${tokenMint} with amount: ${config.swap.amount} and slippage: ${config.swap.slippageBps} for wallet: ${myWallet.publicKey.toString()}`, processRunCounter);
 
   // Get Swap Quote

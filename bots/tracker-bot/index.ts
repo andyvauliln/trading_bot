@@ -49,7 +49,7 @@ async function main() {
       const currentPrices = priceResponse.data.data;
       if (!currentPrices) {
         console.log(`[tracker-bot]|[main]| ⛔ Latest prices from Jupiter Agregator could not be fetched. Trying again...`);
-        console.log(`[tracker-bot]|[main]| CYCLE_END: ${processRunCounter}`, processRunCounter, false);
+        console.log(`[tracker-bot]|[main]| CYCLE_END: ${processRunCounter}`, processRunCounter, null, "");
         return;
       }
 
@@ -118,7 +118,7 @@ async function main() {
               console.log(`[tracker-bot]|[main]| 🚩 Latest prices from Dexscreener Tokens API not fetched. Falling back to Jupiter.`, processRunCounter);
             }
           }
-
+          console.log(`[tracker-bot]|[main]| 📈 Current price via ✅ ${currentPriceSource} | ${tokenCurrentPrice}`, processRunCounter);
           // Calculate PnL and profit/loss
           const unrealizedPnLUSDC = (tokenCurrentPrice - tokenPerTokenPaidUSDC) * tokenBalance - tokenSolFeePaidUSDC;
           const unrealizedPnLPercentage = (unrealizedPnLUSDC / (tokenPerTokenPaidUSDC * tokenBalance)) * 100;
@@ -172,6 +172,7 @@ async function main() {
           }
 
           // Get the current price
+          
           console.log(
             `[tracker-bot]|[main]| ${hrTradeTime}: Buy $${tokenSolPaidUSDC.toFixed(2)} | ${iconPnl} Unrealized PnL: $${unrealizedPnLUSDC.toFixed(
               2
@@ -182,7 +183,7 @@ async function main() {
     }
 
     // Output Current Holdings
-    // console.log(`[tracker-bot]|[main]| 📈 Current Holdings via ✅ ${currentPriceSource}`, processRunCounter);
+    
     if (holdings.length === 0) {
       console.log(`[tracker-bot]|[main]| No token holdings yet as of ${new Date().toISOString()}`, processRunCounter);
     }

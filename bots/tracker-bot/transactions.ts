@@ -48,6 +48,13 @@ export async function createSellTransaction(solMint: string, tokenMint: string, 
       throw new Error(`Wallet and tracker balance mismatch. Sell manually and token will be removed during next price check.`);
     }
 
+    // Check if wallet has enough SOL to cover fees
+    const solBalance = await connection.getBalance(myWallet.publicKey);
+    const minRequiredBalance = config.sell.prio_fee_max_lamports + 5000 + 1000000; // prio fee + base fee + safety buffer
+    if (solBalance < minRequiredBalance) {
+      throw new Error(`Insufficient SOL balance for fees. Required: ${minRequiredBalance/1e9} SOL, Current: ${solBalance/1e9} SOL`);
+    }
+
     // Request a quote in order to swap SOL for new token
     console.log(`[tracker-bot]|[createSellTransaction]| Requesting quote for swap of ${amount} ${tokenMint} to ${solMint}, slippageBps: ${config.sell.slippageBps}`, processRunCounter);
     const quoteResponse = await axios.get<QuoteResponse>(quoteUrl, {
