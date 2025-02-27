@@ -26,18 +26,8 @@ async function main() {
     driver: sqlite3.Database,
   });
 
-  // Create Table if not exists
-  const holdingsTableExist = await createTableHoldings(db);
-  if (!holdingsTableExist) {
-    console.error(`[tracker-bot]|[main]| Holdings table not present.`, processRunCounter);
-    // Close the database connection when done
-    await db.close();
-  }
-
-  // Proceed with tracker
-  if (holdingsTableExist) {
     // Create const for holdings and action logs.
-    const holdingLogs: string[] = [];
+
     let currentPriceSource = "Jupiter Agregator";
 
     // Get all our current holdings
@@ -203,7 +193,7 @@ async function main() {
     }
 
     await db.close();
-  }
+  
   console.log(`[tracker-bot]|[main]| WAITING ${config.check_interval} seconds before next check...`, processRunCounter);
   processRunCounter++;
   setTimeout(main, config.check_interval * 1000); // Call main again interval seconds

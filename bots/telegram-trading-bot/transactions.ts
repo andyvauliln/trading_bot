@@ -212,92 +212,118 @@ export async function createSwapTransaction(solMint: string, tokenMint: string, 
 export async function fetchAndSaveSwapDetails(tx: string, processRunCounter: number): Promise<boolean> {
   const txUrl = process.env.HELIUS_HTTPS_URI_TX || "";
   const priceUrl = process.env.JUP_HTTPS_PRICE_URI || "";
+  const maxRetries = 3;
+  const retryDelay = config.tx.retry_delay;
+  let retryCount = 0;
+
   console.log(`[telegram-trading-bot]|[fetchAndSaveSwapDetails]| Fetching swap details for tx: ${tx}`, processRunCounter);
-  try {
-    const response = await axios.post<any>(
-      txUrl,
-      { transactions: [tx] },
-      {
-        headers: {
-          "Content-Type": "application/json",
-        },
-        timeout: 10000, // Timeout for each request
+  
+  while (retryCount < maxRetries) {
+    try {
+      const response = await axios.post<any>(
+        txUrl,
+        { transactions: [tx] },
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+          timeout: config.tx.get_timeout,
+        }
+      );
+
+      // Verify if we received tx response data
+      if (!response.data || response.data.length === 0) {
+        console.log(`[telegram-trading-bot]|[fetchAndSaveSwapDetails]| ⚠️ Empty response received. Retry ${retryCount + 1}/${maxRetries}`, processRunCounter);
+        retryCount++;
+        if (retryCount < maxRetries) {
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+          continue;
+        }
+        return false;
       }
-    );
 
-    // Verify if we received tx reponse data
-    if (!response.data || response.data.length === 0) {
-      console.log("[telegram-trading-bot]|[fetchAndSaveSwapDetails]| ⛔ Could not fetch swap details: No response received from API.", processRunCounter, response);
+      // Safely access the event information
+      const transactions: TransactionDetailsResponseArray = response.data;
+      const swapTransactionData: SwapEventDetailsResponse = {
+        programInfo: transactions[0]?.events.swap.innerSwaps[0].programInfo,
+        tokenInputs: transactions[0]?.events.swap.innerSwaps[0].tokenInputs,
+        tokenOutputs: transactions[0]?.events.swap.innerSwaps[0].tokenOutputs,
+        fee: transactions[0]?.fee,
+        slot: transactions[0]?.slot,
+        timestamp: transactions[0]?.timestamp,
+        description: transactions[0]?.description,
+      };
+      console.log(`[telegram-trading-bot]|[fetchAndSaveSwapDetails]| Swap transaction data:`, processRunCounter, swapTransactionData);
+
+      // Get latest Sol Price
+      console.log(`[telegram-trading-bot]|[fetchAndSaveSwapDetails]| Getting latest Sol Price`, processRunCounter);
+      const priceResponse = await axios.get<any>(priceUrl, {
+        params: {
+          ids: config.sol_mint,
+        },
+        timeout: config.tx.get_timeout,
+      });
+
+      // Verify if we received the price response data
+      if (!priceResponse.data.data[config.sol_mint]?.price) {
+        console.log(`[telegram-trading-bot]|[fetchAndSaveSwapDetails]| ⚠️ Could not fetch latest Sol Price. Retry ${retryCount + 1}/${maxRetries}`, processRunCounter);
+        retryCount++;
+        if (retryCount < maxRetries) {
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+          continue;
+        }
+        return false;
+      }
+
+      console.log(`[telegram-trading-bot]|[fetchAndSaveSwapDetails]| Latest Sol Price:`, processRunCounter, priceResponse.data.data[config.sol_mint]?.price);
+      // Calculate estimated price paid in sol
+      console.log(`[telegram-trading-bot]|[fetchAndSaveSwapDetails]| Calculating estimated price paid in sol`, processRunCounter);
+      const solUsdcPrice = priceResponse.data.data[config.sol_mint]?.price;
+      const solPaidUsdc = swapTransactionData.tokenInputs[0].tokenAmount * solUsdcPrice;
+      const solFeePaidUsdc = (swapTransactionData.fee / 1_000_000_000) * solUsdcPrice;
+      const perTokenUsdcPrice = solPaidUsdc / swapTransactionData.tokenOutputs[0].tokenAmount;
+
+      // Get token meta data
+      console.log(`[telegram-trading-bot]|[fetchAndSaveSwapDetails]| Caclulated Prices`, processRunCounter, {solPaidUsdc, solFeePaidUsdc, perTokenUsdcPrice});
+      let tokenName = "N/A";
+      const tokenData: NewTokenRecord[] = await selectTokenByMint(swapTransactionData.tokenOutputs[0].mint, processRunCounter);
+      if (tokenData && tokenData.length > 0) {
+        tokenName = tokenData[0].name;
+      }
+
+      // Add holding to db
+      const newHolding: HoldingRecord = {
+        Time: swapTransactionData.timestamp,
+        Token: swapTransactionData.tokenOutputs[0].mint,
+        TokenName: tokenName,
+        Balance: swapTransactionData.tokenOutputs[0].tokenAmount,
+        SolPaid: swapTransactionData.tokenInputs[0].tokenAmount,
+        SolFeePaid: swapTransactionData.fee,
+        SolPaidUSDC: solPaidUsdc,
+        SolFeePaidUSDC: solFeePaidUsdc,
+        PerTokenPaidUSDC: perTokenUsdcPrice,
+        Slot: swapTransactionData.slot,
+        Program: swapTransactionData.programInfo ? swapTransactionData.programInfo.source : "N/A",
+        BotName: "telegram-trading-bot",
+      };
+
+      await insertHolding(newHolding, processRunCounter).catch((err: any) => {
+        console.log(`[telegram-trading-bot]|[fetchAndSaveSwapDetails]| ⛔ Insert Holding Database Error: ${err}`, processRunCounter);
+        return false;
+      });
+
+      return true;
+
+    } catch (error: any) {
+      console.error(`[telegram-trading-bot]|[fetchAndSaveSwapDetails]| ⚠️ Error on attempt ${retryCount + 1}/${maxRetries}: ${error.message}`, processRunCounter);
+      retryCount++;
+      if (retryCount < maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
+        continue;
+      }
       return false;
     }
-
-    // Safely access the event information
-    const transactions: TransactionDetailsResponseArray = response.data;
-    const swapTransactionData: SwapEventDetailsResponse = {
-      programInfo: transactions[0]?.events.swap.innerSwaps[0].programInfo,
-      tokenInputs: transactions[0]?.events.swap.innerSwaps[0].tokenInputs,
-      tokenOutputs: transactions[0]?.events.swap.innerSwaps[0].tokenOutputs,
-      fee: transactions[0]?.fee,
-      slot: transactions[0]?.slot,
-      timestamp: transactions[0]?.timestamp,
-      description: transactions[0]?.description,
-    };
-    console.log(`[telegram-trading-bot]|[fetchAndSaveSwapDetails]| Swap transaction data:`, processRunCounter, swapTransactionData);
-
-    // Get latest Sol Price
-    console.log(`[telegram-trading-bot]|[fetchAndSaveSwapDetails]| Getting latest Sol Price`, processRunCounter);
-    const priceResponse = await axios.get<any>(priceUrl, {
-      params: {
-        ids: config.sol_mint,
-      },
-      timeout: config.tx.get_timeout,
-    });
-
-    // Verify if we received the price response data
-    if (!priceResponse.data.data[config.sol_mint]?.price) {
-      console.log(`[telegram-trading-bot]|[fetchAndSaveSwapDetails]| ⛔ Could not fetch latest Sol Price: No response received from API.`, processRunCounter, priceResponse);
-      return false;
-    }
-    console.log(`[telegram-trading-bot]|[fetchAndSaveSwapDetails]| Latest Sol Price:`, processRunCounter, priceResponse.data.data[config.sol_mint]?.price);
-    // Calculate estimated price paid in sol
-    console.log(`[telegram-trading-bot]|[fetchAndSaveSwapDetails]| Calculating estimated price paid in sol`, processRunCounter);
-    const solUsdcPrice = priceResponse.data.data[config.sol_mint]?.price;
-    const solPaidUsdc = swapTransactionData.tokenInputs[0].tokenAmount * solUsdcPrice;
-    const solFeePaidUsdc = (swapTransactionData.fee / 1_000_000_000) * solUsdcPrice;
-    const perTokenUsdcPrice = solPaidUsdc / swapTransactionData.tokenOutputs[0].tokenAmount;
-
-    // Get token meta data
-    console.log(`[telegram-trading-bot]|[fetchAndSaveSwapDetails]| Caclulated Prices`, processRunCounter, {solPaidUsdc, solFeePaidUsdc, perTokenUsdcPrice});
-    let tokenName = "N/A";
-    const tokenData: NewTokenRecord[] = await selectTokenByMint(swapTransactionData.tokenOutputs[0].mint, processRunCounter);
-    if (tokenData && tokenData.length > 0) {
-      tokenName = tokenData[0].name;
-    }
-
-    // Add holding to db
-    const newHolding: HoldingRecord = {
-      Time: swapTransactionData.timestamp,
-      Token: swapTransactionData.tokenOutputs[0].mint,
-      TokenName: tokenName,
-      Balance: swapTransactionData.tokenOutputs[0].tokenAmount,
-      SolPaid: swapTransactionData.tokenInputs[0].tokenAmount,
-      SolFeePaid: swapTransactionData.fee,
-      SolPaidUSDC: solPaidUsdc,
-      SolFeePaidUSDC: solFeePaidUsdc,
-      PerTokenPaidUSDC: perTokenUsdcPrice,
-      Slot: swapTransactionData.slot,
-      Program: swapTransactionData.programInfo ? swapTransactionData.programInfo.source : "N/A",
-      BotName: "telegram-trading-bot",
-    };
-
-    await insertHolding(newHolding, processRunCounter).catch((err: any) => {
-      console.log(`[telegram-trading-bot]|[fetchAndSaveSwapDetails]| ⛔ Insert Holding Database Error: ${err}`, processRunCounter);
-      return false;
-    });
-
-    return true;
-  } catch (error: any) {
-    console.error(`[telegram-trading-bot]|[fetchAndSaveSwapDetails]| ⛔ Fetch and Save Swap Details Error: ${error.message}`, processRunCounter);
-    return false;
   }
+  
+  return false; // Return false if all retries are exhausted
 }

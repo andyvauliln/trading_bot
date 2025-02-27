@@ -84,7 +84,7 @@ Will run all bots simultaneously in different processes
 ### LOGGER DOCUMENTATION
 ## Notes
 - console.log it's overrided function for orignal console.log
-- logger possible to configure with next configurations
+- logger possible to configure with next configurations in config.ts
     - terminal-logs - true/false - if true logs will be shown in terminal
     - db-logs - true/false - if true logs will be saved in db
     - file-logs - true/false - if true logs will be saved in file
@@ -92,6 +92,7 @@ Will run all bots simultaneously in different processes
     - file-logs-path - string - path to the file
 - all 3 methods can be used simultaneously
 - logger should be initialized in the main file
+- table name in db is module_name + "-logs", for example tracker-bot-logs
 
 ### LOGGER DB TEMPLATE
 id - `id` - id of the log
