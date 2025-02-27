@@ -52,8 +52,8 @@ Will run all bots simultaneously in different processes
 
 
 ### TODO
-- [ ] Add recomended slippage from gmgn
-- [ ] Add recomended priority fee from gmgn
+- [ ] Add recomended slippage from gmgn/or something better
+- [ ] Add recomended priority fee from gmgn/or something better
 - [ ] Logger module
 - [ ] Logger ui
 - [ ] Logger api
