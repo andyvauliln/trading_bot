@@ -3,9 +3,11 @@ import dotenv from "dotenv";
 import path from "path";
 dotenv.config();
 
+const module_name = "telegram-trading-bot";
+
 export const config: TelegramConfig = {
     "environment": process.env.NODE_ENV || "test", // development, production, test
-    "name": "telegram-trading-bot",
+    "name": module_name,
     "simulation_mode": false,
     "base_url": "https://tg.i-c-a.su",
     "messages_db_path":  path.resolve(process.cwd(), 'data', 'telegram-trading-bot.messages.db'),
@@ -21,11 +23,12 @@ export const config: TelegramConfig = {
     "verbose_log": true,
     "sol_mint": "So11111111111111111111111111111111111111112",
     "logger": {
+        "keeping_days_in_db": 10,
         "terminal_logs": true,
         "db_logs": true,
         "file_logs": true,
         "db_logs_path": path.resolve(process.cwd(), 'data', 'app-logs.db'),
-        "file_logs_path": path.resolve(process.cwd(), 'logs', 'telegram-trading-bot.log'),
+        "file_logs_path": path.resolve(process.cwd(), 'logs', `${module_name}.log`),
     },
     "tx": {
         "fetch_tx_max_retries": 10,

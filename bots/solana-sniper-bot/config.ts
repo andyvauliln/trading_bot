@@ -39,18 +39,21 @@
 * Having few liquidity providers means the liquidity of the token depends on a few sources. 
 * This can be risky, as if these providers decide to withdraw their funds, it could destabilize the market.
 **/
+const module_name = "solana-sniper-bot";
+
 import path from "path";
 export const config = {
-  name: "solana-sniper-bot",
+  name: module_name,
   verbose_log: true,
   environment: process.env.NODE_ENV || "test", // development, production, test
   simulation_mode: true,
   logger: {
+    keeping_days_in_db: 10,
     terminal_logs: true,
     db_logs: true,
     file_logs: true,
     db_logs_path: path.resolve(process.cwd(), 'data', 'app-logs.db'),
-    file_logs_path: path.resolve(process.cwd(), 'logs', 'solana-sniper-bot.log'),
+    file_logs_path: path.resolve(process.cwd(), 'logs', `${module_name}.log`),
   },
   liquidity_pool: {
     radiyum_program_id: "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8",

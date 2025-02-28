@@ -1,30 +1,26 @@
 import { config } from "./config"; // Configuration parameters for our bot
 import axios from "axios";
-import * as sqlite3 from "sqlite3";
 import dotenv from "dotenv";
-import { open } from "sqlite";
-import { createTableHoldings, getAllHoldings } from "./holding.db";
+import { getAllHoldings } from "./holding.db";
 import { createSellTransactionResponse, HoldingRecord, LastPriceDexReponse } from "./types";
 import { DateTime } from "luxon";
 import { createSellTransaction } from "./transactions";
 import { retryAxiosRequest } from "../utils/help-functions";
+import logger from "./logger"; // Import the logger
 
 dotenv.config();
 
 let processRunCounter = 1;
 
 async function main() {
+  // Initialize the logger
+
   const priceUrl = process.env.JUP_HTTPS_PRICE_URI || "";
   const dexPriceUrl = process.env.DEX_HTTPS_LATEST_TOKENS || "";
   const priceSource = config.sell.price_source || "jup";
   const solMint = config.liquidity_pool.wsol_pc_mint;
   console.log(`[tracker-bot]|[main]|CYCLE_START: ${processRunCounter}`, processRunCounter);
 
-  // Connect to database and create if not exists
-  console.log(`[tracker-bot]|[main]|Opening DB: ${config.db_name_tracker_holdings}`);
-
-
-    // Create const for holdings and action logs.
 
     let currentPriceSource = "Jupiter Agregator";
 
@@ -52,7 +48,7 @@ async function main() {
       const currentPrices = priceResponse.data;
       if (!currentPrices) {
         console.log(`[tracker-bot]|[main]| ⛔ Latest prices from Jupiter Agregator could not be fetched. Trying again...`);
-        console.log(`[tracker-bot]|[main]| CYCLE_END: ${processRunCounter}`, processRunCounter, null, "");
+        console.log(`[tracker-bot]|[main]| CYCLE_END: ${processRunCounter}`, ++processRunCounter);
         return;
       }
 
@@ -89,7 +85,7 @@ async function main() {
 
         if (!currentPrices) {
           console.log(`[tracker-bot]|[main]| ⛔ Latest prices from Dexscreener Tokens API could not be fetched. Trying again...`);
-          console.log(`[tracker-bot]|[main]| CYCLE_END: ${processRunCounter}`, false);
+          console.log(`[tracker-bot]|[main]| CYCLE_END: ${processRunCounter}`, ++processRunCounter);
           return;
         }
       }
@@ -146,14 +142,15 @@ async function main() {
                 // Add success to log output
                 if (txSuccess) {
                   console.log(`[tracker-bot]|[main]| ✅🟢 ${hrTradeTime}: Took profit for ${tokenName}\nTx: ${tXtransaction}`, processRunCounter);
-                  console.log(`[tracker-bot]|[main]| CYCLE_END`, processRunCounter, true);
                 } else {
                   console.error(`[tracker-bot]|[main]| ⚠️ ERROR when taking profit for ${tokenName}: ${txErrorMsg}`, processRunCounter);
-                  console.log(`[tracker-bot]|[main]| CYCLE_END`, processRunCounter, false);
+                  console.log(`[tracker-bot]|[main]| CYCLE_END`, processRunCounter, ++processRunCounter);
+                  return;
                 }
               } catch (error: any) {
                 console.error(`[tracker-bot]|[main]| ⚠️  ERROR when taking profit for ${tokenName}: ${error.message}`, processRunCounter);
-                console.log(`[tracker-bot]|[main]| CYCLE_END`, processRunCounter, false);
+                console.log(`[tracker-bot]|[main]| CYCLE_END`, processRunCounter, ++processRunCounter);
+                return;
               }
             }
 
@@ -167,14 +164,15 @@ async function main() {
                 // Add success to log output
                 if (txSuccess) {
                   console.log(`[tracker-bot]|[main]| ✅🔴 ${hrTradeTime}: Triggered Stop Loss for ${tokenName}\nTx: ${tXtransaction}`, processRunCounter);
-                  console.log(`[tracker-bot]|[main]| CYCLE_END`, processRunCounter, true);
                 } else {
                   console.error(`[tracker-bot]|[main]| ⚠️ ERROR when triggering Stop Loss for ${tokenName}: ${txErrorMsg}`, processRunCounter);
-                  console.log(`[tracker-bot]|[main]| CYCLE_END`, processRunCounter, false);
+                  console.log(`[tracker-bot]|[main]| CYCLE_END`, processRunCounter, ++processRunCounter);
+                  return;
                 }
               } catch (error: any) {
                 console.error(`[tracker-bot]|[main]| ⚠️ ERROR when triggering Stop Loss for ${tokenName}: ${error.message}: \n`, processRunCounter);
-                console.log(`[tracker-bot]|[main]| CYCLE_END`, processRunCounter, false);
+                console.log(`[tracker-bot]|[main]| CYCLE_END`, processRunCounter, ++processRunCounter);
+                return;
               }
             }
           }
@@ -182,9 +180,9 @@ async function main() {
           // Get the current price
           
           console.log(
-            `[tracker-bot]|[main]| ${hrTradeTime}: Buy $${tokenSolPaidUSDC.toFixed(2)} | ${iconPnl} Unrealized PnL: $${unrealizedPnLUSDC.toFixed(
+            `[tracker-bot]|[main]| ${iconPnl} ${hrTradeTime}: Buy Price: $${tokenSolPaidUSDC.toFixed(2)} | Current Price: $${tokenCurrentPrice.toFixed(2)} | \n Unrealized PnL: $${unrealizedPnLUSDC.toFixed(
               2
-            )} (${unrealizedPnLPercentage.toFixed(2)}%) | ${tokenBalance} ${tokenName}`, processRunCounter
+            )} (${unrealizedPnLPercentage.toFixed(2)}%) \n Current Amount:${tokenBalance} Token: ${tokenName}`, processRunCounter
           );
         })
       );
@@ -196,17 +194,16 @@ async function main() {
       console.log(`[tracker-bot]|[main]| No token holdings yet as of ${new Date().toISOString()}`, processRunCounter);
     }
 
-    // Output wallet tracking if set in config
-    if (config.sell.track_public_wallet) {
-      console.log(`[tracker-bot]|[main]| Check your wallet: https://gmgn.ai/sol/address/${config.sell.track_public_wallet}`, processRunCounter);
-    }
+  // Increment process run counter and update logger cycle
+  processRunCounter++;
+  console.log(`[tracker-bot]|[main]|CYCLE_END: ${processRunCounter} | WAITING ${config.check_interval} seconds before next check...`, processRunCounter);
 
   
-  console.log(`[tracker-bot]|[main]| WAITING ${config.check_interval} seconds before next check...`, processRunCounter);
-  processRunCounter++;
   setTimeout(main, config.check_interval * 1000); // Call main again interval seconds
 }
-
-main().catch((err) => {
-  console.error(err);
+logger.init().then(() => {
+  main().catch(async (err) => {
+    console.error(err);
+    await logger.close();
+  });
 });

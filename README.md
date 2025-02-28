@@ -79,57 +79,10 @@ Will run all bots simultaneously in different processes
 
 - [*] Populate tokens db with rug conditions data
 - [*] Add retry logic for api requests
-- [*] add in a holding field of which bot added it
+- [*] Add in a holding field of which bot added it
 
 
 ### Architecture, system design, and visual knowledge base
 [Link](https://computer.tldraw.com/p/2nWRFbhCC27zMUioEqX1Wp)
 
 
-### LOGGER DOCUMENTATION
-## Notes
-- console.log it's overrided function for orignal console.log
-- logger possible to configure with next configurations in config.ts
-    - terminal-logs - true/false - if true logs will be shown in terminal
-    - db-logs - true/false - if true logs will be saved in db
-    - file-logs - true/false - if true logs will be saved in file
-    - db-logs-path - string - path to the db
-    - file-logs-path - string - path to the file
-- all 3 methods can be used simultaneously
-- logger should be initialized in the main file
-- table name in db is module_name + "-logs", for example tracker-bot-logs
-
-### LOGGER DB TEMPLATE
-id - `id` - id of the log
-date - `date` - date of the log
-time - `time` - time of the log
-full_message - `full_message` - fullmessage of the log
-message - `message` - message of the log
-module - `module` - module of the log
-function - `function` - function of the log
-type - `type` - type of the log, can be `info`, `error`, `warn`
-data - `data` - additional data for the log as json string
-cycle - `cycle` - number of the cycle
-category - `category` - category of the log, can be `main`, `cycle`
-tag - `tag` - any additional tag for the logs, for example if cycle finished with some swap action it's can be `swap_action`
-
-## Use Examples 
-`console.log("Message", "processRunCounter", data, tag)`
-`console.error("Message", "processRunCounter", data, tag)`
-`console.warn("Message", "processRunCounter", data, tag)`
-
-Message - `[module]|[function]| Message` - Message to log. 
-processRunCounter - `processRunCounter` - counter to divide logs by every run in multi thread application where all logs mixed
-data - `data` - additional data for the logs
-tag - `tag` - any additional tag for the logs, for example if cycle finished with some swap action it's can be `swap_action`
-
-## Logger UI
-takes data from db logs by api , as result grouped logs
-
-Collapsed view
-- date(highlighted with a tag, error, warning, info) -+-
-    - [modules] -+-
-        - [ mainLogs(highlighted with a tag, error, warning, info)] -+-
-        - [ cycleLogs(highlighted with a tag, error, warning, info)] -+-
-            - [cycle][type][time][function][message] [tag] -+-
-              - [data]

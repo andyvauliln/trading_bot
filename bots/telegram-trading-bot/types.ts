@@ -39,6 +39,7 @@ export interface RugCheckConfig {
     legacy_not_allowed: string[];
 }
 export interface TelegramLoggerConfig {
+    keeping_days_in_db: number;
     terminal_logs: boolean;
     db_logs: boolean;
     file_logs: boolean;
@@ -47,6 +48,7 @@ export interface TelegramLoggerConfig {
 }
 
 export interface TelegramConfig {
+  
     logger: TelegramLoggerConfig;
     simulation_mode: boolean;
     verbose_log: boolean;

@@ -45,9 +45,11 @@ import path from "path";
 import dotenv from "dotenv";
 dotenv.config();
 
+const module_name = "tracker-bot";
+
 export const config = {
   verbose_log: true,
-  name: "tracker-bot",
+  name: module_name,
   check_interval: 60, // seconds
   db_name_tracker_holdings: path.resolve(process.cwd(), 'data', 'holdings.db'), // Sqlite Database location
   liquidity_pool: {
@@ -55,11 +57,12 @@ export const config = {
     wsol_pc_mint: "So11111111111111111111111111111111111111112",
   },
   logger: {
+    keeping_days_in_db: 10,
     terminal_logs: true,
     db_logs: true,
     file_logs: true,
     db_logs_path: path.resolve(process.cwd(), 'data', 'app-logs.db'),
-    file_logs_path: path.resolve(process.cwd(), 'logs', 'tracker-bot.log'),
+    file_logs_path: path.resolve(process.cwd(), 'logs', `${module_name}.log`),
   },
   tx: {
     fetch_tx_max_retries: 10,
@@ -77,6 +80,5 @@ export const config = {
     auto_sell: false, // If set to true, stop loss and take profit triggers automatically when set.
     stop_loss_percent: 5,
     take_profit_percent: 50,
-    track_public_wallet: "", // If set an additional log line will be shown with a link to track your wallet
   },
 };
