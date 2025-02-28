@@ -3,6 +3,7 @@ import { WebSocketRequest } from "./types";
 import { config } from "./config";
 import { fetchTransactionDetails, createSwapTransaction, getRugCheckConfirmed, fetchAndSaveSwapDetails } from "./transactions";
 import { validateEnv } from "../utils/env-validator";
+import logger from "./logger";
 
 // Regional Variables
 let activeTransactions = 0;
@@ -208,6 +209,8 @@ async function websocketHandler(): Promise<void> {
 }
 
 // Start Socket Handler
-websocketHandler().catch((err) => {
-  console.error(`[solana-sniper-bot]|[websocketHandler]|MAINLOGS 💥 Error starting application: ${err.message}`);
+logger.init().then(() => {
+  websocketHandler().catch((err) => {
+    console.error(`[solana-sniper-bot]|[websocketHandler]|MAINLOGS 💥 Error starting application: ${err.message}`);
+  });
 });

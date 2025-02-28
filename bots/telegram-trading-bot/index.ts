@@ -8,6 +8,7 @@ import { AIMessageProcessor } from './ai-message-processing';
 import { config } from './config';
 import { validateAndSwapToken } from './validate-token';
 import { TAGS } from '../utils/log-tags';
+import logger from './logger';
 class TelegramReader {
     private config: TelegramConfig;
     private session: any;
@@ -441,4 +442,6 @@ async function main() {
     }
 }
 
-main().catch(console.error);
+logger.init().then(() => {
+  main().catch(console.error);
+});

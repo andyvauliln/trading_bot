@@ -180,9 +180,7 @@ async function main() {
           // Get the current price
           
           console.log(
-            `[tracker-bot]|[main]| ${iconPnl} ${hrTradeTime}: Buy Price: $${tokenSolPaidUSDC.toFixed(2)} | Current Price: $${tokenCurrentPrice.toFixed(2)} | \n Unrealized PnL: $${unrealizedPnLUSDC.toFixed(
-              2
-            )} (${unrealizedPnLPercentage.toFixed(2)}%) \n Current Amount:${tokenBalance} Token: ${tokenName}`, processRunCounter
+            `[tracker-bot]|[main]| ${iconPnl} ${hrTradeTime} Token: ${tokenName} Current Amount:${tokenBalance} \nUnrealized PnL: $${unrealizedPnLUSDC.toFixed(2)} (${unrealizedPnLPercentage.toFixed(2)}%)`, processRunCounter
           );
         })
       );
