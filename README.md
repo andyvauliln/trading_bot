@@ -78,6 +78,7 @@ Will run all bots simultaneously in different processes
 - [ ] Multi chain support
 
 - [*] Populate tokens db with rug conditions data
+- [*] Add retry logic for api requests
 
 
 ### Architecture, system design, and visual knowledge base

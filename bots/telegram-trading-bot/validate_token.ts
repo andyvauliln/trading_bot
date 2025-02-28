@@ -3,16 +3,24 @@ import axios from "axios";
 import { RugResponseExtended, NewTokenRecord } from "./types";
 import { insertNewToken, getHoldingRecord } from "../tracker-bot/holding.db";
 import { createSwapTransaction, fetchAndSaveSwapDetails } from "./transactions";
+import { retryAxiosRequest } from "../utils/function";
+import { TAGS } from "../utils/log_tags";
+
 
 export async function getRugCheckConfirmed(token: string, processRunCounter: number): Promise<boolean> {
   console.log(`[telegram-trading-bot]|[getRugCheckConfirmed]| Getting Rug Check for token: ${token}`, processRunCounter);
   try {
-    const rugResponse = await axios.get<RugResponseExtended>("https://api.rugcheck.xyz/v1/tokens/" + token + "/report", {
-      timeout: 100000,
-    });
+    const rugResponse = await retryAxiosRequest(
+      () => axios.get<RugResponseExtended>("https://api.rugcheck.xyz/v1/tokens/" + token + "/report", {
+        timeout: 100000,
+      }),
+      3, // maxRetries
+      1000, // initialDelay
+      processRunCounter
+    );
   
     if (!rugResponse.data) {
-      console.log(`[telegram-trading-bot]|[getRugCheckConfirmed]| ⛔ Could not fetch Rug Check: No response received from API.`, processRunCounter, rugResponse);
+      console.error(`[telegram-trading-bot]|[getRugCheckConfirmed]| ⛔ Could not fetch Rug Check: No response received from API.`, processRunCounter, rugResponse);
       return false;
     }
   
@@ -61,7 +69,7 @@ export async function getRugCheckConfirmed(token: string, processRunCounter: num
   
       const markets: Market[] | undefined = tokenReport.markets;
       if (markets) {
-        console.log(`[telegram-trading-bot]|[getRugCheckConfirmed]| Extracting liquidity addresses from markets`, processRunCounter);
+        console.log(`[telegram-trading-bot]|[getRugCheckConfirmed]| Extracting liquidity addresses from markets`, processRunCounter, markets);
         // Safely extract liquidity addresses from markets
         const liquidityAddresses: string[] = (markets ?? [])
           .flatMap((market) => [market.liquidityA, market.liquidityB])
@@ -139,7 +147,7 @@ export async function getRugCheckConfirmed(token: string, processRunCounter: num
       },
     ];
 
-    console.log(`[telegram-trading-bot]|[getRugCheckConfirmed]| Conditions:`, processRunCounter, conditions);
+    console.log(`[telegram-trading-bot]|[getRugCheckConfirmed]| Conditions:`, processRunCounter, conditions, TAGS.rug_validation.name);
   
     // Create new token record
     const newToken: NewTokenRecord = {

@@ -15,8 +15,9 @@ import {
 } from "./types";
 import { insertHolding, insertNewToken, selectTokenByMint } from "../tracker-bot/holding.db";
 import { HoldingRecord } from "../tracker-bot/types";
+import { TAGS } from "../utils/log_tags";
+import { retryAxiosRequest } from "../utils/function";
 
-// Load environment variables from the .env file
 dotenv.config();
 
 export async function fetchTransactionDetails(signature: string, processRunCounter: number): Promise<MintsDataReponse | null> {
@@ -35,19 +36,24 @@ export async function fetchTransactionDetails(signature: string, processRunCount
       // Output logs
       console.log(`[solana-sniper-bot]|[fetchTransactionDetails]| Attempt ${retryCount + 1} of ${maxRetries} to fetch transaction details...`, processRunCounter);
 
-      const response = await axios.post<any>(
-        txUrl,
-        {
-          transactions: [signature],
-          commitment: "finalized",
-          encoding: "jsonParsed",
-        },
-        {
-          headers: {
-            "Content-Type": "application/json",
+      const response = await retryAxiosRequest(
+        () => axios.post<any>(
+          txUrl,
+          {
+            transactions: [signature],
+            commitment: "finalized",
+            encoding: "jsonParsed",
           },
-          timeout: config.tx.get_timeout,
-        }
+          {
+            headers: {
+              "Content-Type": "application/json",
+            },
+            timeout: config.tx.get_timeout,
+          }
+        ),
+        3, // maxRetries
+        1000, // initialDelay
+        processRunCounter
       );
 
       // Verify if a response was received
@@ -159,15 +165,20 @@ export async function createSwapTransaction(solMint: string, tokenMint: string, 
   while (retryCount < config.swap.token_not_tradable_400_error_retries) {
     try {
       // Request a quote in order to swap SOL for new token
-      const quoteResponse = await axios.get<QuoteResponse>(quoteUrl, {
-        params: {
-          inputMint: solMint,
-          outputMint: tokenMint,
-          amount: config.swap.amount,
-          slippageBps: config.swap.slippageBps,
-        },
-        timeout: config.tx.get_timeout,
-      });
+      const quoteResponse = await retryAxiosRequest(
+        () => axios.get<QuoteResponse>(quoteUrl, {
+          params: {
+            inputMint: solMint,
+            outputMint: tokenMint,
+            amount: config.swap.amount,
+            slippageBps: config.swap.slippageBps,
+          },
+          timeout: config.tx.get_timeout,
+        }),
+        3, // maxRetries
+        1000, // initialDelay
+        processRunCounter
+      );
 
       if (!quoteResponse.data) return null;
 
@@ -212,37 +223,42 @@ export async function createSwapTransaction(solMint: string, tokenMint: string, 
   // Serialize the quote into a swap transaction that can be submitted on chain
   try {
     if (!quoteResponseData) {
-      console.error("[solana-sniper-bot]|[createSwapTransaction]| ⛔ No quote response data.", processRunCounter, quoteResponseData, "no-quote-response-data");
+      console.error("[solana-sniper-bot]|[createSwapTransaction]| ⛔ No quote response data.", processRunCounter, quoteResponseData);
       return null;
     }
 
-    const swapResponse = await axios.post<SerializedQuoteResponse>(
-      swapUrl,
-      JSON.stringify({
-        // quoteResponse from /quote api
-        quoteResponse: quoteResponseData,
-        // user public key to be used for the swap
-        userPublicKey: myWallet.publicKey.toString(),
-        // auto wrap and unwrap SOL. default is true
-        wrapAndUnwrapSol: true,
-        //dynamicComputeUnitLimit: true, // allow dynamic compute limit instead of max 1,400,000
-        dynamicSlippage: {
-          // This will set an optimized slippage to ensure high success rate
-          maxBps: 300, // Make sure to set a reasonable cap here to prevent MEV
-        },
-        prioritizationFeeLamports: {
-          priorityLevelWithMaxLamports: {
-            maxLamports: config.swap.prio_fee_max_lamports,
-            priorityLevel: config.swap.prio_level,
+    const swapResponse = await retryAxiosRequest(
+      () => axios.post<SerializedQuoteResponse>(
+        swapUrl,
+        JSON.stringify({
+          // quoteResponse from /quote api
+          quoteResponse: quoteResponseData,
+          // user public key to be used for the swap
+          userPublicKey: myWallet.publicKey.toString(),
+          // auto wrap and unwrap SOL. default is true
+          wrapAndUnwrapSol: true,
+          //dynamicComputeUnitLimit: true, // allow dynamic compute limit instead of max 1,400,000
+          dynamicSlippage: {
+            // This will set an optimized slippage to ensure high success rate
+            maxBps: 300, // Make sure to set a reasonable cap here to prevent MEV
           },
-        },
-      }),
-      {
-        headers: {
-          "Content-Type": "application/json",
-        },
-        timeout: config.tx.get_timeout,
-      }
+          prioritizationFeeLamports: {
+            priorityLevelWithMaxLamports: {
+              maxLamports: config.swap.prio_fee_max_lamports,
+              priorityLevel: config.swap.prio_level,
+            },
+          },
+        }),
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+          timeout: config.tx.get_timeout,
+        }
+      ),
+      3, // maxRetries
+      1000, // initialDelay
+      processRunCounter
     );
     if (!swapResponse.data) return null;
 
@@ -254,12 +270,13 @@ export async function createSwapTransaction(solMint: string, tokenMint: string, 
   } catch (error: any) {
     console.error(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ Error while sending the swap quote: ${error.message}`, processRunCounter);
     if (config.verbose_log && config.verbose_log === true) {
+      console.log(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ Verbose Error Message:`, processRunCounter);
       if (error.response) {
         // Server responded with a status other than 2xx
-        console.error(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ Error Status: ${error.response.status} - ${error.response.statusText}`, processRunCounter, error.response.data);
+        console.error(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ Error Status: ${error.response.status} Error Status Text: ${error.response.statusText}`, processRunCounter, error.response.data);
       } else if (error.request) {
         // Request was made but no response was received
-        console.error(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ No Response:`, processRunCounter, error.request);
+        console.error(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ No Response`, processRunCounter, error.request);
       } else {
         // Other errors
         console.error(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ Error Message:`, processRunCounter, error.message);
@@ -271,7 +288,7 @@ export async function createSwapTransaction(solMint: string, tokenMint: string, 
   if (serializedQuoteResponseData) {
     console.log(`[solana-sniper-bot]|[createSwapTransaction]| ✅ Swap quote serialized.`, processRunCounter);
   } else {
-    console.error(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ No swap quote serialized.`, processRunCounter, serializedQuoteResponseData, "no-serialized-quote");
+    console.error(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ No swap quote serialized.`, processRunCounter, serializedQuoteResponseData);
     return null;
   }
 
@@ -315,9 +332,10 @@ export async function createSwapTransaction(solMint: string, tokenMint: string, 
 
     // Return null when an error occured when confirming the transaction
     if (conf.value.err || conf.value.err !== null) {
-      console.error(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ Transaction confirmation failed.`, processRunCounter, conf, "no-confirmation");
+      console.error(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ Transaction confirmation failed.`, processRunCounter, conf);
       return null;
     }
+    console.log(`[solana-sniper-bot]|[createSwapTransaction]| ✅ Transaction confirmed.`, processRunCounter, {txid, tokenMint: tokenMint, amount: config.swap.amount}, TAGS.buy_tx_confirmed.name);
 
     return txid;
   } catch (error: any) {
@@ -343,43 +361,18 @@ export async function getRugCheckConfirmed(token: string, processRunCounter: num
   try {
     console.log(`[solana-sniper-bot]|[getRugCheckConfirmed]| Getting Rug Check for token: ${token}`, processRunCounter);
     
-    // Set retry parameters for API request only
-    const maxRetries = 3;
-    let retryCount = 0;
-    let rugResponse = null;
+    const rugResponse = await retryAxiosRequest(
+      () => axios.get<RugResponseExtended>("https://api.rugcheck.xyz/v1/tokens/" + token + "/report", {
+        timeout: 100000,
+      }),
+      3, // maxRetries
+      1000, // initialDelay
+      processRunCounter
+    );
     
-    // Only retry the API request
-    while (retryCount < maxRetries) {
-      try {
-        console.log(`[solana-sniper-bot]|[getRugCheckConfirmed]| API Request attempt ${retryCount + 1}/${maxRetries}`, processRunCounter);
-        rugResponse = await axios.get<RugResponseExtended>("https://api.rugcheck.xyz/v1/tokens/" + token + "/report", {
-          timeout: 100000,
-        });
-        
-        // If we got a response with data, break out of the retry loop
-        if (rugResponse && rugResponse.data) {
-          break;
-        }
-      } catch (error: any) {
-        retryCount++;
-        console.error(`[solana-sniper-bot]|[getRugCheckConfirmed]| ⛔ API request failed (Attempt ${retryCount}/${maxRetries}): ${error.message}`, processRunCounter);
-        
-        // If we haven't exhausted all retries, wait and try again
-        if (retryCount < maxRetries) {
-          const delay = Math.min(2000 * Math.pow(1.5, retryCount), 15000); // Exponential backoff with max delay of 15 seconds
-          console.log(`[solana-sniper-bot]|[getRugCheckConfirmed]| Waiting ${delay / 1000} seconds before next API request attempt...`, processRunCounter);
-          await new Promise((resolve) => setTimeout(resolve, delay));
-        } else {
-          // All retries failed
-          console.error(`[solana-sniper-bot]|[getRugCheckConfirmed]| ⛔ All API request attempts failed`, processRunCounter);
-          return false;
-        }
-      }
-    }
-    
-    // Check if we have a valid response after all retries
+    // Check if we have a valid response
     if (!rugResponse || !rugResponse.data) {
-      console.log(`[solana-sniper-bot]|[getRugCheckConfirmed]| ⛔ Could not fetch Rug Check: No response received from API after ${maxRetries} attempts.`, processRunCounter);
+      console.log(`[solana-sniper-bot]|[getRugCheckConfirmed]| ⛔ Could not fetch Rug Check: No response received from API.`, processRunCounter);
       return false;
     }
   
@@ -506,7 +499,7 @@ export async function getRugCheckConfirmed(token: string, processRunCounter: num
       },
     ];
 
-    console.log(`[solana-sniper-bot]|[getRugCheckConfirmed]| Conditions:`, processRunCounter, conditions);
+    console.log(`[solana-sniper-bot]|[getRugCheckConfirmed]| Conditions:`, processRunCounter, conditions, TAGS.rug_validation.name);
   
     // Create new token record
     const newToken: NewTokenRecord = {
@@ -550,15 +543,20 @@ export async function fetchAndSaveSwapDetails(tx: string, processRunCounter: num
     while (retryCount < maxRetries) {
       try {
         console.log(`[solana-sniper-bot]|[fetchAndSaveSwapDetails]| Transaction details API request attempt ${retryCount + 1}/${maxRetries}`, processRunCounter);
-        txResponse = await axios.post<any>(
-          txUrl,
-          { transactions: [tx] },
-          {
-            headers: {
-              "Content-Type": "application/json",
-            },
-            timeout: 10000, // Timeout for each request
-          }
+        txResponse = await retryAxiosRequest(
+          () => axios.post<any>(
+            txUrl,
+            { transactions: [tx] },
+            {
+              headers: {
+                "Content-Type": "application/json",
+              },
+              timeout: 10000, // Timeout for each request
+            }
+          ),
+          3, // maxRetries
+          1000, // initialDelay
+          processRunCounter
         );
         
         // If we got a valid response, break out of the retry loop
@@ -614,12 +612,17 @@ export async function fetchAndSaveSwapDetails(tx: string, processRunCounter: num
     while (retryCount < maxRetries) {
       try {
         console.log(`[solana-sniper-bot]|[fetchAndSaveSwapDetails]| Price API request attempt ${retryCount + 1}/${maxRetries}`, processRunCounter);
-        priceResponse = await axios.get<any>(priceUrl, {
-          params: {
-            ids: config.liquidity_pool.wsol_pc_mint,
-          },
-          timeout: config.tx.get_timeout,
-        });
+        priceResponse = await retryAxiosRequest(
+          () => axios.get<any>(priceUrl, {
+            params: {
+              ids: config.liquidity_pool.wsol_pc_mint,
+            },
+            timeout: config.tx.get_timeout,
+          }),
+          3, // maxRetries
+          1000, // initialDelay
+          processRunCounter
+        );
         
         // If we got a valid response with price data, break out of the retry loop
         if (priceResponse && priceResponse.data && priceResponse.data.data && 

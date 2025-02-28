@@ -7,6 +7,7 @@ import { createTableHoldings, getAllHoldings } from "./holding.db";
 import { createSellTransactionResponse, HoldingRecord, LastPriceDexReponse } from "./types";
 import { DateTime } from "luxon";
 import { createSellTransaction } from "./transactions";
+import { retryAxiosRequest } from "../utils/function";
 
 dotenv.config();
 
@@ -36,14 +37,19 @@ async function main() {
       const tokenValues = holdings.map((holding) => holding.Token).join(",");
 
       // Jupiter Agragator Price
-      const priceResponse = await axios.get<any>(priceUrl, {
-        params: {
-          ids: tokenValues + "," + solMint,
-          showExtraInfo: true,
-        },
-        timeout: config.tx.get_timeout,
-      });
-      const currentPrices = priceResponse.data.data;
+      const priceResponse = await retryAxiosRequest(
+        () => axios.get<any>(priceUrl, {
+          params: {
+            ids: tokenValues + "," + solMint,
+            showExtraInfo: true,
+          },
+          timeout: config.tx.get_timeout,
+        }),
+        config.tx.fetch_tx_max_retries || 3,
+        config.tx.retry_delay || 500,
+        processRunCounter
+      );
+      const currentPrices = priceResponse.data;
       if (!currentPrices) {
         console.log(`[tracker-bot]|[main]| ⛔ Latest prices from Jupiter Agregator could not be fetched. Trying again...`);
         console.log(`[tracker-bot]|[main]| CYCLE_END: ${processRunCounter}`, processRunCounter, null, "");
@@ -56,9 +62,14 @@ async function main() {
       let dexRaydiumPairs = null;
       if (priceSource !== "jup") {
         const dexPriceUrlPairs = `${dexPriceUrl}${tokenValues}`;
-        const priceResponseDex = await axios.get<any>(dexPriceUrlPairs, {
-          timeout: config.tx.get_timeout,
-        });
+        const priceResponseDex = await retryAxiosRequest(
+          () => axios.get<any>(dexPriceUrlPairs, {
+            timeout: config.tx.get_timeout,
+          }),
+          config.tx.fetch_tx_max_retries || 3,
+          config.tx.retry_delay || 500,
+          processRunCounter
+        );
         const currentPricesDex: LastPriceDexReponse = priceResponseDex.data;
 
         // Get raydium legacy pairs prices
@@ -128,7 +139,7 @@ async function main() {
             // Sell via Take Profit
             if (unrealizedPnLPercentage >= config.sell.take_profit_percent) {
               try {
-                const result: createSellTransactionResponse = await createSellTransaction(config.liquidity_pool.wsol_pc_mint, token, amountIn, processRunCounter);
+                const result: createSellTransactionResponse = await createSellTransaction(config.liquidity_pool.wsol_pc_mint, token, amountIn, processRunCounter, "take-profit");
                 const txErrorMsg = result.msg;
                 const txSuccess = result.success;
                 const tXtransaction = result.tx;
@@ -149,7 +160,7 @@ async function main() {
             // Sell via Stop Loss
             if (unrealizedPnLPercentage <= -config.sell.stop_loss_percent) {
               try {
-                const result: createSellTransactionResponse = await createSellTransaction(config.liquidity_pool.wsol_pc_mint, token, amountIn, processRunCounter);
+                const result: createSellTransactionResponse = await createSellTransaction(config.liquidity_pool.wsol_pc_mint, token, amountIn, processRunCounter, "stop-loss");
                 const txErrorMsg = result.msg;
                 const txSuccess = result.success;
                 const tXtransaction = result.tx;

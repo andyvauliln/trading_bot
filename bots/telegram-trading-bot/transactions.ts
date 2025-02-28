@@ -13,6 +13,7 @@ import {
 } from "./types";
 import { insertHolding, selectTokenByMint } from "../tracker-bot/holding.db";
 import { HoldingRecord } from "../tracker-bot/types";
+import { retryAxiosRequest } from "../utils/function";
 dotenv.config();
 
 
@@ -39,15 +40,20 @@ export async function createSwapTransaction(solMint: string, tokenMint: string, 
   while (retryCount < config.swap.token_not_tradable_400_error_retries) {
     try {
       // Request a quote in order to swap SOL for new token
-      const quoteResponse = await axios.get<QuoteResponse>(quoteUrl, {
-        params: {
-          inputMint: solMint,
-          outputMint: tokenMint,
-          amount: config.swap.amount,
-          slippageBps: config.swap.slippageBps,
-        },
-        timeout: config.tx.get_timeout,
-      });
+      const quoteResponse = await retryAxiosRequest(
+        () => axios.get<QuoteResponse>(quoteUrl, {
+          params: {
+            inputMint: solMint,
+            outputMint: tokenMint,
+            amount: config.swap.amount,
+            slippageBps: config.swap.slippageBps,
+          },
+          timeout: config.tx.get_timeout,
+        }),
+        3, // maxRetries
+        1000, // initialDelay
+        processRunCounter
+      );
 
       if (!quoteResponse.data) return null;
 
@@ -96,33 +102,38 @@ export async function createSwapTransaction(solMint: string, tokenMint: string, 
       return null;
     }
 
-    const swapResponse = await axios.post<SerializedQuoteResponse>(
-      swapUrl,
-      JSON.stringify({
-        // quoteResponse from /quote api
-        quoteResponse: quoteResponseData,
-        // user public key to be used for the swap
-        userPublicKey: myWallet.publicKey.toString(),
-        // auto wrap and unwrap SOL. default is true
-        wrapAndUnwrapSol: true,
-        //dynamicComputeUnitLimit: true, // allow dynamic compute limit instead of max 1,400,000
-        dynamicSlippage: {
-          // This will set an optimized slippage to ensure high success rate
-          maxBps: 300, // Make sure to set a reasonable cap here to prevent MEV
-        },
-        prioritizationFeeLamports: {
-          priorityLevelWithMaxLamports: {
-            maxLamports: config.swap.prio_fee_max_lamports,
-            priorityLevel: config.swap.prio_level,
+    const swapResponse = await retryAxiosRequest(
+      () => axios.post<SerializedQuoteResponse>(
+        swapUrl,
+        JSON.stringify({
+          // quoteResponse from /quote api
+          quoteResponse: quoteResponseData,
+          // user public key to be used for the swap
+          userPublicKey: myWallet.publicKey.toString(),
+          // auto wrap and unwrap SOL. default is true
+          wrapAndUnwrapSol: true,
+          //dynamicComputeUnitLimit: true, // allow dynamic compute limit instead of max 1,400,000
+          dynamicSlippage: {
+            // This will set an optimized slippage to ensure high success rate
+            maxBps: 300, // Make sure to set a reasonable cap here to prevent MEV
           },
-        },
-      }),
-      {
-        headers: {
-          "Content-Type": "application/json",
-        },
-        timeout: config.tx.get_timeout,
-      }
+          prioritizationFeeLamports: {
+            priorityLevelWithMaxLamports: {
+              maxLamports: config.swap.prio_fee_max_lamports,
+              priorityLevel: config.swap.prio_level,
+            },
+          },
+        }),
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+          timeout: config.tx.get_timeout,
+        }
+      ),
+      3, // maxRetries
+      1000, // initialDelay
+      processRunCounter
     );
     if (!swapResponse.data) return null;
 
@@ -134,12 +145,13 @@ export async function createSwapTransaction(solMint: string, tokenMint: string, 
   } catch (error: any) {
     console.error(`[telegram-trading-bot]|[createSwapTransaction]| ⛔ Error while sending the swap quote: ${error.message}`, processRunCounter);
     if (config.verbose_log && config.verbose_log === true) {
+      console.log(`[telegram-trading-bot]|[createSwapTransaction]| ⛔ Verbose Error Message:`, processRunCounter);
       if (error.response) {
         // Server responded with a status other than 2xx
-        console.error(`[telegram-trading-bot]|[createSwapTransaction]| ⛔ Error Status: ${error.response.status} - ${error.response.statusText}`, processRunCounter, error.response.data);
+        console.error(`[telegram-trading-bot]|[createSwapTransaction]| ⛔ Error Status: ${error.response.status} Error Status Text: ${error.response.statusText}`, processRunCounter, error.response.data);
       } else if (error.request) {
         // Request was made but no response was received
-        console.error(`[telegram-trading-bot]|[createSwapTransaction]| ⛔ No Response:`, processRunCounter, error.request);
+        console.error(`[telegram-trading-bot]|[createSwapTransaction]| ⛔ No Response`, processRunCounter, error.request);
       } else {
         // Other errors
         console.error(`[telegram-trading-bot]|[createSwapTransaction]| ⛔ Error Message:`, processRunCounter, error.message);
@@ -227,15 +239,20 @@ export async function fetchAndSaveSwapDetails(tx: string, processRunCounter: num
   
   while (retryCount < maxRetries) {
     try {
-      const response = await axios.post<any>(
-        txUrl,
-        { transactions: [tx] },
-        {
-          headers: {
-            "Content-Type": "application/json",
-          },
-          timeout: config.tx.get_timeout,
-        }
+      const response = await retryAxiosRequest(
+        () => axios.post<any>(
+          txUrl,
+          { transactions: [tx] },
+          {
+            headers: {
+              "Content-Type": "application/json",
+            },
+            timeout: config.tx.get_timeout,
+          }
+        ),
+        3, // maxRetries
+        1000, // initialDelay
+        processRunCounter
       );
 
       // Verify if we received tx response data
@@ -264,12 +281,17 @@ export async function fetchAndSaveSwapDetails(tx: string, processRunCounter: num
 
       // Get latest Sol Price
       console.log(`[telegram-trading-bot]|[fetchAndSaveSwapDetails]| Getting latest Sol Price`, processRunCounter);
-      const priceResponse = await axios.get<any>(priceUrl, {
-        params: {
-          ids: config.sol_mint,
-        },
-        timeout: config.tx.get_timeout,
-      });
+      const priceResponse = await retryAxiosRequest(
+        () => axios.get<any>(priceUrl, {
+          params: {
+            ids: config.sol_mint,
+          },
+          timeout: config.tx.get_timeout,
+        }),
+        3, // maxRetries
+        1000, // initialDelay
+        processRunCounter
+      );
 
       // Verify if we received the price response data
       if (!priceResponse.data.data[config.sol_mint]?.price) {

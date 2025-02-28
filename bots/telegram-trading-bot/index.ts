@@ -7,7 +7,7 @@ import { TelegramConfig, Message } from './types';
 import { AIMessageProcessor } from './ai_message_processing';
 import { config } from './config';
 import { validateAndSwapToken } from './validate_token';
-
+import { TAGS } from '../utils/log_tags';
 class TelegramReader {
     private config: TelegramConfig;
     private session: any;
@@ -255,7 +255,7 @@ class TelegramReader {
     }
 
 
-    private async processMessagesWithAI(messages: Message[]): Promise<boolean> {
+    private async processMessagesWithAI(messages: Message[]): Promise<void> {
         console.log(`[telegram-trading-bot][processMessagesWithAI] PROCESSING MESSAGES WITH AI`, this.processRunCounter);
         const allMessageText = messages.map(message => message.message).join('\n');
         
@@ -266,29 +266,25 @@ class TelegramReader {
             // Log the results
             if (analysisResults.length === 0) {
                 console.log(`[telegram-trading-bot][processMessagesWithAI] No Solana tokens found in last messages`, this.processRunCounter);
-                return false
+                return;
             } else {
-                console.log(`[telegram-trading-bot][processMessagesWithAI] Found ${analysisResults.length} token(s) in last messages`, this.processRunCounter);
+                console.log(`[telegram-trading-bot][processMessagesWithAI] Found ${analysisResults.length} token(s) in last messages`, this.processRunCounter, analysisResults, TAGS.telegram_ai_token_analysis.name);
                 let is_any_swap = false;
                 for (const result of analysisResults) {
                     console.log(`[telegram-trading-bot][processMessagesWithAI] TOKEN ANALYSIS ${result.solana_token_address}:`, this.processRunCounter, result);
                     if (result.is_potential_to_buy_token) {
                        const response = await validateAndSwapToken(result.solana_token_address, this.processRunCounter);
-                       if (response) {
-                        is_any_swap = true;
-                       }
                     }
                     else {
-                        console.log(`[telegram-trading-bot][processMessagesWithAI] TOKEN DOES NOT HAVE POTENTIAL TO BUY`, this.processRunCounter);
-                        return false
+                        console.warn(`[telegram-trading-bot][processMessagesWithAI] TOKEN DOES NOT HAVE POTENTIAL TO BUY`, this.processRunCounter);
                     }
                 }
                 await this.markMessageAsProcessed(messages);
-                return is_any_swap;
+                return;
             }
         } catch (error) {
-            console.error(`[telegram-trading-bot][processMessagesWithAI] Error processing messages: ${error}`, this.processRunCounter);
-            return false
+            console.error(`[telegram-trading-bot][processMessagesWithAI] Error processing messages with AI: ${error}`, this.processRunCounter);
+            return;
         } 
     }
 
@@ -375,7 +371,6 @@ class TelegramReader {
             try {
                 console.log(`[telegram-trading-bot]|[monitorChannels]|CYCLE_START`, this.processRunCounter);
                 const channels = this.config.channels;
-                let is_any_swap = false;
                 
                 for (const channel of channels) {
                     if (this.isShuttingDown) break;
@@ -395,33 +390,29 @@ class TelegramReader {
                             const savedMessages = await this.saveMessages(channel.username, messages);
                             
                             if (savedMessages.length > 0) {
-                                is_any_swap = await this.processMessagesWithAI(savedMessages);
-                                
+                                await this.processMessagesWithAI(savedMessages);
                             }
                         }
                         
-                        this.processRunCounter++;
-                        console.log(`[telegram-trading-bot]|[monitorChannels]|CYCLE_END`, this.processRunCounter, is_any_swap);
-                        is_any_swap = false;
                         
                         if (!this.isShuttingDown) {
                             await new Promise(resolve => setTimeout(resolve, this.config.rate_limit_delay * 1000));
                         }
                     } catch (e) {
                         console.error(`[telegram-trading-bot]|[monitorChannels]|Error processing channel ${channel.username}: ${e}`, this.processRunCounter);
-                        this.processRunCounter++;
-                        console.log(`[telegram-trading-bot]|[monitorChannels]|CYCLE_END`, this.processRunCounter, is_any_swap);
-                        is_any_swap = false;
                         continue;
                     }
                 }
+                console.log(`[telegram-trading-bot]|[monitorChannels]|CYCLE_END`, this.processRunCounter);
+                this.processRunCounter++;
+                
 
                 if (!this.isShuttingDown) {
                     console.log(`[telegram-trading-bot]|[monitorChannels]|Completed monitoring channels. Waiting ${this.config.check_interval} seconds before next check...`, this.processRunCounter);
                     await new Promise(resolve => setTimeout(resolve, this.config.check_interval * 1000));
                 }
             } catch (e) {
-                console.error(`[telegram-trading-bot]|[monitorChannels]|MAINLOGS Error in monitor loop: ${e}`);
+                console.error(`[telegram-trading-bot]|[monitorChannels]|Error in monitor loop: ${e}`);
                 
                 if (!this.isShuttingDown) {
                     await new Promise(resolve => setTimeout(resolve, this.config.retry_delay * 1000));

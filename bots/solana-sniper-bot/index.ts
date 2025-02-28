@@ -87,7 +87,7 @@ async function processTransaction(signature: string, processRunCounter: number):
   }
 
   // Output logs
-  console.log(`[solana-sniper-bot]|[processTransaction]|🔗 Swap Transaction: https://solscan.io/tx/${tx}`, processRunCounter, tx, "swapped");
+  console.log(`[solana-sniper-bot]|[processTransaction]|🔗 Swap Transaction: https://solscan.io/tx/${tx}`, processRunCounter);
 
   // Fetch and store the transaction for tracking purposes
   const saveConfirmation = await fetchAndSaveSwapDetails(tx, processRunCounter);

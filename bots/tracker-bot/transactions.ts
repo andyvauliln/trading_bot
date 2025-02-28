@@ -10,17 +10,20 @@ import {
   createSellTransactionResponse,
 } from "./types";
 import { removeHolding} from "./holding.db";
-
+import { TAGS } from "../utils/log_tags";
+import { retryAxiosRequest } from "../utils/function";
 // Load environment variables from the .env file
 dotenv.config();
 
-export async function createSellTransaction(solMint: string, tokenMint: string, amount: string, processRunCounter: number): Promise<createSellTransactionResponse> {
+
+
+export async function createSellTransaction(solMint: string, tokenMint: string, amount: string, processRunCounter: number, type: string): Promise<createSellTransactionResponse> {
   const quoteUrl = process.env.JUP_HTTPS_QUOTE_URI || "";
   const swapUrl = process.env.JUP_HTTPS_SWAP_URI || "";
   const rpcUrl = process.env.HELIUS_HTTPS_URI || "";
   const myWallet = new Wallet(Keypair.fromSecretKey(bs58.decode(process.env.PRIV_KEY_WALLET_2 || "")));
   const connection = new Connection(rpcUrl);
-  console.log(`[tracker-bot]|[createSellTransaction]| Crating Sell Transaction for Wallet ${myWallet.publicKey.toString()}`, processRunCounter);
+  console.log(`[tracker-bot]|[createSellTransaction]| Crating Sell Transaction for Wallet ${myWallet.publicKey.toString()} with token ${tokenMint} and amount ${amount}`, processRunCounter);
 
   try {
     // Check token balance using RPC connection
@@ -33,6 +36,8 @@ export async function createSellTransaction(solMint: string, tokenMint: string, 
       const tokenAmount = account.account.data.parsed.info.tokenAmount.amount;
       return sum + BigInt(tokenAmount); // Use BigInt for precise calculations
     }, BigInt(0));
+
+    console.log(`[tracker-bot]|[createSellTransaction]| Token ${tokenMint} has ${totalBalance} balance`, processRunCounter);
 
     // Verify returned balance
     if (totalBalance <= 0n) {
@@ -57,15 +62,22 @@ export async function createSellTransaction(solMint: string, tokenMint: string, 
 
     // Request a quote in order to swap SOL for new token
     console.log(`[tracker-bot]|[createSellTransaction]| Requesting quote for swap of ${amount} ${tokenMint} to ${solMint}, slippageBps: ${config.sell.slippageBps}`, processRunCounter);
-    const quoteResponse = await axios.get<QuoteResponse>(quoteUrl, {
-      params: {
-        inputMint: tokenMint,
-        outputMint: solMint,
-        amount: amount,
-        slippageBps: config.sell.slippageBps,
-      },
-      timeout: config.tx.get_timeout,
-    });
+    
+    // Use the retry mechanism for the quote request
+    const quoteResponse = await retryAxiosRequest(
+      () => axios.get<QuoteResponse>(quoteUrl, {
+        params: {
+          inputMint: tokenMint,
+          outputMint: solMint,
+          amount: amount,
+          slippageBps: config.sell.slippageBps,
+        },
+        timeout: config.tx.get_timeout,
+      }),
+      config.tx.fetch_tx_max_retries || 3,
+      config.tx.retry_delay || 500,
+      processRunCounter
+    );
 
     // Throw error if no quote was received
     if (!quoteResponse.data) {
@@ -74,33 +86,38 @@ export async function createSellTransaction(solMint: string, tokenMint: string, 
 
     // Serialize the quote into a swap transaction that can be submitted on chain
     console.log(`[tracker-bot]|[createSellTransaction]| Serializing quote into a swap transaction that can be submitted on chain`, processRunCounter);
-    const swapTransaction = await axios.post<SerializedQuoteResponse>(
-      swapUrl,
-      JSON.stringify({
-        // quoteResponse from /quote api
-        quoteResponse: quoteResponse.data,
-        // user public key to be used for the swap
-        userPublicKey: myWallet.publicKey.toString(),
-        // auto wrap and unwrap SOL. default is true
-        wrapAndUnwrapSol: true,
-        //dynamicComputeUnitLimit: true, // allow dynamic compute limit instead of max 1,400,000
-        dynamicSlippage: {
-          // This will set an optimized slippage to ensure high success rate
-          maxBps: 300, // Make sure to set a reasonable cap here to prevent MEV
-        },
-        prioritizationFeeLamports: {
-          priorityLevelWithMaxLamports: {
-            maxLamports: config.sell.prio_fee_max_lamports,
-            priorityLevel: config.sell.prio_level,
+    const swapTransaction = await retryAxiosRequest(
+      () => axios.post<SerializedQuoteResponse>(
+        swapUrl,
+        JSON.stringify({
+          // quoteResponse from /quote api
+          quoteResponse: quoteResponse.data,
+          // user public key to be used for the swap
+          userPublicKey: myWallet.publicKey.toString(),
+          // auto wrap and unwrap SOL. default is true
+          wrapAndUnwrapSol: true,
+          //dynamicComputeUnitLimit: true, // allow dynamic compute limit instead of max 1,400,000
+          dynamicSlippage: {
+            // This will set an optimized slippage to ensure high success rate
+            maxBps: 300, // Make sure to set a reasonable cap here to prevent MEV
           },
-        },
-      }),
-      {
-        headers: {
-          "Content-Type": "application/json",
-        },
-        timeout: config.tx.get_timeout,
-      }
+          prioritizationFeeLamports: {
+            priorityLevelWithMaxLamports: {
+              maxLamports: config.sell.prio_fee_max_lamports,
+              priorityLevel: config.sell.prio_level,
+            },
+          },
+        }),
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+          timeout: config.tx.get_timeout,
+        }
+      ),
+      config.tx.fetch_tx_max_retries || 3,
+      config.tx.retry_delay || 500,
+      processRunCounter
     );
 
     // Throw error if no quote was received
@@ -148,7 +165,7 @@ export async function createSellTransaction(solMint: string, tokenMint: string, 
       throw new Error("Transaction was not successfully confirmed!");
     }
 
-    console.log(`[tracker-bot]|[createSellTransaction]| Transaction Confirmed`, processRunCounter);
+    console.log(`[tracker-bot]|[createSellTransaction]| Transaction Confirmed`, processRunCounter, {txid, tokenMint, amount, type}, TAGS.sell_tx_confirmed.name);
 
     // Delete holding
     console.log(`[tracker-bot]|[createSellTransaction]| Deleting Holding`, processRunCounter);
