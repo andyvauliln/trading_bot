@@ -10,8 +10,8 @@ import {
   createSellTransactionResponse,
 } from "./types";
 import { removeHolding} from "./holding.db";
-import { TAGS } from "../utils/log_tags";
-import { retryAxiosRequest } from "../utils/function";
+import { TAGS } from "../utils/log-tags";
+import { retryAxiosRequest } from "../utils/help-functions";
 // Load environment variables from the .env file
 dotenv.config();
 

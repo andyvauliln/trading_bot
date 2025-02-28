@@ -13,7 +13,7 @@ import {
 } from "./types";
 import { insertHolding, selectTokenByMint } from "../tracker-bot/holding.db";
 import { HoldingRecord } from "../tracker-bot/types";
-import { retryAxiosRequest } from "../utils/function";
+import { retryAxiosRequest } from "../utils/help-functions";
 dotenv.config();
 
 

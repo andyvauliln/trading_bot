@@ -3,8 +3,8 @@ import axios from "axios";
 import { RugResponseExtended, NewTokenRecord } from "./types";
 import { insertNewToken, getHoldingRecord } from "../tracker-bot/holding.db";
 import { createSwapTransaction, fetchAndSaveSwapDetails } from "./transactions";
-import { retryAxiosRequest } from "../utils/function";
-import { TAGS } from "../utils/log_tags";
+import { retryAxiosRequest } from "../utils/help-functions";
+import { TAGS } from "../utils/log-tags";
 
 
 export async function getRugCheckConfirmed(token: string, processRunCounter: number): Promise<boolean> {

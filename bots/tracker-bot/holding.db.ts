@@ -3,7 +3,7 @@ import { open } from "sqlite";
 import { config } from "./config";
 import { HoldingRecord, NewTokenRecord } from "./types";
 
-// Tracker
+// ***************************HOLDINGS TABLE**************************
 export async function createTableHoldings(database: any): Promise<boolean> {
   try {
     await database.exec(`
@@ -29,6 +29,7 @@ export async function createTableHoldings(database: any): Promise<boolean> {
   }
 }
 
+// ***************************GET ALL HOLDINGS**************************
 export async function getAllHoldings(): Promise<HoldingRecord[]> {
   const db = await open({
     filename: config.db_name_tracker_holdings,
@@ -46,6 +47,8 @@ export async function getAllHoldings(): Promise<HoldingRecord[]> {
   await db.close();
   return holdings;
 }
+
+// ***************************INSERT HOLDING**************************
 
 export async function insertHolding(holding: HoldingRecord, processRunCounter: number) {
   console.log(`[holding-db]|[insertHolding]| Inserting holding:`, processRunCounter, holding);
@@ -76,6 +79,38 @@ export async function insertHolding(holding: HoldingRecord, processRunCounter: n
     await db.close();
   }
 }
+// ***************************GET HOLDING RECORD**************************
+
+export async function getHoldingRecord(token: string, processRunCounter: number): Promise<HoldingRecord | null> {
+  const db = await open({
+    filename: config.db_name_tracker_holdings,
+    driver: sqlite3.Database,
+  });
+
+  // Create Table if not exists
+  const holdingsTableExist = await createTableHoldings(db);
+  if (!holdingsTableExist) {
+    await db.close();
+    return null;
+  }
+  
+  const tokenRecord = await db.get(
+    `
+    SELECT * 
+    FROM holdings 
+    WHERE Token = ? 
+    LIMIT 1;
+  `,
+    [token]
+  );
+
+  await db.close();
+
+  console.log(`[holding-db]|[getHoldingRecord]| Found token: ${tokenRecord ? "Found" : "Not Found"}`, processRunCounter, tokenRecord);
+
+  return tokenRecord || null;
+}
+// ***************************REMOVE HOLDING**************************
 
 export async function removeHolding(tokenMint: string, processRunCounter: number) {
   const db = await open({
@@ -103,6 +138,8 @@ export async function removeHolding(tokenMint: string, processRunCounter: number
 
   await db.close();
 }
+
+// ***************************TOKENS TABLE**************************
 
 // New token duplicates tracker
 export async function createTableNewTokens(database: any): Promise<boolean> {
@@ -265,32 +302,3 @@ export async function selectAllTokens(processRunCounter: number): Promise<NewTok
   return tokens;
 }
 
-export async function getHoldingRecord(token: string, processRunCounter: number): Promise<HoldingRecord | null> {
-  const db = await open({
-    filename: config.db_name_tracker_holdings,
-    driver: sqlite3.Database,
-  });
-
-  // Create Table if not exists
-  const holdingsTableExist = await createTableHoldings(db);
-  if (!holdingsTableExist) {
-    await db.close();
-    return null;
-  }
-  
-  const tokenRecord = await db.get(
-    `
-    SELECT * 
-    FROM holdings 
-    WHERE Token = ? 
-    LIMIT 1;
-  `,
-    [token]
-  );
-
-  await db.close();
-
-  console.log(`[holding-db]|[getHoldingRecord]| Found token: ${tokenRecord ? "Found" : "Not Found"}`, processRunCounter, tokenRecord);
-
-  return tokenRecord || null;
-}

@@ -38,9 +38,16 @@ export interface RugCheckConfig {
     max_score: number;
     legacy_not_allowed: string[];
 }
+export interface TelegramLoggerConfig {
+    terminal_logs: boolean;
+    db_logs: boolean;
+    file_logs: boolean;
+    db_logs_path: string;
+    file_logs_path: string;
+}
 
 export interface TelegramConfig {
-    logs_db_path: string;
+    logger: TelegramLoggerConfig;
     simulation_mode: boolean;
     verbose_log: boolean;
     environment: string;

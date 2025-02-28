@@ -48,12 +48,18 @@ dotenv.config();
 export const config = {
   verbose_log: true,
   name: "tracker-bot",
-  logs_db_path: path.resolve(process.cwd(), 'data', 'app-logs.db'),
   check_interval: 60, // seconds
   db_name_tracker_holdings: path.resolve(process.cwd(), 'data', 'holdings.db'), // Sqlite Database location
   liquidity_pool: {
     radiyum_program_id: "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8",
     wsol_pc_mint: "So11111111111111111111111111111111111111112",
+  },
+  logger: {
+    terminal_logs: true,
+    db_logs: true,
+    file_logs: true,
+    db_logs_path: path.resolve(process.cwd(), 'data', 'app-logs.db'),
+    file_logs_path: path.resolve(process.cwd(), 'logs', 'tracker-bot.log'),
   },
   tx: {
     fetch_tx_max_retries: 10,

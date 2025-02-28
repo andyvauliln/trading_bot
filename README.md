@@ -79,6 +79,7 @@ Will run all bots simultaneously in different processes
 
 - [*] Populate tokens db with rug conditions data
 - [*] Add retry logic for api requests
+- [*] add in a holding field of which bot added it
 
 
 ### Architecture, system design, and visual knowledge base
@@ -113,18 +114,14 @@ category - `category` - category of the log, can be `main`, `cycle`
 tag - `tag` - any additional tag for the logs, for example if cycle finished with some swap action it's can be `swap_action`
 
 ## Use Examples 
-`console.log("Message", "processRunCounter", data)`
-`console.error("Message", "processRunCounter", data)`
-`console.warn("Message", "processRunCounter", data)`
+`console.log("Message", "processRunCounter", data, tag)`
+`console.error("Message", "processRunCounter", data, tag)`
+`console.warn("Message", "processRunCounter", data, tag)`
 
 Message - `[module]|[function]| Message` - Message to log. 
- - if Message contains MAINLOGS it's means it's logs out of current loop cycle
- - if Message contains CYCLE_START it's means start of the cycle
- - if Message contains CYCLE_END it's means end of the cycle
- - if Message contains CYCLE_END and data value it's data should be or true or false to highlight that acction was made
 processRunCounter - `processRunCounter` - counter to divide logs by every run in multi thread application where all logs mixed
 data - `data` - additional data for the logs
-
+tag - `tag` - any additional tag for the logs, for example if cycle finished with some swap action it's can be `swap_action`
 
 ## Logger UI
 takes data from db logs by api , as result grouped logs

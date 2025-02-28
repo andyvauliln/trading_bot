@@ -7,7 +7,7 @@ import { createTableHoldings, getAllHoldings } from "./holding.db";
 import { createSellTransactionResponse, HoldingRecord, LastPriceDexReponse } from "./types";
 import { DateTime } from "luxon";
 import { createSellTransaction } from "./transactions";
-import { retryAxiosRequest } from "../utils/function";
+import { retryAxiosRequest } from "../utils/help-functions";
 
 dotenv.config();
 

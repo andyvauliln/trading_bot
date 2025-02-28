@@ -1,4 +1,4 @@
-import { AIMessageProcessor } from './ai_message_processing';
+import { AIMessageProcessor } from './ai-message-processing';
 import * as dotenv from 'dotenv';
 import { AIConfig } from './types';
 import { config as configData } from './config';

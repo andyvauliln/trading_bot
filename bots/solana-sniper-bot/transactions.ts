@@ -15,8 +15,8 @@ import {
 } from "./types";
 import { insertHolding, insertNewToken, selectTokenByMint } from "../tracker-bot/holding.db";
 import { HoldingRecord } from "../tracker-bot/types";
-import { TAGS } from "../utils/log_tags";
-import { retryAxiosRequest } from "../utils/function";
+import { TAGS } from "../utils/log-tags";
+import { retryAxiosRequest } from "../utils/help-functions";
 
 dotenv.config();
 

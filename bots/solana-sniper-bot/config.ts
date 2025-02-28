@@ -43,9 +43,15 @@ import path from "path";
 export const config = {
   name: "solana-sniper-bot",
   verbose_log: true,
-  logs_db_path: path.resolve(process.cwd(), 'data', 'app-logs.db'),
   environment: process.env.NODE_ENV || "test", // development, production, test
   simulation_mode: true,
+  logger: {
+    terminal_logs: true,
+    db_logs: true,
+    file_logs: true,
+    db_logs_path: path.resolve(process.cwd(), 'data', 'app-logs.db'),
+    file_logs_path: path.resolve(process.cwd(), 'logs', 'solana-sniper-bot.log'),
+  },
   liquidity_pool: {
     radiyum_program_id: "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8",
     wsol_pc_mint: "So11111111111111111111111111111111111111112",

@@ -7,7 +7,6 @@ export const config: TelegramConfig = {
     "environment": process.env.NODE_ENV || "test", // development, production, test
     "name": "telegram-trading-bot",
     "simulation_mode": false,
-    "logs_db_path": path.resolve(process.cwd(), 'data', 'app-logs.db'),
     "base_url": "https://tg.i-c-a.su",
     "messages_db_path":  path.resolve(process.cwd(), 'data', 'telegram-trading-bot.messages.db'),
     "messages_json_path":  path.resolve(process.cwd(), 'data', 'telegram-trading-bot.messages.json'),
@@ -21,6 +20,13 @@ export const config: TelegramConfig = {
     "log_level": "INFO",
     "verbose_log": true,
     "sol_mint": "So11111111111111111111111111111111111111112",
+    "logger": {
+        "terminal_logs": true,
+        "db_logs": true,
+        "file_logs": true,
+        "db_logs_path": path.resolve(process.cwd(), 'data', 'app-logs.db'),
+        "file_logs_path": path.resolve(process.cwd(), 'logs', 'telegram-trading-bot.log'),
+    },
     "tx": {
         "fetch_tx_max_retries": 10,
         "fetch_tx_initial_delay": 3000, // Initial delay before fetching LP creation transaction details (3 seconds)
