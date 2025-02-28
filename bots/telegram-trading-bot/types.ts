@@ -20,7 +20,7 @@ export interface AIConfig {
 
 export interface RugCheckConfig {
     verbose_log: boolean;
-    simulation_mode: boolean;
+   
     allow_mint_authority: boolean;
     allow_not_initialized: boolean;
     allow_freeze_authority: boolean;
@@ -41,6 +41,7 @@ export interface RugCheckConfig {
 
 export interface TelegramConfig {
     logs_db_path: string;
+    simulation_mode: boolean;
     verbose_log: boolean;
     environment: string;
     name: string;

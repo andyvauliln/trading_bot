@@ -3,7 +3,7 @@ import axios from "axios";
 import * as sqlite3 from "sqlite3";
 import dotenv from "dotenv";
 import { open } from "sqlite";
-import { createTableHoldings } from "./holding.db";
+import { createTableHoldings, getAllHoldings } from "./holding.db";
 import { createSellTransactionResponse, HoldingRecord, LastPriceDexReponse } from "./types";
 import { DateTime } from "luxon";
 import { createSellTransaction } from "./transactions";
@@ -21,17 +21,14 @@ async function main() {
 
   // Connect to database and create if not exists
   console.log(`[tracker-bot]|[main]|Opening DB: ${config.db_name_tracker_holdings}`);
-  const db = await open({
-    filename: config.db_name_tracker_holdings,
-    driver: sqlite3.Database,
-  });
+
 
     // Create const for holdings and action logs.
 
     let currentPriceSource = "Jupiter Agregator";
 
     // Get all our current holdings
-    const holdings = await db.all("SELECT * FROM holdings");
+    const holdings = await getAllHoldings();
 
     console.log(`[tracker-bot]|[main]|Found Holdings: ${holdings.length}`, processRunCounter, holdings);
     if (holdings.length !== 0) {
@@ -193,7 +190,6 @@ async function main() {
       console.log(`[tracker-bot]|[main]| Check your wallet: https://gmgn.ai/sol/address/${config.sell.track_public_wallet}`, processRunCounter);
     }
 
-    await db.close();
   
   console.log(`[tracker-bot]|[main]| WAITING ${config.check_interval} seconds before next check...`, processRunCounter);
   processRunCounter++;

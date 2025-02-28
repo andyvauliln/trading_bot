@@ -6,6 +6,7 @@ dotenv.config();
 export const config: TelegramConfig = {
     "environment": process.env.NODE_ENV || "test", // development, production, test
     "name": "telegram-trading-bot",
+    "simulation_mode": false,
     "logs_db_path": path.resolve(process.cwd(), 'data', 'app-logs.db'),
     "base_url": "https://tg.i-c-a.su",
     "messages_db_path":  path.resolve(process.cwd(), 'data', 'telegram-trading-bot.messages.db'),
@@ -62,7 +63,7 @@ export const config: TelegramConfig = {
     },
     "rug_check": {
         "verbose_log": false,
-        "simulation_mode": false,
+       
         // Dangerous
         "allow_mint_authority": false, // The mint authority is the address that has permission to mint (create) new tokens. Strongly Advised to set to false.
         "allow_not_initialized": false, // This indicates whether the token account is properly set up on the blockchain. Strongly Advised to set to false

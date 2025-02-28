@@ -148,7 +148,7 @@ export async function getRugCheckConfirmed(token: string, processRunCounter: num
       name: tokenName,
       creator: tokenCreator,
     };
-    await insertNewToken(newToken, processRunCounter).catch((err) => {
+    await insertNewToken(newToken, processRunCounter, conditions).catch((err) => {
         console.log(`[telegram-trading-bot]|[getRugCheckConfirmed]| ⛔ Unable to store new token for tracking duplicate tokens: ${err}`, processRunCounter);
     });
   
@@ -198,7 +198,7 @@ export async function getRugCheckConfirmed(token: string, processRunCounter: num
     console.log(`[telegram-trading-bot]|[validateAndSwapToken]| 😈 BullX: https://neo.bullx.io/terminal?chainId=1399811149&address=${token}`, processRunCounter);
 
     // Check if simulation mode is enabled
-    if (config.rug_check.simulation_mode) {
+    if (config.simulation_mode) {
         console.log(`[telegram-trading-bot]|[validateAndSwapToken]| 👀 Token not swapped. Simulation mode is enabled.`, processRunCounter);
         console.log(`[telegram-trading-bot]|[validateAndSwapToken]| 🟢 Resuming looking for new tokens..`, processRunCounter);
         return false;

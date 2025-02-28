@@ -45,6 +45,7 @@ export const config = {
   verbose_log: true,
   logs_db_path: path.resolve(process.cwd(), 'data', 'app-logs.db'),
   environment: process.env.NODE_ENV || "test", // development, production, test
+  simulation_mode: true,
   liquidity_pool: {
     radiyum_program_id: "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8",
     wsol_pc_mint: "So11111111111111111111111111111111111111112",
@@ -66,7 +67,7 @@ export const config = {
     token_not_tradable_400_error_delay: 2000, // How many seconds should the bot wait before retrying to get a quote again
   },
   rug_check: {
-    simulation_mode: true,
+   
     // Dangerous
     allow_mint_authority: false, // The mint authority is the address that has permission to mint (create) new tokens. Strongly Advised to set to false.
     allow_not_initialized: false, // This indicates whether the token account is properly set up on the blockchain. Strongly Advised to set to false

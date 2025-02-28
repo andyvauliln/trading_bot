@@ -11,7 +11,7 @@ let processRunCounter = 1; // Counter to track the number of process runs
 
 // Function used to open our websocket connection
 function sendSubscribeRequest(ws: WebSocket): void {
-  console.log(`[solana-sniper-bot]|[sendSubscribeRequest]|MAINLOGS Sending subscribe request to websocket for radiyum program id: ${config.liquidity_pool.radiyum_program_id}`);
+  console.log(`[solana-sniper-bot]|[sendSubscribeRequest]| Sending subscribe request to websocket for radiyum program id: ${config.liquidity_pool.radiyum_program_id}`);
   const request: WebSocketRequest = {
     jsonrpc: "2.0",
     id: 1,
@@ -43,7 +43,7 @@ async function processTransaction(signature: string, processRunCounter: number):
 
   // Ensure required data is available
   if (!data.solMint || !data.tokenMint) {
-    console.error(`[solana-sniper-bot]|[processTransaction]|🚫 Invalid data received`, processRunCounter, { data });
+    console.error(`[solana-sniper-bot]|[processTransaction]|🚫 Invalid data received`, processRunCounter, data);
     return false;
   }
 
@@ -69,7 +69,7 @@ async function processTransaction(signature: string, processRunCounter: number):
   console.log(`[solana-sniper-bot]|[processTransaction]|😈 BullX: https://neo.bullx.io/terminal?chainId=1399811149&address=${data.tokenMint}`, processRunCounter);
 
   // Check if simulation mode is enabled
-  if (config.rug_check.simulation_mode) {
+  if (config.simulation_mode) {
     console.log(`[solana-sniper-bot]|[processTransaction]|👀 Token not swapped. Simulation mode is enabled.`, processRunCounter);
     console.log(`[solana-sniper-bot]|[processTransaction]|🟢 Resuming looking for new tokens...`, processRunCounter);
     return false;
@@ -87,7 +87,7 @@ async function processTransaction(signature: string, processRunCounter: number):
   }
 
   // Output logs
-  console.log(`[solana-sniper-bot]|[processTransaction]|🔗 Swap Transaction: https://solscan.io/tx/${tx}`, processRunCounter);
+  console.log(`[solana-sniper-bot]|[processTransaction]|🔗 Swap Transaction: https://solscan.io/tx/${tx}`, processRunCounter, tx, "swapped");
 
   // Fetch and store the transaction for tracking purposes
   const saveConfirmation = await fetchAndSaveSwapDetails(tx, processRunCounter);
@@ -101,10 +101,10 @@ async function processTransaction(signature: string, processRunCounter: number):
 // Websocket Handler for listening to the Solana logSubscribe method
 let init = false;
 async function websocketHandler(): Promise<void> {
-  console.log(`[solana-sniper-bot]|[websocketHandler]|MAINLOGS APPLICATION STARTED`);
+  console.log(`[solana-sniper-bot]|[websocketHandler]|APPLICATION STARTED`);
   // Load environment variables from the .env file
   const env = validateEnv();
-  console.log(`[solana-sniper-bot]|[websocketHandler]|MAINLOGS Environment Variables Validated`);
+  console.log(`[solana-sniper-bot]|[websocketHandler]|Environment Variables Validated`);
   // Create a WebSocket connection
   let ws: WebSocket | null = new WebSocket(env.HELIUS_WSS_URI);
   if (!init) console.clear();
@@ -116,7 +116,7 @@ async function websocketHandler(): Promise<void> {
   ws.on("open", () => {
     // Subscribe
     if (ws) sendSubscribeRequest(ws); // Send a request once the WebSocket is open
-    console.log(`[solana-sniper-bot]|[websocketHandler]|MAINLOGS 🔓 WebSocket is open and listening.`);
+    console.log(`[solana-sniper-bot]|[websocketHandler]|🔓 WebSocket is open and listening.`);
     init = true;
   });
   // Logic for the message event for the .on event listener
@@ -171,24 +171,24 @@ async function websocketHandler(): Promise<void> {
       console.log(`[solana-sniper-bot]|[websocketHandler]|CYCLE_START`, processRunCounter);
       processTransaction(signature, processRunCounter)
         .then((result) => {
-          console.log(`[solana-sniper-bot]|[websocketHandler]|CYCLE_END`, processRunCounter, result);
+          console.log(`[solana-sniper-bot]|[websocketHandler]|CYCLE_END`, processRunCounter);
         })
         .catch((error) => {
           console.error(`[solana-sniper-bot]|[websocketHandler]|💥 Error processing transaction:`, processRunCounter, error);
-          console.log(`[solana-sniper-bot]|[websocketHandler]|CYCLE_END`, processRunCounter, false);
+          console.log(`[solana-sniper-bot]|[websocketHandler]|CYCLE_END`, processRunCounter);
         })
         .finally(() => {
           console.log(`[solana-sniper-bot]|[websocketHandler]|🔎 Decrementing active transactions`, processRunCounter);
           activeTransactions--;
+          console.log(`[solana-sniper-bot]|[websocketHandler]|CYCLE_END`, processRunCounter);
           processRunCounter++; // Increment the process run counter
-          console.log(`[solana-sniper-bot]|[websocketHandler]|CYCLE_END`, processRunCounter, false);
         });
     } catch (error) {
       console.error(`[solana-sniper-bot]|[websocketHandler]|💥 Error processing message:`, processRunCounter, {
         error: error instanceof Error ? error.message : "Unknown error",
         timestamp: new Date().toISOString(),
       });
-      console.log(`[solana-sniper-bot]|[websocketHandler]|CYCLE_END`, processRunCounter, false);
+      console.log(`[solana-sniper-bot]|[websocketHandler]|CYCLE_END`, processRunCounter);
     }
   });
 

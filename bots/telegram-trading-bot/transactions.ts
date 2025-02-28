@@ -27,7 +27,7 @@ export async function createSwapTransaction(solMint: string, tokenMint: string, 
 
    // Check if wallet has enough SOL to cover fees
    const solBalance = await connection.getBalance(myWallet.publicKey);
-   const minRequiredBalance = config.swap.prio_fee_max_lamports + 5000 + 1000000; // prio fee + base fee + safety buffer
+   const minRequiredBalance = parseInt(config.swap.amount) + config.swap.prio_fee_max_lamports + 5000 + 1000000; // prio fee + base fee + safety buffer
    if (solBalance < minRequiredBalance) {
      throw new Error(`Insufficient SOL balance for fees. Required: ${minRequiredBalance/1e9} SOL, Current: ${solBalance/1e9} SOL`);
    }

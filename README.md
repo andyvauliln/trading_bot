@@ -75,6 +75,10 @@ Will run all bots simultaneously in different processes
 - [ ] Smart address bot trading
 - [ ] Whales address trading
 - [ ] Check for transactions if wallet has sufficient sol for fees
+- [ ] Multi chain support
+
+- [*] Populate tokens db with rug conditions data
+
 
 ### Architecture, system design, and visual knowledge base
 [Link](https://computer.tldraw.com/p/2nWRFbhCC27zMUioEqX1Wp)

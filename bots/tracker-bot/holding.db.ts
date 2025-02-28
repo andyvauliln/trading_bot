@@ -29,6 +29,24 @@ export async function createTableHoldings(database: any): Promise<boolean> {
   }
 }
 
+export async function getAllHoldings(): Promise<HoldingRecord[]> {
+  const db = await open({
+    filename: config.db_name_tracker_holdings,
+    driver: sqlite3.Database,
+  });
+
+  // Create Table if not exists
+  const holdingsTableExist = await createTableHoldings(db);
+  if (!holdingsTableExist) {
+    await db.close();
+    return [];
+  }
+
+  const holdings = await db.all(`SELECT * FROM holdings;`);
+  await db.close();
+  return holdings;
+}
+
 export async function insertHolding(holding: HoldingRecord, processRunCounter: number) {
   console.log(`[holding-db]|[insertHolding]| Inserting holding:`, processRunCounter, holding);
   const db = await open({
@@ -95,7 +113,8 @@ export async function createTableNewTokens(database: any): Promise<boolean> {
       time INTEGER NOT NULL,
       name TEXT NOT NULL,
       mint TEXT NOT NULL,
-      creator TEXT NOT NULL
+      creator TEXT NOT NULL,
+      rug_conditions TEXT
     );
   `);
     return true;
@@ -104,7 +123,7 @@ export async function createTableNewTokens(database: any): Promise<boolean> {
   }
 }
 
-export async function insertNewToken(newToken: NewTokenRecord, processRunCounter: number) {
+export async function insertNewToken(newToken: NewTokenRecord, processRunCounter: number, rug_conditions: any[]) {
   console.log(`[holding-db]|[insertNewToken]| Inserting new token:`, processRunCounter, newToken);
   const db = await open({
     filename: config.db_name_tracker_holdings,
@@ -137,10 +156,10 @@ export async function insertNewToken(newToken: NewTokenRecord, processRunCounter
   // Proceed with adding new token if it doesn't exist
   await db.run(
     `
-    INSERT INTO tokens (time, name, mint, creator)
-    VALUES (?, ?, ?, ?);
+    INSERT INTO tokens (time, name, mint, creator, rug_conditions)
+    VALUES (?, ?, ?, ?, ?);
     `,
-    [time, name, mint, creator]
+    [time, name, mint, creator, rug_conditions]
   );
   console.log(`[holding-db]|[insertNewToken]| New token inserted successfully`, processRunCounter);
 
