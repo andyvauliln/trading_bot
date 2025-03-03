@@ -48,7 +48,7 @@ async function testAIProcessor() {
             try {
                 console.log("Processing message...");
                 const startTime = Date.now();
-                const results = await processor.processMessage(message);
+                const results = await processor.processMessage(message, index + 1);
                 console.log(results);
                 const endTime = Date.now();
                 

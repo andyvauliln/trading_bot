@@ -39,7 +39,6 @@ export const config: TelegramConfig = {
         "retry_delay": 500, // Delay between retries (0.5 seconds)
     },
     "swap": {
-        "verbose_log": false,
         "is_additional_holding": false,
         "additional_holding_amount": 10000000, // 0.01 SOL
         "prio_fee_max_lamports": 1000000, // 0.001 SOL
@@ -66,8 +65,8 @@ export const config: TelegramConfig = {
     ],
     "ai_config": {
         "openrouter_api_key": process.env.OPEN_ROUTER_API_KEY || "",
-        "initial_model": "google/gemini-2.0-flash-lite-preview-02-05:free",
-        "base_url": "https://openrouter.ai/api/v1",
+        "initial_model": "openai/gpt-3.5-turbo-0301",
+        "base_url": "https://openrouter.ai/api/v1/chat/completions",
         "temperature": 0.2
     },
     "rug_check": {

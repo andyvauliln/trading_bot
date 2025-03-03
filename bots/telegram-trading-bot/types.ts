@@ -83,7 +83,6 @@ export interface TxConfig {
 }
 
 export interface SwapConfig {
-    verbose_log: boolean;
     prio_fee_max_lamports: number;
     prio_level: string;
     amount: string;

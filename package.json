@@ -10,7 +10,7 @@
     "test-tracker-bot": "ts-node bots/tracker-bot/index.ts",
     "test-telegram-trading-bot": "ts-node bots/telegram-trading-bot/index.ts",
     "test-solana-sniper-bot": "ts-node bots/solana-sniper-bot/index.ts",
-    "test-ai-processor": "ts-node bots/telegram-trading-bot/test_ai_processor.ts",
+    "test-ai-processor": "ts-node bots/telegram-trading-bot/test-ai-processor.ts",
     "test-gmgn": "ts-node gmgn_api/test.ts",
     "clean": "rm -rf dist"
   },
