@@ -70,3 +70,4 @@ Collapsed view
         - [ cycleLogs(highlighted with a tag, error, warning, info)] -+-
             - [cycle][type][time][function][message] [tag] -+-
               - [data]
+

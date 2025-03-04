@@ -12,6 +12,7 @@
     "test-solana-sniper-bot": "ts-node bots/solana-sniper-bot/index.ts",
     "test-ai-processor": "ts-node bots/telegram-trading-bot/test-ai-processor.ts",
     "test-gmgn": "ts-node gmgn_api/test.ts",
+    "api": "ts-node trades-monitoring/index.ts",
     "clean": "rm -rf dist"
   },
   "keywords": [],
@@ -19,6 +20,7 @@
   "license": "ISC",
   "description": "",
   "devDependencies": {
+    "@types/express": "^5.0.0",
     "@types/luxon": "^3.4.2",
     "@types/node": "^22.13.4",
     "@types/ws": "^8.5.13",
@@ -44,6 +46,7 @@
     "csv-parser": "^3.0.0",
     "csv-writer": "^1.6.0",
     "dotenv": "^16.4.7",
+    "express": "^4.21.2",
     "https-proxy-agent": "^7.0.5",
     "langchain": "^0.3.19",
     "luxon": "^3.5.0",

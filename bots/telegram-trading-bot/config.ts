@@ -65,7 +65,7 @@ export const config: TelegramConfig = {
     ],
     "ai_config": {
         "openrouter_api_key": process.env.OPEN_ROUTER_API_KEY || "",
-        "initial_model": "openai/gpt-3.5-turbo-0301",
+        "initial_model": "deepseek/deepseek-r1-distill-llama-70b:free",
         "base_url": "https://openrouter.ai/api/v1/chat/completions",
         "temperature": 0.2
     },

@@ -9,6 +9,6 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["bots/**/*"],
+  "include": ["bots/**/*", "trades-monitoring/**/*"],
   "exclude": ["node_modules"]
 }
