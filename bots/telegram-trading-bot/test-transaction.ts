@@ -3,7 +3,7 @@ import { config } from "./config";
 
 (async () => {
     const token = "6p6xgHyF7AeE6TZkSmFsko444wqoP15icUSqi2jfGiPN";
-    const processRunCounter = Date.now(); // Add a process run counter
+    const processRunCounter = 1; // Add a process run counter
     const tx = await createSwapTransaction(config.sol_mint, token, processRunCounter);
   if (!tx) {
     console.log("⛔ Transaction aborted.");

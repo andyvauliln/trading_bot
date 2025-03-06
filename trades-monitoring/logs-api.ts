@@ -1,23 +1,43 @@
-import express, { Request, Response } from 'express';
+import * as express from 'express';
+import { Request, Response } from 'express';
 import * as sqlite3 from 'sqlite3';
 import { open } from 'sqlite';
 import { config } from '../bots/tracker-bot/config';
 
 const router = express.Router();
 
-// Initialize database connection
-const initDb = async () => {
-  return await open({
+// Initialize database connection and create table if not exists
+const initDb = async (tableName: string) => {
+  const db = await open({
     filename: config.logger.db_logs_path,
     driver: sqlite3.Database
   });
+
+  // Create logs table if it doesn't exist
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS ${tableName} (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date TEXT,
+      time TEXT,
+      run_prefix TEXT,
+      full_message TEXT,
+      message TEXT,
+      module TEXT,
+      function TEXT,
+      type TEXT,
+      data TEXT,
+      cycle INTEGER,
+      tag TEXT
+    )
+  `);
+
+  return db;
 };
 
 // Get logs with module and date parameters
 router.get('/logs', (req: Request, res: Response) => {
   (async () => {
     try {
-      const db = await initDb();
       const { module, date } = req.query;
 
       // Validate required parameters
@@ -42,6 +62,9 @@ router.get('/logs', (req: Request, res: Response) => {
       }
 
       const tableName = module.replace(/-/g, '_');
+      
+      // Initialize DB and ensure table exists
+      const db = await initDb(tableName);
       
       const query = `
         SELECT *

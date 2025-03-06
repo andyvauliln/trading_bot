@@ -345,3 +345,26 @@ export interface LastPriceDexReponse {
 }
 // Update to reflect an array of transactions
 export type TransactionDetailsResponseArray = TransactionDetailsResponse[];
+
+export interface ProfitLossRecord {
+  id?: number;                    // Optional because it's added by the database
+  Time: number;                   // Timestamp of the trade exit
+  EntryTime: number;             // When we entered the position
+  Token: string;                 // Token mint address
+  TokenName: string;             // Token name for readability
+  EntryBalance: number;          // Initial token amount
+  ExitBalance: number;           // Final token amount sold
+  EntrySolPaid: number;         // SOL paid to enter position
+  ExitSolReceived: number;      // SOL received from exit
+  TotalSolFees: number;         // Total SOL paid in fees (entry + exit)
+  ProfitLossSOL: number;        // Profit/Loss in SOL
+  ProfitLossUSDC: number;       // Profit/Loss in USDC
+  ROIPercentage: number;        // Return on Investment percentage
+  EntryPriceUSDC: number;       // Entry price in USDC
+  ExitPriceUSDC: number;        // Exit price in USDC
+  HoldingTimeSeconds: number;   // How long we held the position
+  Slot: number;                 // Blockchain slot at exit
+  Program: string;              // DEX program used
+  BotName: string;              // Bot that executed the trade
+  IsTakeProfit: boolean;       // Whether the trade was a take-profit
+}

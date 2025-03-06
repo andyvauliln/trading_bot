@@ -1,8 +1,8 @@
 import { config } from "./config"; // Configuration parameters for our bot
 import axios from "axios";
 import dotenv from "dotenv";
-import { getAllHoldings } from "./holding.db";
-import { createSellTransactionResponse, HoldingRecord, LastPriceDexReponse } from "./types";
+import { getAllHoldings, initializeDatabaseTables, insertProfitLoss } from "./holding.db";
+import { createSellTransactionResponse, HoldingRecord, LastPriceDexReponse, ProfitLossRecord } from "./types";
 import { DateTime } from "luxon";
 import { createSellTransaction } from "./transactions";
 import { retryAxiosRequest } from "../utils/help-functions";
@@ -13,14 +13,21 @@ dotenv.config();
 let processRunCounter = 1;
 
 async function main() {
-  // Initialize the logger
+  try {
+    // Initialize database tables
+    const tablesInitialized = await initializeDatabaseTables();
+    if (!tablesInitialized) {
+      console.error("[tracker-bot]|[main]| ⛔ Failed to initialize database tables. Exiting...");
+      process.exit(1);
+    }
+    console.log("[tracker-bot]|[main]| ✅ Database tables initialized successfully");
 
-  const priceUrl = process.env.JUP_HTTPS_PRICE_URI || "";
-  const dexPriceUrl = process.env.DEX_HTTPS_LATEST_TOKENS || "";
-  const priceSource = config.sell.price_source || "jup";
-  const solMint = config.liquidity_pool.wsol_pc_mint;
-  console.log(`[tracker-bot]|[main]|CYCLE_START: ${processRunCounter}`, processRunCounter);
-
+    // Initialize the logger
+    const priceUrl = process.env.JUP_HTTPS_PRICE_URI || "";
+    const dexPriceUrl = process.env.DEX_HTTPS_LATEST_TOKENS || "";
+    const priceSource = config.sell.price_source || "jup";
+    const solMint = config.liquidity_pool.wsol_pc_mint;
+    console.log(`[tracker-bot]|[main]|CYCLE_START: ${processRunCounter}`, processRunCounter);
 
     let currentPriceSource = "Jupiter Agregator";
 
@@ -132,16 +139,48 @@ async function main() {
           if (config.sell.auto_sell && config.sell.auto_sell === true) {
             const amountIn = tokenBalance.toString().replace(".", "");
 
-            // Sell via Take Profit
-            if (unrealizedPnLPercentage >= config.sell.take_profit_percent) {
+            // Sell via Take Profit unrealizedPnLPercentage >= config.sell.take_profit_percent
+            if (true) {
               try {
                 const result: createSellTransactionResponse = await createSellTransaction(config.liquidity_pool.wsol_pc_mint, token, amountIn, processRunCounter, "take-profit");
                 const txErrorMsg = result.msg;
                 const txSuccess = result.success;
-                const tXtransaction = result.tx;
+                const txTransaction = result.tx;
+                
                 // Add success to log output
-                if (txSuccess) {
-                  console.log(`[tracker-bot]|[main]| ✅🟢 ${hrTradeTime}: Took profit for ${tokenName}\nTx: ${tXtransaction}`, processRunCounter);
+                if (txSuccess && txTransaction) {
+                  console.log(`[tracker-bot]|[main]| ✅🟢 ${hrTradeTime}: Took profit for ${tokenName}\nTx: ${txTransaction}`, processRunCounter);
+                  
+                  // Create profit/loss record for successful take-profit
+                  const profitLossRecord: ProfitLossRecord = {
+                    Time: Date.now(),
+                    EntryTime: tokenTime,
+                    Token: token,
+                    TokenName: tokenName,
+                    EntryBalance: tokenBalance,
+                    ExitBalance: Number(amountIn),
+                    EntrySolPaid: tokenSolPaid,
+                    ExitSolReceived: tokenCurrentPrice * Number(amountIn), // Using current price for the calculation
+                    TotalSolFees: tokenSolFeePaid,
+                    ProfitLossSOL: (tokenCurrentPrice * Number(amountIn)) - tokenSolPaid,
+                    ProfitLossUSDC: unrealizedPnLUSDC,
+                    ROIPercentage: unrealizedPnLPercentage,
+                    EntryPriceUSDC: tokenPerTokenPaidUSDC,
+                    ExitPriceUSDC: tokenCurrentPrice,
+                    HoldingTimeSeconds: Math.floor(Date.now() / 1000) - Math.floor(tokenTime / 1000),
+                    Slot: tokenSlot,
+                    IsTakeProfit: unrealizedPnLPercentage >= 0,
+                    Program: tokenProgram,
+                    BotName: tokenBotName
+                  };
+
+                  await insertProfitLoss(profitLossRecord, processRunCounter);
+                  console.log(`[tracker-bot]|[main]| Profit/Loss Record Created for Take-Profit:`, processRunCounter, {
+                    token: token,
+                    profitLossUSDC: unrealizedPnLUSDC,
+                    roiPercentage: unrealizedPnLPercentage,
+                    IsTakeProfit: unrealizedPnLPercentage >= 0
+                  });
                 } else {
                   console.error(`[tracker-bot]|[main]| ⚠️ ERROR when taking profit for ${tokenName}: ${txErrorMsg}`, processRunCounter);
                   console.log(`[tracker-bot]|[main]| CYCLE_END`, processRunCounter, ++processRunCounter);
@@ -160,10 +199,42 @@ async function main() {
                 const result: createSellTransactionResponse = await createSellTransaction(config.liquidity_pool.wsol_pc_mint, token, amountIn, processRunCounter, "stop-loss");
                 const txErrorMsg = result.msg;
                 const txSuccess = result.success;
-                const tXtransaction = result.tx;
+                const txTransaction = result.tx;
+                
                 // Add success to log output
-                if (txSuccess) {
-                  console.log(`[tracker-bot]|[main]| ✅🔴 ${hrTradeTime}: Triggered Stop Loss for ${tokenName}\nTx: ${tXtransaction}`, processRunCounter);
+                if (txSuccess && txTransaction) {
+                  console.log(`[tracker-bot]|[main]| ✅🔴 ${hrTradeTime}: Triggered Stop Loss for ${tokenName}\nTx: ${txTransaction}`, processRunCounter);
+                  
+                  // Create profit/loss record for stop-loss
+                  const profitLossRecord: ProfitLossRecord = {
+                    Time: Date.now(),
+                    EntryTime: tokenTime,
+                    Token: token,
+                    TokenName: tokenName,
+                    EntryBalance: tokenBalance,
+                    ExitBalance: Number(amountIn),
+                    EntrySolPaid: tokenSolPaid,
+                    ExitSolReceived: tokenCurrentPrice * Number(amountIn), // Using current price for the calculation
+                    TotalSolFees: tokenSolFeePaid,
+                    ProfitLossSOL: (tokenCurrentPrice * Number(amountIn)) - tokenSolPaid,
+                    ProfitLossUSDC: unrealizedPnLUSDC,
+                    ROIPercentage: unrealizedPnLPercentage,
+                    EntryPriceUSDC: tokenPerTokenPaidUSDC,
+                    ExitPriceUSDC: tokenCurrentPrice,
+                    HoldingTimeSeconds: Math.floor(Date.now() / 1000) - Math.floor(tokenTime / 1000),
+                    Slot: tokenSlot,
+                    Program: tokenProgram,
+                    BotName: tokenBotName,
+                    IsTakeProfit: unrealizedPnLPercentage >= 0
+                  };
+
+                  await insertProfitLoss(profitLossRecord, processRunCounter);
+                  console.log(`[tracker-bot]|[main]| Profit/Loss Record Created for Stop-Loss:`, processRunCounter, {
+                    token: token,
+                    profitLossUSDC: unrealizedPnLUSDC,
+                    roiPercentage: unrealizedPnLPercentage,
+                    IsTakeProfit: unrealizedPnLPercentage >= 0
+                  });
                 } else {
                   console.error(`[tracker-bot]|[main]| ⚠️ ERROR when triggering Stop Loss for ${tokenName}: ${txErrorMsg}`, processRunCounter);
                   console.log(`[tracker-bot]|[main]| CYCLE_END`, processRunCounter, ++processRunCounter);
@@ -192,13 +263,19 @@ async function main() {
       console.log(`[tracker-bot]|[main]| No token holdings yet as of ${new Date().toISOString()}`, processRunCounter);
     }
 
-  // Increment process run counter and update logger cycle
-  processRunCounter++;
-  console.log(`[tracker-bot]|[main]|CYCLE_END: ${processRunCounter} | WAITING ${config.check_interval} seconds before next check...`, processRunCounter);
+    // Increment process run counter and update logger cycle
+    processRunCounter++;
+    console.log(`[tracker-bot]|[main]|CYCLE_END: ${processRunCounter} | WAITING ${config.check_interval} seconds before next check...`, processRunCounter);
 
-  
-  setTimeout(main, config.check_interval * 1000); // Call main again interval seconds
+    setTimeout(main, config.check_interval * 1000); // Call main again interval seconds
+  } catch (error: any) {
+    console.error(`[tracker-bot]|[main]| ⚠️ ERROR: ${error.message}`, processRunCounter);
+    processRunCounter++;
+    console.log(`[tracker-bot]|[main]| CYCLE_END: ${processRunCounter} | WAITING ${config.check_interval} seconds before next check...`, processRunCounter);
+    setTimeout(main, config.check_interval * 1000); // Call main again interval seconds
+  }
 }
+
 logger.init().then(() => {
   main().catch(async (err) => {
     console.error(err);

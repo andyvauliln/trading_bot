@@ -10,6 +10,7 @@ export const config = {
   port: 9090,
   db_logs_path: path.resolve(process.cwd(), 'data', 'app-logs.db'),
   bots:['tracker-bot', 'telegram-trading-bot', "solana-sniper-bot"],
+  db_holdings_path: path.resolve(process.cwd(), 'data', 'holdings.db'),
   logger: {
     keeping_days_in_db: 10,
     terminal_logs: true,

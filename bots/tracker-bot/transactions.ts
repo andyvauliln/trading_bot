@@ -7,15 +7,13 @@ import { config } from "./config";
 import {
   QuoteResponse,
   SerializedQuoteResponse,
-  createSellTransactionResponse,
+  createSellTransactionResponse
 } from "./types";
-import { removeHolding} from "./holding.db";
+import { removeHolding } from "./holding.db";
 import { TAGS } from "../utils/log-tags";
 import { retryAxiosRequest } from "../utils/help-functions";
 // Load environment variables from the .env file
 dotenv.config();
-
-
 
 export async function createSellTransaction(solMint: string, tokenMint: string, amount: string, processRunCounter: number, type: string): Promise<createSellTransactionResponse> {
   const quoteUrl = process.env.JUP_HTTPS_QUOTE_URI || "";
@@ -32,26 +30,27 @@ export async function createSellTransaction(solMint: string, tokenMint: string, 
     });
 
     //Check if token exists in wallet with non-zero balance
-    const totalBalance = tokenAccounts.value.reduce((sum, account) => {
-      const tokenAmount = account.account.data.parsed.info.tokenAmount.amount;
-      return sum + BigInt(tokenAmount); // Use BigInt for precise calculations
-    }, BigInt(0));
+    // const totalBalance = tokenAccounts.value.reduce((sum, account) => {
+    //   const tokenAmount = account.account.data.parsed.info.tokenAmount.amount;
+    //   return sum + BigInt(tokenAmount); // Use BigInt for precise calculations
+    // }, BigInt(0));
 
-    console.log(`[tracker-bot]|[createSellTransaction]| Token ${tokenMint} has ${totalBalance} balance`, processRunCounter);
+    // console.log(`[tracker-bot]|[createSellTransaction]| Token ${tokenMint} has ${totalBalance} balance`, processRunCounter);
 
-    // Verify returned balance
-    if (totalBalance <= 0n) {
-      console.log(`[tracker-bot]|[createSellTransaction]| Token has 0 balance - Already sold elsewhere. Removing from tracking.`, processRunCounter);
-      await removeHolding(tokenMint, processRunCounter).catch((err) => {
-        console.log(`[tracker-bot]|[createSellTransaction]| ⛔ Database Error: ${err}`, processRunCounter);
-      });
-      throw new Error(`Token has 0 balance - Already sold elsewhere. Removing from tracking.`);
-    }
+    // // Verify returned balance
+    // if (totalBalance <= 0n) {
+    //   console.log(`[tracker-bot]|[createSellTransaction]| Token has 0 balance - Already sold elsewhere. Removing from tracking.`, processRunCounter);
+    //   // await removeHolding(tokenMint, processRunCounter).catch((err) => {
+    //   //   console.log(`[tracker-bot]|[createSellTransaction]| ⛔ Database Error: ${err}`, processRunCounter);
+    //   // });
+    //   console.log(`[tracker-bot]|[createSellTransaction]| Token has 0 balance - Already sold elsewhere. Removing from tracking.`, processRunCounter, totalBalance, {tokenMint, amount}, TAGS.tokens_finished.name);
+    //   throw new Error(`Token has 0 balance - Already sold elsewhere. Removing from tracking.`);
+    // }
 
-    // Verify amount with tokenBalance
-    if (totalBalance !== BigInt(amount)) {
-      throw new Error(`Wallet and tracker balance mismatch. Sell manually and token will be removed during next price check.`);
-    }
+    // // Verify amount with tokenBalance
+    // if (totalBalance !== BigInt(amount)) {
+    //   throw new Error(`Wallet and tracker balance mismatch. Sell manually and token will be removed during next price check.`);
+    // }
 
     // Check if wallet has enough SOL to cover fees
     const solBalance = await connection.getBalance(myWallet.publicKey);
@@ -70,7 +69,7 @@ export async function createSellTransaction(solMint: string, tokenMint: string, 
           inputMint: tokenMint,
           outputMint: solMint,
           amount: amount,
-          slippageBps: config.sell.slippageBps,
+          slippageBps: 250,//config.sell.slippageBps,
         },
         timeout: config.tx.get_timeout,
       }),
@@ -99,7 +98,7 @@ export async function createSellTransaction(solMint: string, tokenMint: string, 
           //dynamicComputeUnitLimit: true, // allow dynamic compute limit instead of max 1,400,000
           dynamicSlippage: {
             // This will set an optimized slippage to ensure high success rate
-            maxBps: 300, // Make sure to set a reasonable cap here to prevent MEV
+            maxBps: 500, // Make sure to set a reasonable cap here to prevent MEV
           },
           prioritizationFeeLamports: {
             priorityLevelWithMaxLamports: {
@@ -147,6 +146,7 @@ export async function createSellTransaction(solMint: string, tokenMint: string, 
     if (!txid) {
       throw new Error("Could not send transaction that was signed and serialized!");
     }
+    console.log(`[tracker-bot]|[createSellTransaction]| Transaction Sent`, processRunCounter,{ txid, rawTx: rawTransaction, url: `https://solscan.io/tx/${txid}`}, "transaction-sent");
 
     // get the latest block hash
     const latestBlockHash = await connection.getLatestBlockhash();
@@ -162,21 +162,30 @@ export async function createSellTransaction(solMint: string, tokenMint: string, 
 
     // Return null when an error occured when confirming the transaction
     if (conf.value.err || conf.value.err !== null) {
-      throw new Error("Transaction was not successfully confirmed!");
+      throw new Error(`Transaction was not successfully confirmed! ${conf.value.err}`);
     }
 
     console.log(`[tracker-bot]|[createSellTransaction]| Transaction Confirmed`, processRunCounter, {txid, tokenMint, amount, type}, TAGS.sell_tx_confirmed.name);
 
-    // Delete holding
-    console.log(`[tracker-bot]|[createSellTransaction]| Deleting Holding`, processRunCounter);
-    await removeHolding(tokenMint, processRunCounter).catch((err) => {
-      console.log(`[tracker-bot]|[createSellTransaction]| ⛔ Database Error: ${err}`, processRunCounter);
-    });
+    // After successful transaction confirmation
+    if (conf.value.err === null) {
+      // Delete holding
+      console.log(`[tracker-bot]|[createSellTransaction]| Deleting Holding`, processRunCounter);
+      await removeHolding(tokenMint, processRunCounter).catch((err) => {
+        console.log(`[tracker-bot]|[createSellTransaction]| ⛔ Database Error: ${err}`, processRunCounter);
+      });
+
+      return {
+        success: true,
+        msg: null,
+        tx: txid,
+      };
+    }
 
     return {
-      success: true,
-      msg: null,
-      tx: txid,
+      success: false,
+      msg: "Transaction failed to confirm",
+      tx: null
     };
   } catch (error: any) {
     return {

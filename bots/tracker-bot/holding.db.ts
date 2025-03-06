@@ -1,7 +1,30 @@
 import * as sqlite3 from "sqlite3";
 import { open } from "sqlite";
 import { config } from "./config";
-import { HoldingRecord, NewTokenRecord } from "./types";
+import { HoldingRecord, NewTokenRecord, ProfitLossRecord } from "./types";
+
+// Function to initialize all database tables
+export async function initializeDatabaseTables(): Promise<boolean> {
+  try {
+    const db = await open({
+      filename: config.db_name_tracker_holdings,
+      driver: sqlite3.Database,
+    });
+
+    // Create all tables
+    const holdingsTableCreated = await createTableHoldings(db);
+    const tokensTableCreated = await createTableNewTokens(db);
+    const profitLossTableCreated = await createTableProfitLoss(db);
+
+    await db.close();
+
+    // Return true only if all tables were created successfully
+    return holdingsTableCreated && tokensTableCreated && profitLossTableCreated;
+  } catch (error: any) {
+    console.error(`Error initializing database tables: ${error.message}`);
+    return false;
+  }
+}
 
 // ***************************HOLDINGS TABLE**************************
 export async function createTableHoldings(database: any): Promise<boolean> {
@@ -300,5 +323,228 @@ export async function selectAllTokens(processRunCounter: number): Promise<NewTok
 
   // Return the results
   return tokens;
+}
+
+// ***************************PROFIT LOSS TABLE**************************
+export async function createTableProfitLoss(database: any): Promise<boolean> {
+  try {
+    await database.exec(`
+    CREATE TABLE IF NOT EXISTS profit_loss (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      Time INTEGER NOT NULL,
+      EntryTime INTEGER NOT NULL,
+      Token TEXT NOT NULL,
+      TokenName TEXT NOT NULL,
+      EntryBalance REAL NOT NULL,
+      ExitBalance REAL NOT NULL,
+      EntrySolPaid REAL NOT NULL,
+      ExitSolReceived REAL NOT NULL,
+      TotalSolFees REAL NOT NULL,
+      ProfitLossSOL REAL NOT NULL,
+      ProfitLossUSDC REAL NOT NULL,
+      ROIPercentage REAL NOT NULL,
+      EntryPriceUSDC REAL NOT NULL,
+      ExitPriceUSDC REAL NOT NULL,
+      HoldingTimeSeconds INTEGER NOT NULL,
+      Slot INTEGER NOT NULL,
+      Program TEXT NOT NULL,
+      BotName TEXT NOT NULL,
+      IsTakeProfit BOOLEAN NOT NULL
+    );
+  `);
+    return true;
+  } catch (error: any) {
+    console.error(`Error creating profit_loss table: ${error.message}`);
+    return false;
+  }
+}
+
+// ***************************INSERT PROFIT LOSS RECORD**************************
+export async function insertProfitLoss(record: ProfitLossRecord, processRunCounter: number) {
+  console.log(`[holding-db]|[insertProfitLoss]| Inserting profit/loss record:`, processRunCounter, record);
+  const db = await open({
+    filename: config.db_name_tracker_holdings,
+    driver: sqlite3.Database,
+  });
+
+  // Create Table if not exists
+  const profitLossTableExist = await createTableProfitLoss(db);
+  if (!profitLossTableExist) {
+    await db.close();
+    return;
+  }
+
+  // Proceed with adding profit/loss record
+  const {
+    Time,
+    EntryTime,
+    Token,
+    TokenName,
+    EntryBalance,
+    ExitBalance,
+    EntrySolPaid,
+    ExitSolReceived,
+    TotalSolFees,
+    ProfitLossSOL,
+    ProfitLossUSDC,
+    ROIPercentage,
+    EntryPriceUSDC,
+    ExitPriceUSDC,
+    HoldingTimeSeconds,
+    Slot,
+    Program,
+    BotName,
+    IsTakeProfit
+  } = record;
+
+  await db.run(
+    `
+    INSERT INTO profit_loss (
+      Time, EntryTime, Token, TokenName, EntryBalance, ExitBalance,
+      EntrySolPaid, ExitSolReceived, TotalSolFees, ProfitLossSOL,
+      ProfitLossUSDC, ROIPercentage, EntryPriceUSDC, ExitPriceUSDC,
+      HoldingTimeSeconds, Slot, Program, BotName, IsTakeProfit
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+  `,
+    [
+      Time, EntryTime, Token, TokenName, EntryBalance, ExitBalance,
+      EntrySolPaid, ExitSolReceived, TotalSolFees, ProfitLossSOL,
+      ProfitLossUSDC, ROIPercentage, EntryPriceUSDC, ExitPriceUSDC,
+      HoldingTimeSeconds, Slot, Program, BotName, IsTakeProfit
+    ]
+  );
+
+  console.log(`[holding-db]|[insertProfitLoss]| Profit/loss record inserted successfully`, processRunCounter);
+  await db.close();
+}
+
+// ***************************GET ALL PROFIT LOSS RECORDS**************************
+export async function getAllProfitLossRecords(): Promise<ProfitLossRecord[]> {
+  const db = await open({
+    filename: config.db_name_tracker_holdings,
+    driver: sqlite3.Database,
+  });
+
+  // Create Table if not exists
+  const profitLossTableExist = await createTableProfitLoss(db);
+  if (!profitLossTableExist) {
+    await db.close();
+    return [];
+  }
+
+  const records = await db.all(`SELECT * FROM profit_loss ORDER BY Time DESC;`);
+  await db.close();
+  return records;
+}
+
+// ***************************GET TOKEN PROFIT LOSS HISTORY**************************
+export async function getTokenProfitLossHistory(token: string): Promise<ProfitLossRecord[]> {
+  const db = await open({
+    filename: config.db_name_tracker_holdings,
+    driver: sqlite3.Database,
+  });
+
+  // Create Table if not exists
+  const profitLossTableExist = await createTableProfitLoss(db);
+  if (!profitLossTableExist) {
+    await db.close();
+    return [];
+  }
+
+  const records = await db.all(
+    `
+    SELECT * 
+    FROM profit_loss 
+    WHERE Token = ? 
+    ORDER BY Time DESC;
+  `,
+    [token]
+  );
+
+  await db.close();
+  return records;
+}
+
+// ***************************GET TOTAL PROFIT LOSS**************************
+export async function getTotalProfitLoss(botName?: string): Promise<{ totalProfitLossSOL: number; totalProfitLossUSDC: number }> {
+  const db = await open({
+    filename: config.db_name_tracker_holdings,
+    driver: sqlite3.Database,
+  });
+
+  // Create Table if not exists
+  const profitLossTableExist = await createTableProfitLoss(db);
+  if (!profitLossTableExist) {
+    await db.close();
+    return { totalProfitLossSOL: 0, totalProfitLossUSDC: 0 };
+  }
+
+  const result = await db.get(`
+    SELECT 
+      SUM(ProfitLossSOL) as totalProfitLossSOL,
+      SUM(ProfitLossUSDC) as totalProfitLossUSDC
+    FROM profit_loss${botName ? ' WHERE BotName = ?' : ''};
+  `, [botName]);
+
+  await db.close();
+  return {
+    totalProfitLossSOL: result?.totalProfitLossSOL || 0,
+    totalProfitLossUSDC: result?.totalProfitLossUSDC || 0
+  };
+}
+
+export async function getProfitLossRecords(params: {
+  startDate?: number;
+  endDate?: number;
+  limit?: number;
+  offset?: number;
+  module?: string;
+}): Promise<ProfitLossRecord[]> {
+  const db = await open({
+    filename: config.db_name_tracker_holdings,
+    driver: sqlite3.Database,
+  });
+
+  // Create Table if not exists
+  const profitLossTableExist = await createTableProfitLoss(db);
+  if (!profitLossTableExist) {
+    await db.close();
+    return [];
+  }
+
+  let query = 'SELECT * FROM profit_loss WHERE 1=1';
+  const queryParams: any[] = [];
+
+  if (params.startDate) {
+    query += ' AND Time >= ?';
+    queryParams.push(params.startDate);
+  }
+
+  if (params.endDate) {
+    query += ' AND Time <= ?';
+    queryParams.push(params.endDate);
+  }
+
+  if (params.module) {
+    query += ' AND Program = ?';
+    queryParams.push(params.module);
+  }
+
+  query += ' ORDER BY Time DESC';
+
+  if (params.limit) {
+    query += ' LIMIT ?';
+    queryParams.push(params.limit);
+  }
+
+  if (params.offset) {
+    query += ' OFFSET ?';
+    queryParams.push(params.offset);
+  }
+
+  const records = await db.all(query, queryParams);
+  await db.close();
+  return records;
 }
 
