@@ -30,27 +30,28 @@ export async function createSellTransaction(solMint: string, tokenMint: string, 
     });
 
     //Check if token exists in wallet with non-zero balance
-    // const totalBalance = tokenAccounts.value.reduce((sum, account) => {
-    //   const tokenAmount = account.account.data.parsed.info.tokenAmount.amount;
-    //   return sum + BigInt(tokenAmount); // Use BigInt for precise calculations
-    // }, BigInt(0));
+    const totalBalance = tokenAccounts.value.reduce((sum, account) => {
+      const tokenAmount = account.account.data.parsed.info.tokenAmount.amount;
+      return sum + BigInt(tokenAmount); // Use BigInt for precise calculations
+    }, BigInt(0));
 
     // console.log(`[tracker-bot]|[createSellTransaction]| Token ${tokenMint} has ${totalBalance} balance`, processRunCounter);
 
-    // // Verify returned balance
-    // if (totalBalance <= 0n) {
-    //   console.log(`[tracker-bot]|[createSellTransaction]| Token has 0 balance - Already sold elsewhere. Removing from tracking.`, processRunCounter);
-    //   // await removeHolding(tokenMint, processRunCounter).catch((err) => {
-    //   //   console.log(`[tracker-bot]|[createSellTransaction]| ⛔ Database Error: ${err}`, processRunCounter);
-    //   // });
-    //   console.log(`[tracker-bot]|[createSellTransaction]| Token has 0 balance - Already sold elsewhere. Removing from tracking.`, processRunCounter, totalBalance, {tokenMint, amount}, TAGS.tokens_finished.name);
-    //   throw new Error(`Token has 0 balance - Already sold elsewhere. Removing from tracking.`);
-    // }
+    // Verify returned balance
+    if (totalBalance <= 0n) {
+      console.log(`[tracker-bot]|[createSellTransaction]| Token has 0 balance - Already sold elsewhere. Removing from tracking.`, processRunCounter);
+      // await removeHolding(tokenMint, processRunCounter).catch((err) => {
+      //   console.log(`[tracker-bot]|[createSellTransaction]| ⛔ Database Error: ${err}`, processRunCounter);
+      // });
+      console.log(`[tracker-bot]|[createSellTransaction]| Token has 0 balance - Already sold elsewhere. Removing from tracking.`, processRunCounter, totalBalance, {tokenMint, amount}, TAGS.tokens_finished.name);
+      throw new Error(`Token has 0 balance - Already sold elsewhere. Removing from tracking.`);
+    }
 
-    // // Verify amount with tokenBalance
-    // if (totalBalance !== BigInt(amount)) {
-    //   throw new Error(`Wallet and tracker balance mismatch. Sell manually and token will be removed during next price check.`);
-    // }
+    // Verify amount with tokenBalance
+    // TODO: Check need to sell amount minimum available
+    if (totalBalance < BigInt(amount)) {
+      throw new Error(`Wallet amount less then tracker balance.`);
+    }
 
     // Check if wallet has enough SOL to cover fees
     const solBalance = await connection.getBalance(myWallet.publicKey);

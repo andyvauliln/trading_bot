@@ -11,6 +11,7 @@
     "test-telegram-trading-bot": "ts-node bots/telegram-trading-bot/index.ts",
     "test-solana-sniper-bot": "ts-node bots/solana-sniper-bot/index.ts",
     "test-ai-processor": "ts-node bots/telegram-trading-bot/test-ai-processor.ts",
+    "test-transaction": "ts-node bots/telegram-trading-bot/test-transaction.ts",
     "test-gmgn": "ts-node gmgn_api/test.ts",
     "api": "ts-node trades-monitoring/index.ts",
     "clean": "rm -rf dist"

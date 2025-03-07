@@ -1,5 +1,6 @@
 import express from 'express';
 import logsRouter from './logs-api';
+import holdingsRouter from './holdings-api';
 import { config } from './config';
 import { exec } from 'child_process';
 import * as net from 'net';
@@ -8,7 +9,7 @@ const app = express();
 const PORT = config.port;
 
 app.use('/api', logsRouter);
-
+app.use('/api', holdingsRouter);
 const findProcess = (port: number): Promise<string> => {
   return new Promise((resolve) => {
     exec(`lsof -i :${port} -t`, (error, stdout) => {

@@ -10,6 +10,7 @@ import { Wallet } from "@project-serum/anchor";
 import { HoldingRecord } from '../bots/tracker-bot/types';
 import axios from 'axios';
 import { LastPriceDexReponse } from '../bots/tracker-bot/types';
+
 const router = express.Router();
 
 async function populateWithCurrentProfitsLosses(holdings: HoldingRecord[]) {

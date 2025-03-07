@@ -231,7 +231,7 @@ export async function createSwapTransaction(solMint: string, tokenMint: string, 
 export async function fetchAndSaveSwapDetails(tx: string, processRunCounter: number): Promise<boolean> {
   const txUrl = process.env.HELIUS_HTTPS_URI_TX || "";
   const priceUrl = process.env.JUP_HTTPS_PRICE_URI || "";
-  const maxRetries = 3;
+  const maxRetries = 10;
   const retryDelay = config.tx.retry_delay;
   let retryCount = 0;
 
@@ -250,8 +250,8 @@ export async function fetchAndSaveSwapDetails(tx: string, processRunCounter: num
             timeout: config.tx.get_timeout,
           }
         ),
-        3, // maxRetries
-        1000, // initialDelay
+        maxRetries,
+        3000, // initialDelay
         processRunCounter
       );
 
@@ -271,7 +271,7 @@ export async function fetchAndSaveSwapDetails(tx: string, processRunCounter: num
       const swapTransactionData: SwapEventDetailsResponse = {
         programInfo: transactions[0]?.events.swap.innerSwaps[0].programInfo,
         tokenInputs: transactions[0]?.events.swap.innerSwaps[0].tokenInputs,
-        tokenOutputs: transactions[0]?.events.swap.innerSwaps[0].tokenOutputs,
+        tokenOutputs: transactions[0]?.events.swap.innerSwaps[transactions[0]?.events.swap.innerSwaps.length - 1].tokenOutputs,
         fee: transactions[0]?.fee,
         slot: transactions[0]?.slot,
         timestamp: transactions[0]?.timestamp,
@@ -288,7 +288,7 @@ export async function fetchAndSaveSwapDetails(tx: string, processRunCounter: num
           },
           timeout: config.tx.get_timeout,
         }),
-        3, // maxRetries
+        5, // maxRetries
         1000, // initialDelay
         processRunCounter
       );
