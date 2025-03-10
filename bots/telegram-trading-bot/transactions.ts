@@ -11,7 +11,7 @@ import {
   SwapEventDetailsResponse,
   NewTokenRecord,
 } from "./types";
-import { insertHolding, selectTokenByMint } from "../tracker-bot/holding.db";
+import { insertHolding, selectTokenByMint, insertTransaction } from "../tracker-bot/holding.db";
 import { HoldingRecord } from "../tracker-bot/types";
 import { retryAxiosRequest } from "../utils/help-functions";
 dotenv.config();
@@ -339,6 +339,27 @@ export async function fetchAndSaveSwapDetails(tx: string, processRunCounter: num
       await insertHolding(newHolding, processRunCounter).catch((err: any) => {
         console.log(`[telegram-trading-bot]|[fetchAndSaveSwapDetails]| ⛔ Insert Holding Database Error: ${err}`, processRunCounter);
         return false;
+      });
+
+      // Insert transaction record
+      const transactionData = {
+        Time: swapTransactionData.timestamp,
+        Token: swapTransactionData.tokenOutputs[0].mint,
+        TokenName: tokenName,
+        TransactionType: 'BUY' as 'BUY' | 'SELL',
+        TokenAmount: swapTransactionData.tokenOutputs[0].tokenAmount,
+        SolAmount: swapTransactionData.tokenInputs[0].tokenAmount,
+        SolFee: swapTransactionData.fee / 1e9,
+        PricePerTokenUSDC: perTokenUsdcPrice,
+        TotalUSDC: solPaidUsdc,
+        Slot: swapTransactionData.slot,
+        Program: swapTransactionData.programInfo ? swapTransactionData.programInfo.source : "N/A",
+        BotName: "telegram-trading-bot",
+      };
+      
+      // Insert transaction into database
+      await insertTransaction(transactionData, processRunCounter).catch((err: any) => {
+        console.log(`[telegram-trading-bot]|[fetchAndSaveSwapDetails]| ⛔ Insert Transaction Database Error: ${err}`, processRunCounter);
       });
 
       return true;

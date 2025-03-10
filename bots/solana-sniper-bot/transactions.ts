@@ -13,7 +13,7 @@ import {
   RugResponseExtended,
   NewTokenRecord,
 } from "./types";
-import { insertHolding, insertNewToken, selectTokenByMint } from "../tracker-bot/holding.db";
+import { insertHolding, insertNewToken, selectTokenByMint, insertTransaction } from "../tracker-bot/holding.db";
 import { HoldingRecord } from "../tracker-bot/types";
 import { TAGS } from "../utils/log-tags";
 import { retryAxiosRequest } from "../utils/help-functions";
@@ -691,6 +691,27 @@ export async function fetchAndSaveSwapDetails(tx: string, processRunCounter: num
     await insertHolding(newHolding, processRunCounter).catch((err: any) => {
       console.log(`[solana-sniper-bot]|[fetchAndSaveSwapDetails]| ⛔ Insert Holding Database Error: ${err}`, processRunCounter);
       return false;
+    });
+
+    // Insert transaction record
+    const transactionData = {
+      Time: swapTransactionData.timestamp,
+      Token: swapTransactionData.tokenOutputs[0].mint,
+      TokenName: tokenName,
+      TransactionType: 'BUY' as 'BUY' | 'SELL',
+      TokenAmount: swapTransactionData.tokenOutputs[0].tokenAmount,
+      SolAmount: swapTransactionData.tokenInputs[0].tokenAmount,
+      SolFee: swapTransactionData.fee / 1e9,
+      PricePerTokenUSDC: perTokenUsdcPrice,
+      TotalUSDC: solPaidUsdc,
+      Slot: swapTransactionData.slot,
+      Program: swapTransactionData.programInfo ? swapTransactionData.programInfo.source : "N/A",
+      BotName: "solana-sniper-bot",
+    };
+    
+    // Insert transaction into database
+    await insertTransaction(transactionData, processRunCounter).catch((err: any) => {
+      console.log(`[solana-sniper-bot]|[fetchAndSaveSwapDetails]| ⛔ Insert Transaction Database Error: ${err}`, processRunCounter);
     });
 
     console.log(`[solana-sniper-bot]|[fetchAndSaveSwapDetails]| ✅ Swap transaction details fetched and saved successfully`, processRunCounter, newHolding, "saved-in-holding");

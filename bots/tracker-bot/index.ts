@@ -1,7 +1,7 @@
 import { config } from "./config"; // Configuration parameters for our bot
 import axios from "axios";
 import dotenv from "dotenv";
-import { getAllHoldings, initializeDatabaseTables, insertProfitLoss } from "./holding.db";
+import { getAllHoldings, initializeDatabaseTables, insertProfitLoss, insertTransaction } from "./holding.db";
 import { createSellTransactionResponse, HoldingRecord, LastPriceDexReponse, ProfitLossRecord } from "./types";
 import { DateTime } from "luxon";
 import { createSellTransaction } from "./transactions";
@@ -181,6 +181,33 @@ async function main() {
                     roiPercentage: unrealizedPnLPercentage,
                     IsTakeProfit: unrealizedPnLPercentage >= 0
                   });
+                  
+                  // Insert transaction record
+                  const transactionData = {
+                    Time: Math.floor(Date.now() / 1000),
+                    Token: token,
+                    TokenName: tokenName,
+                    TransactionType: 'SELL' as 'BUY' | 'SELL',
+                    TokenAmount: Number(amountIn),
+                    SolAmount: tokenCurrentPrice * Number(amountIn),
+                    SolFee: tokenSolFeePaid,
+                    PricePerTokenUSDC: tokenCurrentPrice,
+                    TotalUSDC: tokenCurrentPrice * Number(amountIn),
+                    Slot: tokenSlot,
+                    Program: tokenProgram,
+                    BotName: tokenBotName,
+                  };
+                  
+                  await insertTransaction(transactionData, processRunCounter).catch((err: any) => {
+                    console.log(`[tracker-bot]|[main]| ⛔ Insert Transaction Database Error: ${err}`, processRunCounter);
+                  });
+                  
+                  console.log(`[tracker-bot]|[main]| Transaction Record Created for Take-Profit:`, processRunCounter, {
+                    token: token,
+                    transactionType: 'SELL',
+                    tokenAmount: Number(amountIn),
+                    solAmount: tokenCurrentPrice * Number(amountIn)
+                  });
                 } else {
                   console.error(`[tracker-bot]|[main]| ⚠️ ERROR when taking profit for ${tokenName}: ${txErrorMsg}`, processRunCounter);
                   console.log(`[tracker-bot]|[main]| CYCLE_END`, processRunCounter, ++processRunCounter);
@@ -235,8 +262,35 @@ async function main() {
                     roiPercentage: unrealizedPnLPercentage,
                     IsTakeProfit: unrealizedPnLPercentage >= 0
                   });
+                  
+                  // Insert transaction record
+                  const transactionData = {
+                    Time: Math.floor(Date.now() / 1000),
+                    Token: token,
+                    TokenName: tokenName,
+                    TransactionType: 'SELL' as 'BUY' | 'SELL',
+                    TokenAmount: Number(amountIn),
+                    SolAmount: tokenCurrentPrice * Number(amountIn),
+                    SolFee: tokenSolFeePaid,
+                    PricePerTokenUSDC: tokenCurrentPrice,
+                    TotalUSDC: tokenCurrentPrice * Number(amountIn),
+                    Slot: tokenSlot,
+                    Program: tokenProgram,
+                    BotName: tokenBotName,
+                  };
+                  
+                  await insertTransaction(transactionData, processRunCounter).catch((err: any) => {
+                    console.log(`[tracker-bot]|[main]| ⛔ Insert Transaction Database Error: ${err}`, processRunCounter);
+                  });
+                  
+                  console.log(`[tracker-bot]|[main]| Transaction Record Created for Stop-Loss:`, processRunCounter, {
+                    token: token,
+                    transactionType: 'SELL',
+                    tokenAmount: Number(amountIn),
+                    solAmount: tokenCurrentPrice * Number(amountIn)
+                  });
                 } else {
-                  console.error(`[tracker-bot]|[main]| ⚠️ ERROR when triggering Stop Loss for ${tokenName}: ${txErrorMsg}`, processRunCounter);
+                  console.error(`[tracker-bot]|[main]| ⚠️ ERROR when triggering stop loss for ${tokenName}: ${txErrorMsg}`, processRunCounter);
                   console.log(`[tracker-bot]|[main]| CYCLE_END`, processRunCounter, ++processRunCounter);
                   return;
                 }
