@@ -6,6 +6,18 @@ export interface MintsDataReponse {
 export interface QuoteResponse {
   data: unknown;
 }
+export interface TransactionRecord {
+  Time: number;
+  Token: string;
+  TokenName: string;
+  TransactionType: string;
+  TokenAmount: number;
+  SolAmount: number;
+  SolFee: number;
+  PricePerTokenUSDC: number;
+  TotalUSDC: number;
+  Slot: number;
+}
 
 export interface SerializedQuoteResponse {
   swapTransaction: string;

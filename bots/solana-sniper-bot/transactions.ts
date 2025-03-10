@@ -533,7 +533,7 @@ export async function fetchAndSaveSwapDetails(tx: string, processRunCounter: num
   
   try {
     // Set retry parameters for API requests
-    const maxRetries = 3;
+    const maxRetries = 5;
     
     // First API call - Get transaction details
     let txResponse = null;
@@ -554,7 +554,7 @@ export async function fetchAndSaveSwapDetails(tx: string, processRunCounter: num
               timeout: 10000, // Timeout for each request
             }
           ),
-          3, // maxRetries
+          5, // maxRetries
           1000, // initialDelay
           processRunCounter
         );
@@ -593,7 +593,7 @@ export async function fetchAndSaveSwapDetails(tx: string, processRunCounter: num
     const swapTransactionData: SwapEventDetailsResponse = {
       programInfo: transactions[0]?.events.swap.innerSwaps[0].programInfo,
       tokenInputs: transactions[0]?.events.swap.innerSwaps[0].tokenInputs,
-      tokenOutputs: transactions[0]?.events.swap.innerSwaps[0].tokenOutputs,
+      tokenOutputs: transactions[0]?.events.swap.innerSwaps[transactions[0]?.events.swap.innerSwaps.length - 1].tokenOutputs,
       fee: transactions[0]?.fee,
       slot: transactions[0]?.slot,
       timestamp: transactions[0]?.timestamp,
@@ -619,7 +619,7 @@ export async function fetchAndSaveSwapDetails(tx: string, processRunCounter: num
             },
             timeout: config.tx.get_timeout,
           }),
-          3, // maxRetries
+          5, // maxRetries
           1000, // initialDelay
           processRunCounter
         );

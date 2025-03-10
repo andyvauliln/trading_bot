@@ -1,7 +1,7 @@
 import * as sqlite3 from "sqlite3";
 import { open } from "sqlite";
 import { config } from "./config";
-import { HoldingRecord, NewTokenRecord, ProfitLossRecord } from "./types";
+import { HoldingRecord, NewTokenRecord, ProfitLossRecord, TransactionRecord } from "./types";
 
 // Function to initialize all database tables
 export async function initializeDatabaseTables(): Promise<boolean> {
@@ -15,11 +15,13 @@ export async function initializeDatabaseTables(): Promise<boolean> {
     const holdingsTableCreated = await createTableHoldings(db);
     const tokensTableCreated = await createTableNewTokens(db);
     const profitLossTableCreated = await createTableProfitLoss(db);
+    const transactionsTableCreated = await createTableTransactions(db);  // Add this line
 
     await db.close();
 
     // Return true only if all tables were created successfully
-    return holdingsTableCreated && tokensTableCreated && profitLossTableCreated;
+    return holdingsTableCreated && tokensTableCreated && 
+           profitLossTableCreated && transactionsTableCreated;  // Update this line
   } catch (error: any) {
     console.error(`Error initializing database tables: ${error.message}`);
     return false;
@@ -544,6 +546,110 @@ export async function getProfitLossRecords(params: {
   }
 
   const records = await db.all(query, queryParams);
+  await db.close();
+  return records;
+}
+
+// ***************************TRANSACTIONS TABLE**************************
+export async function createTableTransactions(database: any): Promise<boolean> {
+  try {
+    await database.exec(`
+    CREATE TABLE IF NOT EXISTS transactions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      Time INTEGER NOT NULL,
+      Token TEXT NOT NULL,
+      TokenName TEXT NOT NULL,
+      TransactionType TEXT NOT NULL,  -- 'BUY' or 'SELL'
+      TokenAmount REAL NOT NULL,
+      SolAmount REAL NOT NULL,
+      SolFee REAL NOT NULL,
+      PricePerTokenUSDC REAL NOT NULL,
+      TotalUSDC REAL NOT NULL,
+      Slot INTEGER NOT NULL,
+      Program TEXT NOT NULL,
+      BotName TEXT NOT NULL
+    );
+  `);
+    return true;
+  } catch (error: any) {
+    console.error(`Error creating transactions table: ${error.message}`);
+    return false;
+  }
+}
+
+export async function insertTransaction(transaction: {
+  Time: number;
+  Token: string;
+  TokenName: string;
+  TransactionType: 'BUY' | 'SELL';
+  TokenAmount: number;
+  SolAmount: number;
+  SolFee: number;
+  PricePerTokenUSDC: number;
+  TotalUSDC: number;
+  Slot: number;
+  Program: string;
+  BotName: string;
+}, processRunCounter: number) {
+  console.log(`[holding-db]|[insertTransaction]| Inserting transaction:`, processRunCounter, transaction);
+  const db = await open({
+    filename: config.db_name_tracker_holdings,
+    driver: sqlite3.Database,
+  });
+
+  // Create Table if not exists
+  const transactionsTableExist = await createTableTransactions(db);
+  if (!transactionsTableExist) {
+    await db.close();
+    return;
+  }
+
+  await db.run(`
+    INSERT INTO transactions (
+      Time, Token, TokenName, TransactionType, TokenAmount,
+      SolAmount, SolFee, PricePerTokenUSDC, TotalUSDC,
+      Slot, Program, BotName
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+  `, [
+    transaction.Time, transaction.Token, transaction.TokenName,
+    transaction.TransactionType, transaction.TokenAmount,
+    transaction.SolAmount, transaction.SolFee,
+    transaction.PricePerTokenUSDC, transaction.TotalUSDC,
+    transaction.Slot, transaction.Program, transaction.BotName
+  ]);
+
+  await db.close();
+}
+
+// ***************************GET ALL TRANSACTIONS**************************
+export async function getAllTransactions(options?: { offset?: number; limit?: number }): Promise<TransactionRecord[]> {
+  const db = await open({
+    filename: config.db_name_tracker_holdings,
+    driver: sqlite3.Database,
+  });
+
+  // Create Table if not exists
+  const transactionsTableExist = await createTableTransactions(db);
+  if (!transactionsTableExist) {
+    await db.close();
+    return [];
+  }
+
+  let query = `SELECT * FROM transactions ORDER BY Time DESC`;
+  const params: any[] = [];
+
+  if (options?.limit !== undefined) {
+    query += ` LIMIT ?`;
+    params.push(options.limit);
+    
+    if (options?.offset !== undefined) {
+      query += ` OFFSET ?`;
+      params.push(options.offset);
+    }
+  }
+
+  const records = await db.all(query + `;`, params);
   await db.close();
   return records;
 }
