@@ -39,6 +39,7 @@
     "typescript-eslint": "^8.16.0"
   },
   "dependencies": {
+    "discord.js": "^14.17.3",
     "@duneanalytics/client-sdk": "^0.2.4",
     "@langchain/openai": "^0.4.4",
     "@metaplex-foundation/js": "^0.20.1",
