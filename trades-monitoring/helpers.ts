@@ -5,7 +5,8 @@ import { retryAxiosRequest } from '../bots/utils/help-functions';
 import { Keypair, Connection, PublicKey } from '@solana/web3.js';
 import { Wallet } from "@project-serum/anchor";
 import bs58 from 'bs58';
-import { Metaplex } from "@metaplex-foundation/js";
+import { Metaplex, SOL, token } from "@metaplex-foundation/js";
+import { DateTime } from 'luxon';
 
 export interface WalletToken {
   tokenName: string; 
@@ -111,9 +112,9 @@ export async function getDexscreenerPrices(tokenAddresses: string[]): Promise<De
     }
 }
 
-export async function getWalletData(): Promise<WalletToken[]> {
+export async function getWalletData(wallet:string): Promise<WalletToken[]> {
     const rpcUrl = process.env.HELIUS_HTTPS_URI || "";
-    const myWallet = new Wallet(Keypair.fromSecretKey(bs58.decode(process.env.PRIV_KEY_WALLET_2 || "")));
+    const myWallet = new Wallet(Keypair.fromSecretKey(bs58.decode(wallet || "")));
     const connection = new Connection(rpcUrl);
     
     // Get SOL balance
@@ -406,7 +407,7 @@ async function getBirdeyeHistoricalPrices(
   }
 }
 
-async function getTokenMintsAmountsForPeriod(timePoints: number[]): Promise<{timestamp: number, tokenMints: {tokenMint: string, amount: number}[]}[]> {
+async function getTokenMintsAmountsForPeriod(days: number): Promise<{timestamp: number, tokenMints: {tokenMint: string, amount: number}[]}[]> {
     const rpcUrl = process.env.HELIUS_HTTPS_URI || "";
     const myWallet = new Wallet(Keypair.fromSecretKey(bs58.decode(process.env.PRIV_KEY_WALLET_2 || "")));
     const connection = new Connection(rpcUrl);
@@ -414,61 +415,29 @@ async function getTokenMintsAmountsForPeriod(timePoints: number[]): Promise<{tim
     // First, get current slot and time as reference points
     const currentSlot = await connection.getSlot('finalized');
     const currentTime = await connection.getBlockTime(currentSlot);
-    
+    const SLOTS_PER_SECOND = 2.5;
     if (!currentTime) {
         throw new Error('Could not get current block time');
     }
     
-    console.log(`Reference point: Current slot ${currentSlot} corresponds to time ${new Date(currentTime * 1000).toISOString()}`);
+    console.log(`Reference point: Current slot ${currentSlot} corresponds to time ${DateTime.fromSeconds(currentTime).toISO()}`);
+    const slotsPerDay = 24 * 60 * 60 * SLOTS_PER_SECOND;
     
-    // Calculate slots per second based on Solana's average block time
-    // Solana produces roughly 2.5 slots per second (400ms per slot)
-    const SLOTS_PER_SECOND = 2.5;
+    const timePoints = Array.from({ length: days }, (_, i) => currentTime - i * 24 * 60 * 60);
+   
     
-    // Process each timestamp to get token balances at that point in time
-    const results = await Promise.all(timePoints.map(async (timestamp) => {
+    const results = [];
+    const requestInterval = 100; // 100 ms interval for 10 requests per second
+    let i = 0;
+    for (const timestamp of timePoints) {
         try {
-            // Convert timestamp from milliseconds to seconds for Solana API
-            const timestampSeconds = Math.floor(timestamp / 1000);
+            // Delay to handle 10 requests per second
             
-            // Calculate how many seconds in the past this timestamp is
-            const secondsInPast = currentTime - timestampSeconds;
+            await new Promise(resolve => setTimeout(resolve, requestInterval));
             
-            // Calculate approximate slot for this timestamp
-            // We subtract (secondsInPast * SLOTS_PER_SECOND) slots from the current slot
-            const approximateHistoricalSlot = Math.max(1, currentSlot - Math.floor(secondsInPast * SLOTS_PER_SECOND));
-            
-            // For more accuracy, we can use binary search to find the exact slot
-            // This is a simplified version - for production, you might want a more robust approach
-            let lowerBound = Math.max(1, approximateHistoricalSlot - 1000); // 1000 slots buffer
-            let upperBound = Math.min(currentSlot, approximateHistoricalSlot + 1000);
-            let targetSlot = approximateHistoricalSlot;
-            let closestTimeDiff = Infinity;
-            
-            // Sample a few slots to find the closest one
-            const samplePoints = 5;
-            const step = Math.floor((upperBound - lowerBound) / samplePoints);
-            
-            for (let i = 0; i <= samplePoints; i++) {
-                const sampleSlot = lowerBound + i * step;
-                try {
-                    const slotTime = await connection.getBlockTime(sampleSlot);
-                    if (slotTime) {
-                        const timeDiff = Math.abs(slotTime - timestampSeconds);
-                        if (timeDiff < closestTimeDiff) {
-                            closestTimeDiff = timeDiff;
-                            targetSlot = sampleSlot;
-                        }
-                    }
-                } catch (error) {
-                    console.warn(`Could not get time for slot ${sampleSlot}`);
-                }
-            }
-            
-            console.log(`For timestamp ${new Date(timestamp).toISOString()}: Using slot ${targetSlot}`);
-            console.log(`Slot data example: { slot: ${targetSlot}, timestamp: ${timestamp} }`);
-            
-            // Step 2: Get token accounts at this historical slot using minContextSlot
+            const targetSlot = currentSlot - i * slotsPerDay;
+            const targetTime = await connection.getBlockTime(targetSlot);
+            console.log(`Target slot: ${targetSlot}, Target time: ${DateTime.fromSeconds(targetTime || 0).toISO()}`);
             const tokenAccounts = await connection.getTokenAccountsByOwner(
                 myWallet.publicKey,
                 { programId: new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA') },
@@ -504,6 +473,7 @@ async function getTokenMintsAmountsForPeriod(timePoints: number[]): Promise<{tim
                 // We need to parse it manually since we're using getTokenAccountsByOwner instead of getParsedTokenAccountsByOwner
                 // The mint address is at bytes 0-32
                 const mintAddress = new PublicKey(data.slice(0, 32)).toString();
+                console.log(`Mint address: ${mintAddress}`);
                 
                 // The amount is at bytes 64-72 (8 bytes)
                 const amountBuffer = data.slice(64, 72);
@@ -532,41 +502,34 @@ async function getTokenMintsAmountsForPeriod(timePoints: number[]): Promise<{tim
                 }
             }
             
-            // Example of the data structure we're returning
-            const exampleData = {
+            results.push({
                 timestamp,
+                timestampTime: new Date(timestamp).toISOString(), // Add timestamp time
                 slot: targetSlot,
-                tokenMints: tokenMints.map(t => ({ 
-                    tokenMint: t.tokenMint, 
-                    amount: t.amount 
-                }))
-            };
-            console.log('Example data structure:', JSON.stringify(exampleData, null, 2));
-            
-            return {
-                timestamp,
+                slotTime: DateTime.fromSeconds(targetTime || 0).toISO(),
                 tokenMints
-            };
+            });
+            i++;
         } catch (error) {
             console.error(`Error fetching historical data for timestamp ${timestamp}:`, error);
             // Return empty data for this timestamp
-            return {
+            results.push({
                 timestamp,
                 tokenMints: []
-            };
+            });
         }
-    }));
-    
+    }
+    console.log(JSON.stringify(results, null, 2), "results"); // Use JSON.stringify to display token mints data
     return results;
 }
 
-export async function getHistoricalWalletData(startTime: number, endTime: number, dataPoints: number = 24): Promise<HistoricalPoolData[]> {
+
+export async function getHistoricalWalletData(days: number = 30): Promise<HistoricalPoolData[]> {
     try {
-        const timeInterval = Math.floor((endTime - startTime) / dataPoints);
-        const timePoints = Array.from({ length: dataPoints }, (_, i) => startTime + i * timeInterval);
+        
 
         // Get historical token balances for all time points
-        const historicalTokenData = await getTokenMintsAmountsForPeriod(timePoints);
+        const historicalTokenData = await getTokenMintsAmountsForPeriod(days);
         
         // Extract all unique token mints across all time points
         const uniqueTokenMints = new Set<string>();
@@ -579,6 +542,8 @@ export async function getHistoricalWalletData(startTime: number, endTime: number
         // Get historical prices for all tokens
         const interval = '1D';
         const tokenMintsArray = Array.from(uniqueTokenMints);
+        const startTime = historicalTokenData[0].timestamp;
+        const endTime = historicalTokenData[historicalTokenData.length - 1].timestamp;
         const historicalPrices = await getBirdeyeHistoricalPrices(tokenMintsArray, startTime, endTime, interval);
 
         // Process historical data for each time point

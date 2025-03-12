@@ -9,6 +9,7 @@ export const config = {
   name: module_name,
   port: 9090,
   db_logs_path: path.resolve(process.cwd(), 'data', 'app-logs.db'),
+  db_historical_data_path: path.resolve(process.cwd(), 'data', 'historical-data.db'),
   bots:['tracker-bot', 'telegram-trading-bot', "solana-sniper-bot"],
   db_holdings_path: path.resolve(process.cwd(), 'data', 'holdings.db'),
   logger: {

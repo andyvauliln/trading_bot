@@ -340,11 +340,9 @@ router.get('/get-pool-data', (req: Request, res: Response) => {
 router.get('/get-pool-historical-data', (req: Request, res: Response) => {
   (async () => {
     try {
-      const now = Date.now();
-      const startTime = now - (30 * 24 * 60 * 60 * 1000);
-      const dataPoints = 30; // One data point per day
+      const days = 30; // One data point per day
 
-      const historicalData = await getHistoricalWalletData(startTime, now, dataPoints);
+      const historicalData = await getHistoricalWalletData(days);
 
       // Format data for chart with daily timestamps
       const chartData = historicalData.map(dataPoint => {
