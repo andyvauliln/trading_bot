@@ -1,0 +1,22 @@
+{
+  "restartable": "rs",
+  "ignore": [
+    ".git",
+    "node_modules/**/node_modules",
+    "dist",
+    "logs",
+    "data"
+  ],
+  "verbose": true,
+  "execMap": {
+    "ts": "ts-node"
+  },
+  "watch": [
+    "trades-monitoring/",
+    "bots/"
+  ],
+  "env": {
+    "NODE_ENV": "development"
+  },
+  "ext": "ts,json"
+} 

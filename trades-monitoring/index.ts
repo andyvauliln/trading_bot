@@ -1,6 +1,6 @@
 import express from 'express';
 import logsRouter from './logs-api';
-import holdingsRouter from './holdings-api';
+import holdingsRouter from './bots-api';
 import { config } from './config';
 import { exec } from 'child_process';
 import * as net from 'net';

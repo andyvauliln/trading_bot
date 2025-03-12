@@ -529,7 +529,7 @@ export async function getProfitLossRecords(params: {
   }
 
   if (params.module) {
-    query += ' AND Program = ?';
+    query += ' AND BotName = ?';
     queryParams.push(params.module);
   }
 
@@ -623,7 +623,7 @@ export async function insertTransaction(transaction: {
 }
 
 // ***************************GET ALL TRANSACTIONS**************************
-export async function getAllTransactions(options?: { offset?: number; limit?: number }): Promise<TransactionRecord[]> {
+export async function getAllTransactions(options?: { offset?: number; limit?: number, module?: string }): Promise<TransactionRecord[]> {
   const db = await open({
     filename: config.db_name_tracker_holdings,
     driver: sqlite3.Database,
@@ -647,6 +647,11 @@ export async function getAllTransactions(options?: { offset?: number; limit?: nu
       query += ` OFFSET ?`;
       params.push(options.offset);
     }
+  }
+
+  if (options?.module) {
+    query += ` AND BotName = ?`;
+    params.push(options.module);
   }
 
   const records = await db.all(query + `;`, params);

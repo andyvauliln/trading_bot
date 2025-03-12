@@ -37,6 +37,25 @@ run in different terminals
 `npm run test-telegram-trading-bot`
 `npm run test-tracker-bot`
 
+## Development with Watch Mode
+For development, you can use watch mode to automatically restart the bots when code changes:
+
+```bash
+# Run all bots in watch mode simultaneously
+npm run dev
+
+# Run only the API server in watch mode
+npm run dev:api
+
+# Run individual bots in watch mode
+npm run watch:telegram-bot
+npm run watch:tracker-bot
+npm run watch:sniper-bot
+npm run api:watch
+```
+
+Watch mode will automatically restart the application when you make changes to the source code, making development faster and more efficient.
+
 ## Server runing
 Will run all bots simultaneously in different processes
 `pm2 start ecosystem.config.js --env production`
