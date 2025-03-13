@@ -327,7 +327,7 @@ export async function createSwapTransaction(solMint: string, tokenMint: string, 
       return null;
     }
 
-    if (txid) console.log(`[solana-sniper-bot]|[createSwapTransaction]| ✅ Raw transaction id received.`, processRunCounter);
+    if (txid) console.log(`[solana-sniper-bot]|[createSwapTransaction]| ✅ Raw transaction id received.`, processRunCounter, txid);
 
     // Fetch the current status of a transaction signature (processed, confirmed, finalized).
     console.log(`[solana-sniper-bot]|[createSwapTransaction]| Fetching the current status of a transaction signature (processed, confirmed, finalized).`, processRunCounter);
@@ -339,6 +339,7 @@ export async function createSwapTransaction(solMint: string, tokenMint: string, 
 
 
     // Return null when an error occured when confirming the transaction
+    console.log(`[solana-sniper-bot]|[createSwapTransaction]| Confirmation status:`, processRunCounter, conf);
     if (conf.value.err || conf.value.err !== null) {
       console.error(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ Transaction confirmation failed.`, processRunCounter, conf);
       return null;

@@ -16,22 +16,27 @@ dotenv.config();
         return;
     }
     const privateKey = process.env.PRIV_KEY_WALLETS.split(",")[0]?.trim() || "";
-    const tx = await createSwapTransaction(config.sol_mint, token, processRunCounter, privateKey);
-  if (!tx || typeof tx !== 'string') {
-    console.log("⛔ Transaction aborted.");
-    console.log("🟢 Resuming looking for new tokens...\n");
-    return;
-  }
+    const result = await createSwapTransaction(config.sol_mint, token, processRunCounter, privateKey);
+    if (!result) {
+        console.log("⛔ Transaction creation failed.");
+        return;
+    }
+    const {txid} = result;
+    if (!txid || typeof txid !== 'string') {
+        console.log("⛔ Transaction aborted.");
+        console.log("🟢 Resuming looking for new tokens...\n");
+        return;
+    }
 
-  // Output logs
-  console.log("🚀 Swapping SOL for Token.");
-  console.log("Swap Transaction: ", "https://solscan.io/tx/" + tx);
+    // Output logs
+    console.log("🚀 Swapping SOL for Token.");
+    console.log("Swap Transaction: ", "https://solscan.io/tx/" + txid);
 
-  // Fetch and store the transaction for tracking purposes
-  const myWallet = new Wallet(Keypair.fromSecretKey(bs58.decode(privateKey)));
-  const walletPublicKey = myWallet.publicKey.toString();
-    const saveConfirmation = await fetchAndSaveSwapDetails(tx, processRunCounter, walletPublicKey);
+    // Fetch and store the transaction for tracking purposes
+    const myWallet = new Wallet(Keypair.fromSecretKey(bs58.decode(privateKey)));
+    const walletPublicKey = myWallet.publicKey.toString();
+    const saveConfirmation = await fetchAndSaveSwapDetails(txid, processRunCounter, walletPublicKey);
     if (!saveConfirmation) {
-      console.log("❌ Warning: Transaction not saved for tracking! Track Manually!");
+        console.log("❌ Warning: Transaction not saved for tracking! Track Manually!");
     }
 })();

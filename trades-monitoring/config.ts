@@ -17,7 +17,7 @@ export const config = {
     keeping_days_in_db: 10,
     terminal_logs: process.env.NODE_ENV === 'development',
     db_logs: true,
-    file_logs: false,
+    file_logs: true,
     db_logs_path: path.resolve(process.cwd(), 'data', 'app-logs.db'),
     file_logs_path: path.resolve(process.cwd(), 'logs', `${module_name}.log`),
   },

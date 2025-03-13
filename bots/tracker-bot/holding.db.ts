@@ -61,7 +61,6 @@ export async function getAllHoldings(): Promise<HoldingRecord[]> {
     filename: config.db_name_tracker_holdings,
     driver: sqlite3.Database,
   });
-
   // Create Table if not exists
   const holdingsTableExist = await createTableHoldings(db);
   if (!holdingsTableExist) {

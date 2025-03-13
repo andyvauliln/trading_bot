@@ -213,6 +213,7 @@ export async function createSwapTransaction(solMint: string, tokenMint: string, 
       console.log(`[telegram-trading-bot]|[createSwapTransaction]| ⛔ Transaction confirmation failed.`, processRunCounter);
       return null;
     }
+    console.log(`[telegram-trading-bot]|[createSwapTransaction]| ✅ Transaction confirmed.`, processRunCounter, {conf, txid});
 
     return txid ? { txid, walletPublicKey } : null;
   } catch (error: any) {

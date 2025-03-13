@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import sqlite3 from 'sqlite3';
-import { open } from 'sqlite';
+import { open, Statement } from 'sqlite';
 import { config } from './config';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -49,6 +49,10 @@ class Logger {
           filename: config.logger.db_logs_path,
           driver: sqlite3.Database
         });
+
+        // Configure SQLite for better concurrency
+        await this.dbConnection.exec('PRAGMA journal_mode = WAL');
+        await this.dbConnection.exec('PRAGMA busy_timeout = 10000');
 
         // Create logs table if it doesn't exist
         await this.dbConnection.exec(`
@@ -255,6 +259,24 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
     }
   }
 
+  private async retryOperation<T>(operation: () => Promise<T>, maxRetries: number = 3): Promise<T> {
+    let lastError;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        return await operation();
+      } catch (error: any) {
+        lastError = error;
+        if (error.code === 'SQLITE_BUSY' || error.code === 'SQLITE_LOCKED') {
+          // Wait with exponential backoff: 100ms, 200ms, 400ms
+          await new Promise(resolve => setTimeout(resolve, 100 * Math.pow(2, attempt - 1)));
+          continue;
+        }
+        throw error;
+      }
+    }
+    throw lastError;
+  }
+
   /**
    * Save logs to database
    */
@@ -267,41 +289,54 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
       return;
     }
 
+    let stmt: Statement | undefined;
     try {
-      // Begin transaction
-      await this.dbConnection.exec('BEGIN TRANSACTION');
+      await this.retryOperation(async () => {
+        // Begin transaction
+        await this.dbConnection.exec('BEGIN IMMEDIATE TRANSACTION');
 
-      // Insert logs
-      const stmt = await this.dbConnection.prepare(`
-        INSERT INTO ${this.logsTableName} (date, time, run_prefix, full_message, message, module, function, type, data, cycle, tag)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `);
+        // Insert logs
+        const preparedStmt = await this.dbConnection.prepare(`
+          INSERT INTO ${this.logsTableName} (date, time, run_prefix, full_message, message, module, function, type, data, cycle, tag)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
+        stmt = preparedStmt;
 
-      for (const log of this.logs) {
-        await stmt.run(
-          log.date,
-          log.time,
-          log.run_prefix,
-          log.full_message,
-          log.message,
-          log.module,
-          log.function,
-          log.type,
-          log.data,
-          log.cycle,
-          log.tag
-        );
-      }
+        for (const log of this.logs) {
+          await preparedStmt.run(
+            log.date,
+            log.time,
+            log.run_prefix,
+            log.full_message,
+            log.message,
+            log.module,
+            log.function,
+            log.type,
+            log.data,
+            log.cycle,
+            log.tag
+          );
+        }
 
-      // Commit transaction
-      await this.dbConnection.exec('COMMIT');
+        // Commit transaction
+        await this.dbConnection.exec('COMMIT');
+      });
 
       // Clear logs array
       this.logs = [];
     } catch (error) {
-      // Rollback transaction on error
-      await this.dbConnection.exec('ROLLBACK');
+      try {
+        // Only try to rollback if we successfully began the transaction
+        await this.dbConnection.exec('ROLLBACK');
+      } catch (rollbackError) {
+        // Ignore rollback errors as the transaction might have already been rolled back
+      }
       this.originalConsoleError('Failed to save logs to database:', error);
+    } finally {
+      // Ensure statement is finalized
+      if (stmt?.finalize) {
+        await stmt.finalize();
+      }
     }
   }
 
@@ -314,17 +349,19 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
     }
 
     try {
-      this.originalConsoleLog(`[${this.moduleName}]|[logger]| Cleaning logs older than ${config.logger.keeping_days_in_db} days`);
-      
-      const keepingDays = config.logger.keeping_days_in_db;
-      const cutoffDate = new Date();
-      cutoffDate.setDate(cutoffDate.getDate() - keepingDays);
-      const cutoffDateStr = cutoffDate.toISOString().split('T')[0];
+      await this.retryOperation(async () => {
+        this.originalConsoleLog(`[${this.moduleName}]|[logger]| Cleaning logs older than ${config.logger.keeping_days_in_db} days`);
+        
+        const keepingDays = config.logger.keeping_days_in_db;
+        const cutoffDate = new Date();
+        cutoffDate.setDate(cutoffDate.getDate() - keepingDays);
+        const cutoffDateStr = cutoffDate.toISOString().split('T')[0];
 
-      // Delete logs older than the cutoff date
-      const result = await this.dbConnection.run(`DELETE FROM ${this.logsTableName} WHERE date < ?`, cutoffDateStr);
-      
-      this.originalConsoleLog(`[${this.moduleName}]|[logger]| Cleaned ${result.changes} old log entries`);
+        // Delete logs older than the cutoff date
+        const result = await this.dbConnection.run(`DELETE FROM ${this.logsTableName} WHERE date < ?`, cutoffDateStr);
+        
+        this.originalConsoleLog(`[${this.moduleName}]|[logger]| Cleaned ${result.changes} old log entries`);
+      });
     } catch (error) {
       this.originalConsoleError('Failed to clean old logs:', error);
     }
@@ -333,7 +370,7 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
   /**
    * Set the current cycle
    */
-  setCycle(cycle: number) {
+  async setCycle(cycle: number) {
     // If cycle is changing and we have logs, save them first
     if (cycle > this.cycle && (this.logs.length > 0)) {
       const oldCycle = this.cycle;
@@ -341,10 +378,14 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
       this.cycle = cycle;
       this.originalConsoleLog(`[${this.moduleName}]|[logger]| Cycle changing from ${oldCycle} to ${cycle}, saving logs`);
       
-      // Save to database
-      this.saveLogs().catch(error => {
+      // Save to database and wait for it to complete
+      try {
+        await this.saveLogs();
+      } catch (error) {
         this.originalConsoleError('Failed to save logs on cycle change:', error);
-      });
+      }
+    } else {
+      this.cycle = cycle;
     }
   }
 
