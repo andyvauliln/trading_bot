@@ -5,6 +5,7 @@ import historicalDataRouter from './historical-data-api';
 import { config } from './config';
 import { exec } from 'child_process';
 import * as net from 'net';
+import logger from './logger';
 
 const app = express();
 const PORT = config.port;
@@ -47,6 +48,7 @@ const isPortAvailable = (port: number): Promise<boolean> => {
 const startServer = async () => {
   try {
     const portAvailable = await isPortAvailable(PORT);
+    await logger.init();
     
     if (!portAvailable) {
       console.log(`Port ${PORT} is busy, attempting to free it...`);
