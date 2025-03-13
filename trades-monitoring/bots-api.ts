@@ -1,9 +1,6 @@
 import * as express from 'express';
 import { Request, Response } from 'express';
 import { getAllHoldings, getTotalProfitLoss, getProfitLossRecords, getAllTransactions } from '../bots/tracker-bot/holding.db';
-import { Keypair, Connection } from '@solana/web3.js';
-import bs58 from "bs58";
-import { Wallet } from "@project-serum/anchor";
 import { HoldingRecord } from '../bots/tracker-bot/types';
 import { getWalletData, populateWithCurrentProfitsLosses, getHistoricalWalletData, WalletToken } from './helpers';
 

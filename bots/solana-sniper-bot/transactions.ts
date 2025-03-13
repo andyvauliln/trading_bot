@@ -141,16 +141,25 @@ export async function fetchTransactionDetails(signature: string, processRunCount
   return null;
 }
 
-export async function createSwapTransaction(solMint: string, tokenMint: string, processRunCounter: number): Promise<string | null> {
+export async function createSwapTransaction(solMint: string, tokenMint: string, processRunCounter: number, privateKey?: string): Promise<{ txid: string | null; walletPublicKey: string } | null> {
   const quoteUrl = process.env.JUP_HTTPS_QUOTE_URI || "";
   const swapUrl = process.env.JUP_HTTPS_SWAP_URI || "";
   const rpcUrl = process.env.HELIUS_HTTPS_URI || "";
   let quoteResponseData: QuoteResponse | null = null;
   let serializedQuoteResponseData: SerializedQuoteResponse | null = null;
   const connection = new Connection(rpcUrl);
-  const myWallet = new Wallet(Keypair.fromSecretKey(bs58.decode(process.env.PRIV_KEY_WALLET_2 || "")));
+  
+  // Use provided private key or fallback to environment variable
+  const walletPrivateKey = privateKey || process.env.PRIV_KEY_WALLET_2 || "";
+  if (!walletPrivateKey) {
+    console.error(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ No private key provided`, processRunCounter);
+    return null;
+  }
+  
+  const myWallet = new Wallet(Keypair.fromSecretKey(bs58.decode(walletPrivateKey)));
+  const walletPublicKey = myWallet.publicKey.toString();
 
-  console.log(`[solana-sniper-bot]|[createSwapTransaction]|Creating swap transaction for wallet: ${myWallet.publicKey.toString()}, tokenMint: ${tokenMint}, amount: ${config.swap.amount}, slippageBps: ${config.swap.slippageBps}`, processRunCounter);
+  console.log(`[solana-sniper-bot]|[createSwapTransaction]|Creating swap transaction for wallet: ${walletPublicKey}, tokenMint: ${tokenMint}, amount: ${config.swap.amount}, slippageBps: ${config.swap.slippageBps}`, processRunCounter);
 
    // Check if wallet has enough SOL to cover fees
    const solBalance = await connection.getBalance(myWallet.publicKey);
@@ -335,9 +344,9 @@ export async function createSwapTransaction(solMint: string, tokenMint: string, 
       console.error(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ Transaction confirmation failed.`, processRunCounter, conf);
       return null;
     }
-    console.log(`[solana-sniper-bot]|[createSwapTransaction]| ✅ Transaction confirmed.`, processRunCounter, {txid, tokenMint: tokenMint, amount: config.swap.amount}, TAGS.buy_tx_confirmed.name);
+    console.log(`[solana-sniper-bot]|[createSwapTransaction]| ✅ Transaction confirmed.`, processRunCounter, {txid, tokenMint: tokenMint, amount: config.swap.amount, walletPublicKey}, TAGS.buy_tx_confirmed.name);
 
-    return txid;
+    return txid ? { txid, walletPublicKey } : null;
   } catch (error: any) {
     console.error(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ Error while signing and sending the transaction: ${error.message}`, processRunCounter);
     if (config.verbose_log && config.verbose_log === true) {
@@ -526,10 +535,10 @@ export async function getRugCheckConfirmed(token: string, processRunCounter: num
   }
 }
 
-export async function fetchAndSaveSwapDetails(tx: string, processRunCounter: number): Promise<boolean> {
+export async function fetchAndSaveSwapDetails(tx: string, processRunCounter: number, walletPublicKey: string): Promise<boolean> {
   const txUrl = process.env.HELIUS_HTTPS_URI_TX || "";
   const priceUrl = process.env.JUP_HTTPS_PRICE_URI || "";
-  console.log(`[solana-sniper-bot]|[fetchAndSaveSwapDetails]| Fetching swap details for tx: ${tx}`, processRunCounter);
+  console.log(`[solana-sniper-bot]|[fetchAndSaveSwapDetails]| Fetching swap details for tx: ${tx}, wallet: ${walletPublicKey}`, processRunCounter);
   
   try {
     // Set retry parameters for API requests
@@ -686,6 +695,7 @@ export async function fetchAndSaveSwapDetails(tx: string, processRunCounter: num
       Slot: swapTransactionData.slot,
       Program: swapTransactionData.programInfo ? swapTransactionData.programInfo.source : "N/A",
       BotName: "solana-sniper-bot",
+      WalletPublicKey: walletPublicKey
     };
 
     await insertHolding(newHolding, processRunCounter).catch((err: any) => {
@@ -707,6 +717,7 @@ export async function fetchAndSaveSwapDetails(tx: string, processRunCounter: num
       Slot: swapTransactionData.slot,
       Program: swapTransactionData.programInfo ? swapTransactionData.programInfo.source : "N/A",
       BotName: "solana-sniper-bot",
+      WalletPublicKey: walletPublicKey
     };
     
     // Insert transaction into database

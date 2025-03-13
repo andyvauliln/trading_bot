@@ -17,6 +17,9 @@ export interface TransactionRecord {
   PricePerTokenUSDC: number;
   TotalUSDC: number;
   Slot: number;
+  Program?: string;
+  BotName?: string;
+  WalletPublicKey: string;
 }
 
 export interface SerializedQuoteResponse {
@@ -284,6 +287,7 @@ export interface HoldingRecord {
   Slot: number;
   Program: string;
   BotName: string;
+  WalletPublicKey: string;
 }
 
 export interface NewTokenRecord {
@@ -379,4 +383,5 @@ export interface ProfitLossRecord {
   Program: string;              // DEX program used
   BotName: string;              // Bot that executed the trade
   IsTakeProfit: boolean;       // Whether the trade was a take-profit
+  WalletPublicKey: string;     // Added wallet public key field
 }

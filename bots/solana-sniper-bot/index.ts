@@ -79,24 +79,52 @@ async function processTransaction(signature: string, processRunCounter: number):
   // Add initial delay before first buy
   await new Promise((resolve) => setTimeout(resolve, config.tx.swap_tx_initial_delay));
 
-  // Create Swap transaction
-  const tx = await createSwapTransaction(data.solMint, data.tokenMint, processRunCounter);
-  if (!tx) {
-    console.error(`[solana-sniper-bot]|[processTransaction]|⛔ Transaction aborted.`, processRunCounter);
+  // Get wallet private keys from environment variable
+  const walletPrivateKeys = (process.env.PRIV_KEY_WALLETS || "").split(",").map(key => key.trim()).filter(key => key.length > 0);
+  
+  if (walletPrivateKeys.length === 0) {
+    console.error(`[solana-sniper-bot]|[processTransaction]|⛔ No wallet private keys found in PRIV_KEY_WALLETS environment variable.`, processRunCounter);
     console.log(`[solana-sniper-bot]|[processTransaction]|🟢 Resuming looking for new tokens...`, processRunCounter);
     return false;
   }
+  
+  console.log(`[solana-sniper-bot]|[processTransaction]|Found ${walletPrivateKeys.length} wallets to use for transactions`, processRunCounter);
+  
+  let successfulTransactions = 0;
+  
+  // Process each wallet
+  for (const privateKey of walletPrivateKeys) {
+    try {
+      // Create Swap transaction for this wallet
+      const txResult = await createSwapTransaction(data.solMint, data.tokenMint, processRunCounter, privateKey);
+      if (!txResult || !txResult.txid) {
+        console.error(`[solana-sniper-bot]|[processTransaction]|⛔ Transaction aborted for wallet ${txResult?.walletPublicKey || 'unknown'}.`, processRunCounter);
+        continue; // Try next wallet
+      }
 
-  // Output logs
-  console.log(`[solana-sniper-bot]|[processTransaction]|🔗 Swap Transaction: https://solscan.io/tx/${tx}`, processRunCounter);
+      // Output logs
+      console.log(`[solana-sniper-bot]|[processTransaction]|🔗 Swap Transaction for wallet ${txResult.walletPublicKey}: https://solscan.io/tx/${txResult.txid}`, processRunCounter);
 
-  // Fetch and store the transaction for tracking purposes
-  const saveConfirmation = await fetchAndSaveSwapDetails(tx, processRunCounter);
-  if (!saveConfirmation) {
-    console.error(`[solana-sniper-bot]|[processTransaction]|❌ Warning: Transaction not saved for tracking! Track Manually!`, processRunCounter);
+      // Fetch and store the transaction for tracking purposes
+      const saveConfirmation = await fetchAndSaveSwapDetails(txResult.txid, processRunCounter, txResult.walletPublicKey);
+      if (!saveConfirmation) {
+        console.error(`[solana-sniper-bot]|[processTransaction]|❌ Warning: Transaction not saved for tracking for wallet ${txResult.walletPublicKey}! Track Manually!`, processRunCounter);
+      } else {
+        successfulTransactions++;
+      }
+    } catch (error: any) {
+      console.error(`[solana-sniper-bot]|[processTransaction]|⛔ Error processing transaction for wallet: ${error.message}`, processRunCounter);
+    }
+  }
+  
+  if (successfulTransactions > 0) {
+    console.log(`[solana-sniper-bot]|[processTransaction]|✅ Successfully processed ${successfulTransactions} out of ${walletPrivateKeys.length} transactions`, processRunCounter);
+    return true;
+  } else {
+    console.error(`[solana-sniper-bot]|[processTransaction]|⛔ All transactions failed.`, processRunCounter);
+    console.log(`[solana-sniper-bot]|[processTransaction]|🟢 Resuming looking for new tokens...`, processRunCounter);
     return false;
   }
-  return true;
 }
 
 // Websocket Handler for listening to the Solana logSubscribe method

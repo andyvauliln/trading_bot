@@ -45,7 +45,8 @@ export async function createTableHoldings(database: any): Promise<boolean> {
       PerTokenPaidUSDC REAL NOT NULL,
       Slot INTEGER NOT NULL,
       Program TEXT NOT NULL,
-      BotName TEXT NOT NULL
+      BotName TEXT NOT NULL,
+      WalletPublicKey TEXT NOT NULL
     );
   `);
     return true;
@@ -90,13 +91,13 @@ export async function insertHolding(holding: HoldingRecord, processRunCounter: n
 
   // Proceed with adding holding
   if (holdingsTableExist) {
-    const { Time, Token, TokenName, Balance, SolPaid, SolFeePaid, SolPaidUSDC, SolFeePaidUSDC, PerTokenPaidUSDC, Slot, Program, BotName } = holding;
+    const { Time, Token, TokenName, Balance, SolPaid, SolFeePaid, SolPaidUSDC, SolFeePaidUSDC, PerTokenPaidUSDC, Slot, Program, BotName, WalletPublicKey } = holding;
     await db.run(
       `
-    INSERT INTO holdings (Time, Token, TokenName, Balance, SolPaid, SolFeePaid, SolPaidUSDC, SolFeePaidUSDC, PerTokenPaidUSDC, Slot, Program, BotName)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    INSERT INTO holdings (Time, Token, TokenName, Balance, SolPaid, SolFeePaid, SolPaidUSDC, SolFeePaidUSDC, PerTokenPaidUSDC, Slot, Program, BotName, WalletPublicKey)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
   `,
-      [Time, Token, TokenName, Balance, SolPaid, SolFeePaid, SolPaidUSDC, SolFeePaidUSDC, PerTokenPaidUSDC, Slot, Program, BotName]
+      [Time, Token, TokenName, Balance, SolPaid, SolFeePaid, SolPaidUSDC, SolFeePaidUSDC, PerTokenPaidUSDC, Slot, Program, BotName, WalletPublicKey]
     );
 
     console.log(`[holding-db]|[insertHolding]| Holding inserted successfully`, processRunCounter);
@@ -351,7 +352,8 @@ export async function createTableProfitLoss(database: any): Promise<boolean> {
       Slot INTEGER NOT NULL,
       Program TEXT NOT NULL,
       BotName TEXT NOT NULL,
-      IsTakeProfit BOOLEAN NOT NULL
+      IsTakeProfit INTEGER NOT NULL,
+      WalletPublicKey TEXT NOT NULL
     );
   `);
     return true;
@@ -396,28 +398,30 @@ export async function insertProfitLoss(record: ProfitLossRecord, processRunCount
     Slot,
     Program,
     BotName,
-    IsTakeProfit
+    IsTakeProfit,
+    WalletPublicKey
   } = record;
 
   await db.run(
     `
     INSERT INTO profit_loss (
-      Time, EntryTime, Token, TokenName, EntryBalance, ExitBalance,
-      EntrySolPaid, ExitSolReceived, TotalSolFees, ProfitLossSOL,
-      ProfitLossUSDC, ROIPercentage, EntryPriceUSDC, ExitPriceUSDC,
-      HoldingTimeSeconds, Slot, Program, BotName, IsTakeProfit
+      Time, EntryTime, Token, TokenName, EntryBalance, ExitBalance, 
+      EntrySolPaid, ExitSolReceived, TotalSolFees, ProfitLossSOL, 
+      ProfitLossUSDC, ROIPercentage, EntryPriceUSDC, ExitPriceUSDC, 
+      HoldingTimeSeconds, Slot, Program, BotName, IsTakeProfit, WalletPublicKey
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
   `,
     [
       Time, EntryTime, Token, TokenName, EntryBalance, ExitBalance,
       EntrySolPaid, ExitSolReceived, TotalSolFees, ProfitLossSOL,
       ProfitLossUSDC, ROIPercentage, EntryPriceUSDC, ExitPriceUSDC,
-      HoldingTimeSeconds, Slot, Program, BotName, IsTakeProfit
+      HoldingTimeSeconds, Slot, Program, BotName, IsTakeProfit ? 1 : 0, WalletPublicKey
     ]
   );
 
   console.log(`[holding-db]|[insertProfitLoss]| Profit/loss record inserted successfully`, processRunCounter);
+
   await db.close();
 }
 
@@ -559,7 +563,7 @@ export async function createTableTransactions(database: any): Promise<boolean> {
       Time INTEGER NOT NULL,
       Token TEXT NOT NULL,
       TokenName TEXT NOT NULL,
-      TransactionType TEXT NOT NULL,  -- 'BUY' or 'SELL'
+      TransactionType TEXT NOT NULL,
       TokenAmount REAL NOT NULL,
       SolAmount REAL NOT NULL,
       SolFee REAL NOT NULL,
@@ -567,7 +571,8 @@ export async function createTableTransactions(database: any): Promise<boolean> {
       TotalUSDC REAL NOT NULL,
       Slot INTEGER NOT NULL,
       Program TEXT NOT NULL,
-      BotName TEXT NOT NULL
+      BotName TEXT NOT NULL,
+      WalletPublicKey TEXT NOT NULL
     );
   `);
     return true;
@@ -590,6 +595,7 @@ export async function insertTransaction(transaction: {
   Slot: number;
   Program: string;
   BotName: string;
+  WalletPublicKey: string;
 }, processRunCounter: number) {
   console.log(`[holding-db]|[insertTransaction]| Inserting transaction:`, processRunCounter, transaction);
   const db = await open({
@@ -604,20 +610,38 @@ export async function insertTransaction(transaction: {
     return;
   }
 
-  await db.run(`
+  // Proceed with adding transaction
+  const {
+    Time,
+    Token,
+    TokenName,
+    TransactionType,
+    TokenAmount,
+    SolAmount,
+    SolFee,
+    PricePerTokenUSDC,
+    TotalUSDC,
+    Slot,
+    Program,
+    BotName,
+    WalletPublicKey
+  } = transaction;
+
+  await db.run(
+    `
     INSERT INTO transactions (
-      Time, Token, TokenName, TransactionType, TokenAmount,
-      SolAmount, SolFee, PricePerTokenUSDC, TotalUSDC,
-      Slot, Program, BotName
+      Time, Token, TokenName, TransactionType, TokenAmount, SolAmount,
+      SolFee, PricePerTokenUSDC, TotalUSDC, Slot, Program, BotName, WalletPublicKey
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-  `, [
-    transaction.Time, transaction.Token, transaction.TokenName,
-    transaction.TransactionType, transaction.TokenAmount,
-    transaction.SolAmount, transaction.SolFee,
-    transaction.PricePerTokenUSDC, transaction.TotalUSDC,
-    transaction.Slot, transaction.Program, transaction.BotName
-  ]);
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+  `,
+    [
+      Time, Token, TokenName, TransactionType, TokenAmount, SolAmount,
+      SolFee, PricePerTokenUSDC, TotalUSDC, Slot, Program, BotName, WalletPublicKey
+    ]
+  );
+
+  console.log(`[holding-db]|[insertTransaction]| Transaction inserted successfully`, processRunCounter);
 
   await db.close();
 }
