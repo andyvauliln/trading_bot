@@ -105,3 +105,10 @@ Will run all bots simultaneously in different processes
 [Link](https://computer.tldraw.com/p/2nWRFbhCC27zMUioEqX1Wp)
 
 
+TODO API:
+[] check pool size data from perfomance metrics
+[*] agent-performance-chart
+[] check /api/get-pool-data with wallets
+[*] fix /api/get-pool-historical-data
+[] fix /api/get-pool-historical-data price issues
+[*] check /api/get-trading-history

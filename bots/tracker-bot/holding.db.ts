@@ -69,6 +69,9 @@ export async function getAllHoldings(): Promise<HoldingRecord[]> {
   }
 
   const holdings = await db.all(`SELECT * FROM holdings;`);
+  console.log(`Holdings table exists: ${holdingsTableExist}`);
+  console.log(`Fetched holdings: ${holdings.length}`, holdings);
+  console.log(`[holding-db]|[getAllHoldings]| Fetched holdings: ${config.db_name_tracker_holdings}`);
   await db.close();
   return holdings;
 }
@@ -76,6 +79,8 @@ export async function getAllHoldings(): Promise<HoldingRecord[]> {
 // ***************************INSERT HOLDING**************************
 
 export async function insertHolding(holding: HoldingRecord, processRunCounter: number) {
+  console.log(`[holding-db]|[insertHolding]| Database file: ${config.db_name_tracker_holdings}`); // Log the database file path
+  console.log(`[holding-db]|[insertHolding]| Holding data:`, holding); // Log the holding data being inserted
   console.log(`[holding-db]|[insertHolding]| Inserting holding:`, processRunCounter, holding);
   const db = await open({
     filename: config.db_name_tracker_holdings,
@@ -159,6 +164,8 @@ export async function getWalletHoldings(walletPublicKey?: string): Promise<Holdi
   
   const holdings = await db.all(query, params);
   
+  console.log(`Holdings table exists: ${holdingsTableExist}`);
+  console.log(`Fetched holdings: ${holdings.length}`, holdings);
   await db.close();
   return holdings;
 }
@@ -291,6 +298,8 @@ export async function getHoldings(options?: {
   }
 
   const holdings = await db.all(query, params);
+  console.log(`Holdings table exists: ${holdingsTableExist}`);
+  console.log(`Fetched holdings: ${holdings.length}`, holdings);
   await db.close();
   return holdings;
 }
@@ -912,6 +921,7 @@ export async function getAllTransactions(options?: {
     filename: config.db_name_tracker_holdings,
     driver: sqlite3.Database,
   });
+  console.log(`[holding-db]|[getAllTransactions]| Database file: ${config.db_name_tracker_holdings}`);
 
   // Create Table if not exists
   const transactionsTableExist = await createTableTransactions(db);
@@ -944,8 +954,10 @@ export async function getAllTransactions(options?: {
       params.push(options.offset);
     }
   }
+  
 
   const records = await db.all(query, params);
+  console.log(`[holding-db]|[getAllTransactions]| Query: ${query}`,0, records);
   await db.close();
   return records;
 }

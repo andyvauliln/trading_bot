@@ -20,6 +20,7 @@ async function main() {
       console.error("[tracker-bot]|[main]| ⛔ Failed to initialize database tables. Exiting...");
       process.exit(1);
     }
+    
     console.log("[tracker-bot]|[main]| ✅ Database tables initialized successfully");
 
     // Initialize the logger

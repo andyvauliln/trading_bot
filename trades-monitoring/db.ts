@@ -25,7 +25,7 @@ export async function createHistoricalDataTable(database: any): Promise<boolean>
     return false;
   }
 }
-export async function selectHistoricalDataByAccount(account: string, date_from?: DateTime, date_to?: DateTime): Promise<any[]> {
+export async function selectHistoricalDataByAccount(account?: string, date_from?: DateTime, date_to?: DateTime): Promise<any[]> {
   try {
     const db = await open({
       filename: config.db_historical_data_path,
@@ -38,8 +38,13 @@ export async function selectHistoricalDataByAccount(account: string, date_from?:
       await db.close();
       throw new Error("Could not create historical data table.");
     }
-    let query = 'SELECT * FROM historical_data WHERE Account=?';
-    const queryParams: any[] = [account];
+    let query = 'SELECT * FROM historical_data WHERE 1=1';
+    const queryParams: any[] = [];
+
+    if (account) {
+      query += ' AND Account=?';
+      queryParams.push(account);
+    }
 
     if (date_from) {
       query += ' AND Time >= ?';

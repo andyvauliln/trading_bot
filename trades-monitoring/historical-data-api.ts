@@ -1,9 +1,8 @@
 import * as express from 'express';
 import { Request, Response } from 'express';
-import { getWalletData, getHistoricalWalletData } from './helpers';
+import { getWalletData, getHistoricalWalletData, makeAccountHistoricalData } from './helpers';
 import { DateTime } from 'luxon';
-import { insertHistoricalData } from './db';
-import { InsertHistoricalDataDetails } from './types';
+
 const router = express.Router();
 
 // Helper function to round time to nearest 4-hour interval
@@ -33,41 +32,7 @@ router.get('/make-account-historical-data', (req: Request, res: Response) => {
             // Round time to nearest 4-hour interval
             dateToUse = roundToNearestInterval(dateToUse);
             
-            const addresses = process.env.PRIV_KEY_WALLETS?.split(',');
-            if (!addresses || addresses.length === 0) {
-                res.status(500).json({ error: 'No addresses found' });
-                return;
-            }
-            
-            const results: { success: string[], errors: string[] } = { success: [], errors: [] };
-            
-            for (const address of addresses) {
-                try {
-                    const tokens = await getWalletData(address);
-                    
-                    for (const token of tokens) {
-                        const insertHistoricalDataDetails: InsertHistoricalDataDetails = {
-                            account: address,
-                            token: token.tokenMint,
-                            symbol: token.tokenSymbol,
-                            tokenName: token.tokenName,
-                            usdPrice: token.tokenValueUSDC,
-                            time: dateToUse,
-                            amount: token.balance
-                        };
-                        
-                        const success = await insertHistoricalData(insertHistoricalDataDetails);
-                        if (success) {
-                            results.success.push(`${token.tokenSymbol} (${address})`);
-                        } else {
-                            results.errors.push(`Failed to insert ${token.tokenSymbol} (${address})`);
-                        }
-                    }
-                } catch (error) {
-                    console.error(`Error processing wallet ${address}:`, error);
-                    results.errors.push(`Failed to process wallet ${address}: ${error instanceof Error ? error.message : String(error)}`);
-                }
-            }
+            const results = await makeAccountHistoricalData(dateToUse);
 
             res.json({ 
                 status: results.errors.length === 0 ? 'success' : 'partial_success', 

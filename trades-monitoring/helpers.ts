@@ -1,4 +1,4 @@
-import { HoldingRecord, TransactionRecord } from '../bots/tracker-bot/types';
+import { HoldingRecord, PoolSizeData, TransactionRecord } from '../bots/tracker-bot/types';
 import { config } from '../bots/tracker-bot/config';
 import axios from 'axios';
 import { retryAxiosRequest } from '../bots/utils/help-functions';
@@ -7,7 +7,7 @@ import { Wallet } from "@project-serum/anchor";
 import bs58 from 'bs58';
 import { Metaplex } from "@metaplex-foundation/js";
 import { DateTime } from 'luxon';
-import { selectHistoricalDataByAccount } from './db';
+import { selectHistoricalDataByAccount, insertHistoricalData } from './db';
 import { 
   WalletToken, 
   TokenPrices, 
@@ -16,7 +16,8 @@ import {
   TokenHistoricalPrices,
   HistoricalPoolData,
   TransactionRecordWithComments,
-  BirdeyeHistoricalPriceResponse
+  BirdeyeHistoricalPriceResponse,
+  InsertHistoricalDataDetails
 } from './types';
 
 async function getTokenMetadata(connection: Connection, mint: string) {
@@ -87,6 +88,57 @@ export async function getDexscreenerPrices(tokenAddresses: string[]): Promise<De
         pairs: {} 
       };
     }
+}
+
+export async function getPoolSizeData(): Promise<PoolSizeData> {
+  const wallets = process.env.PRIV_KEY_WALLETS?.split(',');
+  if (!wallets || wallets.length === 0) {
+    throw new Error('No wallets found in environment variables');
+  }
+
+  // Get current total pool value
+  let totalPoolUsdValue = 0;
+  let previousTotalPoolUsdValue = 0;
+
+  for (const wallet of wallets) {
+    // Get current pool size
+    const currentPoolSize = await getWalletData(wallet.trim());
+    const currentPoolSizeValue = currentPoolSize.reduce((sum, token) => sum + token.tokenValueUSDC, 0);
+    totalPoolUsdValue += currentPoolSizeValue;
+
+    // Get previous day's data (start of day)
+    const startOfDay = DateTime.now().startOf('day');
+    const previousDayStart = startOfDay.minus({ days: 1 });
+    const previousDayEnd = startOfDay;
+
+    const previousPoolData = await selectHistoricalDataByAccount(wallet.trim(), previousDayStart, previousDayEnd);
+    
+    if (previousPoolData && previousPoolData.length > 0) {
+      // Get the last record from the previous day
+      const lastRecord = previousPoolData.reduce((latest, current) => 
+        latest.Time > current.Time ? latest : current
+      );
+      previousTotalPoolUsdValue += lastRecord.USDPrice * lastRecord.Amount;
+    }
+  }
+
+  // Calculate percentage change
+  const change = previousTotalPoolUsdValue > 0 
+    ? ((totalPoolUsdValue - previousTotalPoolUsdValue) / previousTotalPoolUsdValue) * 100 
+    : 0;
+
+  // Log values to verify calculation
+  console.log('Pool Size Data:', {
+    currentValue: totalPoolUsdValue,
+    previousValue: previousTotalPoolUsdValue,
+    percentageChange: change,
+    isNegative: change < 0
+  });
+
+  return {
+    value: totalPoolUsdValue,
+    change
+  };
 }
 
 export async function getWalletData(wallet:string): Promise<WalletToken[]> {
@@ -362,122 +414,6 @@ async function getBirdeyeHistoricalPrices(
   }
 }
 
-async function getTokenMintsAmountsForPeriod(days: number): Promise<{timestamp: number, tokenMints: {tokenMint: string, amount: number}[]}[]> {
-    const rpcUrl = process.env.HELIUS_HTTPS_URI || "";
-    const myWallet = new Wallet(Keypair.fromSecretKey(bs58.decode(process.env.PRIV_KEY_WALLET_2 || "")));
-    const connection = new Connection(rpcUrl);
-    
-    // First, get current slot and time as reference points
-    const currentSlot = await connection.getSlot('finalized');
-    const currentTime = await connection.getBlockTime(currentSlot);
-    const SLOTS_PER_SECOND = 2.5;
-    if (!currentTime) {
-        throw new Error('Could not get current block time');
-    }
-    
-    console.log(`Reference point: Current slot ${currentSlot} corresponds to time ${DateTime.fromSeconds(currentTime).toISO()}`);
-    const slotsPerDay = 24 * 60 * 60 * SLOTS_PER_SECOND;
-    
-    const timePoints = Array.from({ length: days }, (_, i) => currentTime - i * 24 * 60 * 60);
-   
-    
-    const results = [];
-    const requestInterval = 100; // 100 ms interval for 10 requests per second
-    let i = 0;
-    for (const timestamp of timePoints) {
-        try {
-            // Delay to handle 10 requests per second
-            
-            await new Promise(resolve => setTimeout(resolve, requestInterval));
-            
-            const targetSlot = currentSlot - i * slotsPerDay;
-            const targetTime = await connection.getBlockTime(targetSlot);
-            console.log(`Target slot: ${targetSlot}, Target time: ${DateTime.fromSeconds(targetTime || 0).toISO()}`);
-            const tokenAccounts = await connection.getTokenAccountsByOwner(
-                myWallet.publicKey,
-                { programId: new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA') },
-                { commitment: 'finalized', minContextSlot: targetSlot }
-            );
-            
-            console.log(`Found ${tokenAccounts.value.length} token accounts at slot ${targetSlot}`);
-            
-            // Step 3: Get SOL balance at this historical slot
-            const solBalance = await connection.getBalance(
-                myWallet.publicKey,
-                { commitment: 'finalized', minContextSlot: targetSlot }
-            );
-            
-            console.log(`SOL balance at slot ${targetSlot}: ${solBalance / 1e9} SOL`);
-            
-            // Step 4: Parse token data to get balances
-            const tokenMints = [
-                // Include SOL balance
-                {
-                    tokenMint: config.liquidity_pool.wsol_pc_mint, // WSOL mint address
-                    amount: solBalance / 1e9 // Convert lamports to SOL
-                }
-            ];
-            
-            // Add other token balances
-            for (const account of tokenAccounts.value) {
-                // Parse the account data to get token information
-                const accountInfo = account.account;
-                const data = Buffer.from(accountInfo.data);
-                
-                // Token account data structure follows the SPL Token program layout
-                // We need to parse it manually since we're using getTokenAccountsByOwner instead of getParsedTokenAccountsByOwner
-                // The mint address is at bytes 0-32
-                const mintAddress = new PublicKey(data.slice(0, 32)).toString();
-                console.log(`Mint address: ${mintAddress}`);
-                
-                // The amount is at bytes 64-72 (8 bytes)
-                const amountBuffer = data.slice(64, 72);
-                const amount = amountBuffer.readBigUInt64LE(0);
-                
-                // Only include tokens with non-zero balance
-                if (amount > 0n) {
-                    // Get token decimals (we'll assume 9 decimals if we can't fetch it)
-                    let decimals = 9;
-                    try {
-                        const mintInfo = await connection.getParsedAccountInfo(new PublicKey(mintAddress));
-                        if (mintInfo.value && 'parsed' in mintInfo.value.data) {
-                            decimals = mintInfo.value.data.parsed.info.decimals;
-                        }
-                    } catch (error) {
-                        console.warn(`Could not get decimals for token ${mintAddress}, using default 9`);
-                    }
-                    
-                    const tokenAmount = Number(amount) / Math.pow(10, decimals);
-                    console.log(`Token ${mintAddress} at slot ${targetSlot}: ${tokenAmount}`);
-                    
-                    tokenMints.push({
-                        tokenMint: mintAddress,
-                        amount: tokenAmount
-                    });
-                }
-            }
-            
-            results.push({
-                timestamp,
-                timestampTime: new Date(timestamp).toISOString(), // Add timestamp time
-                slot: targetSlot,
-                slotTime: DateTime.fromSeconds(targetTime || 0).toISO(),
-                tokenMints
-            });
-            i++;
-        } catch (error) {
-            console.error(`Error fetching historical data for timestamp ${timestamp}:`, error);
-            // Return empty data for this timestamp
-            results.push({
-                timestamp,
-                tokenMints: []
-            });
-        }
-    }
-    console.log(JSON.stringify(results, null, 2), "results"); // Use JSON.stringify to display token mints data
-    return results;
-}
-
 export async function getHistoricalWalletData(days: number = 30): Promise<HistoricalPoolData[]> {
     try {
         // Get the addresses from environment variables
@@ -488,11 +424,24 @@ export async function getHistoricalWalletData(days: number = 30): Promise<Histor
         }
 
         // Calculate date range
-        const endDate = DateTime.now();
+        const endDate = DateTime.now().startOf('day');
         const startDate = endDate.minus({ days });
 
-        const historicalData: HistoricalPoolData[] = [];
-        
+        // Create a map to store data for each day
+        const dailyData: Map<string, HistoricalPoolData> = new Map();
+
+        // Initialize all days with 0 values
+        let currentDate = startDate;
+        while (currentDate <= endDate) {
+            const dateKey = currentDate.toFormat('yyyy-MM-dd');
+            dailyData.set(dateKey, {
+                timestamp: currentDate.toMillis(),
+                totalValueUSDC: 0,
+                tokens: []
+            });
+            currentDate = currentDate.plus({ days: 1 });
+        }
+
         // Process each wallet address
         for (const address of addresses) {
             // Get historical data from database
@@ -502,51 +451,94 @@ export async function getHistoricalWalletData(days: number = 30): Promise<Histor
                 console.log(`No historical data found for wallet ${address}`);
                 continue;
             }
-            
-            // Group data by timestamp
-            const dataByTimestamp: { [timestamp: number]: any[] } = {};
-            
+
+            // Process the historical data...
             for (const record of rawData) {
-                if (!dataByTimestamp[record.Time]) {
-                    dataByTimestamp[record.Time] = [];
-                }
-                dataByTimestamp[record.Time].push(record);
-            }
-            
-            // Process each timestamp group
-            for (const [timestamp, records] of Object.entries(dataByTimestamp)) {
-                const timestampNum = parseInt(timestamp);
-                
-                // Convert records to WalletToken format
-                const tokens: WalletToken[] = records.map(record => ({
+                const recordDate = DateTime.fromMillis(record.Time).startOf('day');
+                const dateKey = recordDate.toFormat('yyyy-MM-dd');
+
+                if (recordDate < startDate || recordDate > endDate) continue;
+
+                const existingData = dailyData.get(dateKey);
+                if (!existingData) continue;
+
+                const token: WalletToken = {
                     tokenName: record.TokenName,
                     tokenSymbol: record.Symbol,
                     tokenMint: record.Token,
                     balance: record.Amount,
                     tokenValueUSDC: record.USDPrice * record.Amount,
-                    percentage: 0 // Will calculate after total is known
-                }));
-                
-                // Calculate total value and percentages
-                const totalValueUSDC = tokens.reduce((sum, token) => sum + token.tokenValueUSDC, 0);
-                
-                if (totalValueUSDC > 0) {
-                    tokens.forEach(token => {
-                        token.percentage = (token.tokenValueUSDC / totalValueUSDC) * 100;
+                    percentage: 0
+                };
+
+                const existingTokenIndex = existingData.tokens.findIndex(t => t.tokenMint === token.tokenMint);
+                if (existingTokenIndex >= 0) {
+                    existingData.tokens[existingTokenIndex] = token;
+                } else {
+                    existingData.tokens.push(token);
+                }
+
+                existingData.totalValueUSDC = existingData.tokens.reduce((sum, t) => sum + t.tokenValueUSDC, 0);
+
+                if (existingData.totalValueUSDC > 0) {
+                    existingData.tokens.forEach(t => {
+                        t.percentage = (t.tokenValueUSDC / existingData.totalValueUSDC) * 100;
                     });
                 }
-                
-                // Add to historical data array
-                historicalData.push({
-                    timestamp: timestampNum,
-                    totalValueUSDC,
-                    tokens
-                });
+
+                dailyData.set(dateKey, existingData);
             }
         }
-        
-        // Sort by timestamp (oldest first)
-        return historicalData.sort((a, b) => a.timestamp - b.timestamp);
+
+        // Check if we have data for today and create it if missing
+        const todayKey = endDate.toFormat('yyyy-MM-dd');
+        const todayData = dailyData.get(todayKey);
+        if (!todayData || todayData.tokens.length === 0) {
+            console.log('No data found for today, creating new records...');
+            try {
+                // Create new records for the current time
+                const now = DateTime.now();
+                const results = await makeAccountHistoricalData(now);
+                console.log('Created new records for today:', results);
+
+                // Fetch the newly created records
+                const todayRecords = await selectHistoricalDataByAccount(addresses[0], endDate, endDate.plus({ days: 1 }));
+                if (todayRecords && todayRecords.length > 0) {
+                    const newTodayData: HistoricalPoolData = {
+                        timestamp: now.toMillis(),
+                        totalValueUSDC: 0,
+                        tokens: []
+                    };
+
+                    for (const record of todayRecords) {
+                        const token: WalletToken = {
+                            tokenName: record.TokenName,
+                            tokenSymbol: record.Symbol,
+                            tokenMint: record.Token,
+                            balance: record.Amount,
+                            tokenValueUSDC: record.USDPrice * record.Amount,
+                            percentage: 0
+                        };
+                        newTodayData.tokens.push(token);
+                    }
+
+                    // Calculate total value and percentages
+                    newTodayData.totalValueUSDC = newTodayData.tokens.reduce((sum, t) => sum + t.tokenValueUSDC, 0);
+                    if (newTodayData.totalValueUSDC > 0) {
+                        newTodayData.tokens.forEach(t => {
+                            t.percentage = (t.tokenValueUSDC / newTodayData.totalValueUSDC) * 100;
+                        });
+                    }
+
+                    dailyData.set(todayKey, newTodayData);
+                }
+            } catch (error) {
+                console.error('Error creating today\'s records:', error);
+            }
+        }
+
+        // Convert map to sorted array and return
+        return Array.from(dailyData.values()).sort((a, b) => a.timestamp - b.timestamp);
     } catch (error) {
         console.error('Error fetching historical wallet data:', error);
         return [];
@@ -558,4 +550,43 @@ export async function addComments(tradingHistory: TransactionRecord[]): Promise<
     ...transaction,
     comment: "Caught this juicy Buy faster than your DMs, honey "
   }));
+}
+
+export async function makeAccountHistoricalData(dateToUse: DateTime): Promise<{ success: string[], errors: string[] }> {
+    const results: { success: string[], errors: string[] } = { success: [], errors: [] };
+    
+    const addresses = process.env.PRIV_KEY_WALLETS?.split(',');
+    if (!addresses || addresses.length === 0) {
+        throw new Error('No addresses found');
+    }
+    
+    for (const address of addresses) {
+        try {
+            const tokens = await getWalletData(address);
+            
+            for (const token of tokens) {
+                const insertHistoricalDataDetails: InsertHistoricalDataDetails = {
+                    account: address,
+                    token: token.tokenMint,
+                    symbol: token.tokenSymbol,
+                    tokenName: token.tokenName,
+                    usdPrice: token.tokenValueUSDC,
+                    time: dateToUse,
+                    amount: token.balance
+                };
+                
+                const success = await insertHistoricalData(insertHistoricalDataDetails);
+                if (success) {
+                    results.success.push(`${token.tokenSymbol} (${address})`);
+                } else {
+                    results.errors.push(`Failed to insert ${token.tokenSymbol} (${address})`);
+                }
+            }
+        } catch (error) {
+            console.error(`Error processing wallet ${address}:`, error);
+            results.errors.push(`Failed to process wallet ${address}: ${error instanceof Error ? error.message : String(error)}`);
+        }
+    }
+    
+    return results;
 }

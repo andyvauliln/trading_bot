@@ -3,6 +3,11 @@ export interface MintsDataReponse {
   solMint?: string;
 }
 
+export interface PoolSizeData {
+  value: number;
+  change: number;
+}
+
 export interface QuoteResponse {
   data: unknown;
 }

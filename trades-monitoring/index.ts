@@ -22,6 +22,7 @@ const findProcess = (port: number): Promise<string> => {
   });
 };
 
+
 const killProcess = (pid: string): Promise<void> => {
   return new Promise((resolve, reject) => {
     exec(`kill -9 ${pid}`, (error) => {
