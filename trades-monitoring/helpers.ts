@@ -7,6 +7,7 @@ import { Wallet } from "@project-serum/anchor";
 import bs58 from 'bs58';
 import { Metaplex, SOL, token } from "@metaplex-foundation/js";
 import { DateTime } from 'luxon';
+import { selectHistoricalDataByAccount } from './db';
 
 export interface WalletToken {
   tokenName: string; 
@@ -523,75 +524,75 @@ async function getTokenMintsAmountsForPeriod(days: number): Promise<{timestamp: 
     return results;
 }
 
-
 export async function getHistoricalWalletData(days: number = 30): Promise<HistoricalPoolData[]> {
     try {
-        
+        // Get the addresses from environment variables
+        const addresses = process.env.PRIV_KEY_WALLETS?.split(',');
+        if (!addresses || addresses.length === 0) {
+            console.error('No wallet addresses found in environment variables');
+            return [];
+        }
 
-        // Get historical token balances for all time points
-        const historicalTokenData = await getTokenMintsAmountsForPeriod(days);
-        
-        // Extract all unique token mints across all time points
-        const uniqueTokenMints = new Set<string>();
-        historicalTokenData.forEach(data => {
-            data.tokenMints.forEach(token => {
-                uniqueTokenMints.add(token.tokenMint);
-            });
-        });
-        
-        // Get historical prices for all tokens
-        const interval = '1D';
-        const tokenMintsArray = Array.from(uniqueTokenMints);
-        const startTime = historicalTokenData[0].timestamp;
-        const endTime = historicalTokenData[historicalTokenData.length - 1].timestamp;
-        const historicalPrices = await getBirdeyeHistoricalPrices(tokenMintsArray, startTime, endTime, interval);
+        // Calculate date range
+        const endDate = DateTime.now();
+        const startDate = endDate.minus({ days });
 
-        // Process historical data for each time point
-        const historicalData = await Promise.all(historicalTokenData.map(async (data) => {
-            try {
-                const { timestamp, tokenMints } = data;
+        const historicalData: HistoricalPoolData[] = [];
+        
+        // Process each wallet address
+        for (const address of addresses) {
+            // Get historical data from database
+            const rawData = await selectHistoricalDataByAccount(address, startDate, endDate);
+            
+            if (!rawData || rawData.length === 0) {
+                console.log(`No historical data found for wallet ${address}`);
+                continue;
+            }
+            
+            // Group data by timestamp
+            const dataByTimestamp: { [timestamp: number]: any[] } = {};
+            
+            for (const record of rawData) {
+                if (!dataByTimestamp[record.Time]) {
+                    dataByTimestamp[record.Time] = [];
+                }
+                dataByTimestamp[record.Time].push(record);
+            }
+            
+            // Process each timestamp group
+            for (const [timestamp, records] of Object.entries(dataByTimestamp)) {
+                const timestampNum = parseInt(timestamp);
                 
-                // Create WalletToken objects with historical prices
-                const tokens: WalletToken[] = tokenMints.map(token => {
-                    // Find the closest price point before this timestamp
-                    const priceData = historicalPrices[token.tokenMint]?.find(p => p.unixTime * 1000 <= timestamp);
-                    const price = priceData?.value || 0;
-                    const tokenValueUSDC = token.amount * price;
-                    
-                    return {
-                        tokenMint: token.tokenMint,
-                        tokenName: '', // Will be populated later if needed
-                        tokenSymbol: '', // Will be populated later if needed
-                        balance: token.amount,
-                        tokenValueUSDC,
-                        percentage: 0 // Will be calculated after total is known
-                    };
-                });
+                // Convert records to WalletToken format
+                const tokens: WalletToken[] = records.map(record => ({
+                    tokenName: record.TokenName,
+                    tokenSymbol: record.Symbol,
+                    tokenMint: record.Token,
+                    balance: record.Amount,
+                    tokenValueUSDC: record.USDPrice * record.Amount,
+                    percentage: 0 // Will calculate after total is known
+                }));
                 
-                // Calculate total portfolio value
+                // Calculate total value and percentages
                 const totalValueUSDC = tokens.reduce((sum, token) => sum + token.tokenValueUSDC, 0);
                 
-                // Calculate percentage for each token
-                tokens.forEach(token => {
-                    token.percentage = totalValueUSDC > 0 ? (token.tokenValueUSDC / totalValueUSDC) * 100 : 0;
-                });
+                if (totalValueUSDC > 0) {
+                    tokens.forEach(token => {
+                        token.percentage = (token.tokenValueUSDC / totalValueUSDC) * 100;
+                    });
+                }
                 
-                return {
-                    timestamp,
+                // Add to historical data array
+                historicalData.push({
+                    timestamp: timestampNum,
                     totalValueUSDC,
-                    tokens: tokens.sort((a, b) => b.tokenValueUSDC - a.tokenValueUSDC)
-                };
-            } catch (error) {
-                console.error(`Error processing data for timestamp ${data.timestamp}:`, error);
-                return {
-                    timestamp: data.timestamp,
-                    totalValueUSDC: 0,
-                    tokens: []
-                };
+                    tokens
+                });
             }
-        }));
-
-        return historicalData;
+        }
+        
+        // Sort by timestamp (oldest first)
+        return historicalData.sort((a, b) => a.timestamp - b.timestamp);
     } catch (error) {
         console.error('Error fetching historical wallet data:', error);
         return [];

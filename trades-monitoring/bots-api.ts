@@ -5,7 +5,7 @@ import { Keypair, Connection } from '@solana/web3.js';
 import bs58 from "bs58";
 import { Wallet } from "@project-serum/anchor";
 import { HoldingRecord } from '../bots/tracker-bot/types';
-import { getWalletData, populateWithCurrentProfitsLosses, getHistoricalWalletData } from './helpers';
+import { getWalletData, populateWithCurrentProfitsLosses, getHistoricalWalletData, WalletToken } from './helpers';
 
 
 const router = express.Router();
@@ -249,84 +249,37 @@ router.get('/agent-performance-chart', (req: Request, res: Response) => {
   })();
 });
 
-// Get portfolio performance chart data
-router.get('/portfolio-performance-chart', (req: Request, res: Response) => {
-  (async () => {
-    try {
-      const now = Date.now();
-      const startTime = now - (30 * 24 * 60 * 60 * 1000);
-      const dataPoints = 30; // One point per day
-      
-      let chartData = [];
-      
-      const holdings = await getAllHoldings();
-      const holdingsWithPrices = await populateWithCurrentProfitsLosses(holdings);
-      
-      interface EnhancedHolding extends HoldingRecord {
-        currentPrice?: number | null;
-        hasValidPrice?: boolean;
-        unrealizedPnLPercentage?: number | null;
-      }
-      
-      const enhancedHoldings = holdingsWithPrices as EnhancedHolding[];
-      
-      let cumulativePerformance = 100;
-      
-      const validHoldings = enhancedHoldings.filter(h => 
-        h.hasValidPrice && h.unrealizedPnLPercentage !== null
-      );
-      
-      const avgPerformance = validHoldings.length > 0 
-        ? validHoldings.reduce((sum, h) => sum + (h.unrealizedPnLPercentage || 0), 0) / validHoldings.length 
-        : 0;
-      
-      // Generate daily data points
-      for (let i = 0; i < dataPoints; i++) {
-        const pointTime = new Date(startTime + (i * 24 * 60 * 60 * 1000));
-        const randomFactor = 0.5 + Math.random();
-        const pointPerformance = (avgPerformance / dataPoints) * randomFactor;
-        
-        cumulativePerformance += pointPerformance;
-        
-        chartData.push({
-          x: pointTime.toLocaleDateString([], { month: 'short', day: 'numeric' }),
-          y: cumulativePerformance
-        });
-      }
-      
-      res.json({
-        success: true,
-        chartData: {
-          datasets: [
-            {
-              label: 'Portfolio Performance (30 Days)',
-              data: chartData,
-              borderColor: 'rgba(75, 192, 192, 1)',
-              backgroundColor: 'transparent',
-              borderWidth: 2,
-              fill: true,
-              tension: 0.4,
-            },
-          ],
-        }
-      });
-    } catch (error) {
-      console.error('Error fetching portfolio performance chart data:', error);
-      res.status(500).json({ error: 'Failed to fetch portfolio performance chart data' });
-    }
-  })();
-});
+
 
 router.get('/get-pool-data', (req: Request, res: Response) => {
   (async () => {
     try {
-      const tokens = await getWalletData();
-      const calculateTotalValueUSDC = tokens.reduce((acc, token) => acc + token.tokenValueUSDC, 0);
+      let { wallets } = req.query;
+      if (!wallets) {
+        wallets = process.env.PRIV_KEY_WALLETS || "";
+      }
+      const walletsArray = (wallets as string).split(',');
+      const tokens: WalletToken[] = [];
+      for (const wallet of walletsArray) {
+        const data = await getWalletData(wallet);
+        tokens.push(...data);
+      }
+      const mergedTokens = tokens.reduce((acc: WalletToken[], token: WalletToken) => {
+        const existingToken = acc.find(t => t.tokenMint === token.tokenMint);
+        if (existingToken) {
+          existingToken.tokenValueUSDC += token.tokenValueUSDC;
+        } else {
+          acc.push(token);
+        }
+        return acc;
+      }, []);
+      
+      const calculateTotalValueUSDC = mergedTokens.reduce((acc, token) => acc + token.tokenValueUSDC, 0);
       res.json({
         success: true,
         poolData: {
           poolSizeTotalValueUSDC: calculateTotalValueUSDC,
-          tokens: tokens
+          tokens: mergedTokens
         }
       });
 
