@@ -16,12 +16,12 @@
     "api": "ts-node trades-monitoring/index.ts",
     "api:watch": "nodemon --watch 'trades-monitoring/**/*.ts' --exec 'ts-node' trades-monitoring/index.ts",
     "historical-data": "ts-node trades-monitoring/historical-data-scheduler.ts",
-    "watch:historical-data": "nodemon --watch 'trades-monitoring/**/*.ts' --exec 'ts-node' trades-monitoring/historical-data-scheduler.ts",
     "watch:telegram-bot": "nodemon --watch 'bots/telegram-trading-bot/**/*.ts' --exec 'ts-node' bots/telegram-trading-bot/index.ts",
     "watch:tracker-bot": "nodemon --watch 'bots/tracker-bot/**/*.ts' --exec 'ts-node' bots/tracker-bot/index.ts",
     "watch:sniper-bot": "nodemon --watch 'bots/solana-sniper-bot/**/*.ts' --exec 'ts-node' bots/solana-sniper-bot/index.ts",
     "dev": "concurrently \"npm run api:watch\" \"npm run watch:telegram-bot\" \"npm run watch:tracker-bot\" \"npm run watch:sniper-bot\" \"npm run watch:historical-data\"",
     "dev:api": "npm run api:watch",
+    "api:test": "ts-node trades-monitoring/test-api.ts",
     "clean": "rm -rf dist"
   },
   "keywords": [],

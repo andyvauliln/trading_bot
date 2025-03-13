@@ -2,7 +2,8 @@ import * as express from 'express';
 import { Request, Response } from 'express';
 import { getAllHoldings, getTotalProfitLoss, getProfitLossRecords, getAllTransactions } from '../bots/tracker-bot/holding.db';
 import { HoldingRecord } from '../bots/tracker-bot/types';
-import { getWalletData, populateWithCurrentProfitsLosses, getHistoricalWalletData, WalletToken, addComments } from './helpers';
+import { getWalletData, populateWithCurrentProfitsLosses, getHistoricalWalletData, addComments } from './helpers';
+import { WalletToken } from './types';
 
 
 const router = express.Router();

@@ -38,19 +38,12 @@ const initDb = async (tableName: string) => {
 router.get('/logs', (req: Request, res: Response) => {
   (async () => {
     try {
-      const { module, date } = req.query;
+      const { module, date, limit } = req.query;
 
       // Validate required parameters
-      if (!module || !date) {
+      if (!module) {
         return res.status(400).json({
-          error: 'Both module and date parameters are required'
-        });
-      }
-
-      // Validate date format
-      if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-        return res.status(400).json({ 
-          error: 'Invalid date format. Please use YYYY-MM-DD format.' 
+          error: 'Module parameter is required'
         });
       }
 
@@ -61,19 +54,42 @@ router.get('/logs', (req: Request, res: Response) => {
         });
       }
 
+      // Validate date format if provided
+      if (date && (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date))) {
+        return res.status(400).json({ 
+          error: 'Invalid date format. Please use YYYY-MM-DD format.' 
+        });
+      }
+
+      // Validate limit if provided
+      let parsedLimit: number | undefined;
+      if (limit) {
+        parsedLimit = parseInt(limit as string, 10);
+        if (isNaN(parsedLimit) || parsedLimit < 1) {
+          return res.status(400).json({
+            error: 'Limit must be a positive number'
+          });
+        }
+      }
+
       const tableName = module.replace(/-/g, '_');
       
       // Initialize DB and ensure table exists
       const db = await initDb(tableName);
       
-      const query = `
+      let query = `
         SELECT *
         FROM ${tableName}
-        WHERE date = ?
-        ORDER BY time ASC
+        ${date ? 'WHERE date = ?' : ''}
+        ORDER BY date DESC, time DESC
+        ${parsedLimit ? 'LIMIT ?' : ''}
       `;
       
-      const logs = await db.all(query, date);
+      const params = [];
+      if (date) params.push(date);
+      if (parsedLimit) params.push(parsedLimit);
+      
+      const logs = await db.all(query, ...params);
       
       // Parse JSON data field
       const parsedLogs = logs.map(log => ({
@@ -83,7 +99,8 @@ router.get('/logs', (req: Request, res: Response) => {
       
       res.json({
         module,
-        date,
+        date: date || null,
+        limit: parsedLimit || null,
         count: parsedLogs.length,
         logs: parsedLogs
       });
