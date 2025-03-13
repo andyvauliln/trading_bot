@@ -17,14 +17,21 @@ import { retryAxiosRequest } from "../utils/help-functions";
 dotenv.config();
 
 
-export async function createSwapTransaction(solMint: string, tokenMint: string, processRunCounter: number): Promise<string | null> {
+export async function createSwapTransaction(solMint: string, tokenMint: string, processRunCounter: number, privateKey: string): Promise<{ txid: string | null; walletPublicKey: string } | null> {
   const quoteUrl = process.env.JUP_HTTPS_QUOTE_URI || "";
   const swapUrl = process.env.JUP_HTTPS_SWAP_URI || "";
   const rpcUrl = process.env.HELIUS_HTTPS_URI || "";
   let quoteResponseData: QuoteResponse | null = null;
   let serializedQuoteResponseData: SerializedQuoteResponse | null = null;
   const connection = new Connection(rpcUrl);
-  const myWallet = new Wallet(Keypair.fromSecretKey(bs58.decode(process.env.PRIV_KEY_WALLET_2 || "")));
+  
+  if (!privateKey) {
+    console.error(`[telegram-trading-bot]|[createSwapTransaction]| ⛔ No private key provided`, processRunCounter);
+    return null;
+  }
+  
+  const myWallet = new Wallet(Keypair.fromSecretKey(bs58.decode(privateKey)));
+  const walletPublicKey = myWallet.publicKey.toString();
 
    // Check if wallet has enough SOL to cover fees
    const solBalance = await connection.getBalance(myWallet.publicKey);
@@ -33,7 +40,7 @@ export async function createSwapTransaction(solMint: string, tokenMint: string, 
      throw new Error(`Insufficient SOL balance for fees. Required: ${minRequiredBalance/1e9} SOL, Current: ${solBalance/1e9} SOL`);
    }
 
-  console.log(`[telegram-trading-bot]|[createSwapTransaction]|Going to swap for token: ${tokenMint} with amount: ${config.swap.amount} and slippage: ${config.swap.slippageBps} for wallet: ${myWallet.publicKey.toString()}`, processRunCounter);
+  console.log(`[telegram-trading-bot]|[createSwapTransaction]|Going to swap for token: ${tokenMint} with amount: ${config.swap.amount} and slippage: ${config.swap.slippageBps} for wallet: ${walletPublicKey}`, processRunCounter);
 
   // Get Swap Quote
   let retryCount = 0;
@@ -207,7 +214,7 @@ export async function createSwapTransaction(solMint: string, tokenMint: string, 
       return null;
     }
 
-    return txid;
+    return txid ? { txid, walletPublicKey } : null;
   } catch (error: any) {
     console.error(`[telegram-trading-bot]|[createSwapTransaction]| ⛔ Error while signing and sending the transaction: ${error.message}`, processRunCounter);
     if (config.verbose_log && config.verbose_log === true) {
@@ -228,14 +235,14 @@ export async function createSwapTransaction(solMint: string, tokenMint: string, 
 }
 
 
-export async function fetchAndSaveSwapDetails(tx: string, processRunCounter: number): Promise<boolean> {
+export async function fetchAndSaveSwapDetails(tx: string, processRunCounter: number, walletPublicKey: string): Promise<boolean> {
   const txUrl = process.env.HELIUS_HTTPS_URI_TX || "";
   const priceUrl = process.env.JUP_HTTPS_PRICE_URI || "";
   const maxRetries = 10;
   const retryDelay = config.tx.retry_delay;
   let retryCount = 0;
 
-  console.log(`[telegram-trading-bot]|[fetchAndSaveSwapDetails]| Fetching swap details for tx: ${tx}`, processRunCounter);
+  console.log(`[telegram-trading-bot]|[fetchAndSaveSwapDetails]| Fetching swap details for tx: ${tx}, wallet: ${walletPublicKey}`, processRunCounter);
   
   while (retryCount < maxRetries) {
     try {
@@ -334,6 +341,7 @@ export async function fetchAndSaveSwapDetails(tx: string, processRunCounter: num
         Slot: swapTransactionData.slot,
         Program: swapTransactionData.programInfo ? swapTransactionData.programInfo.source : "N/A",
         BotName: "telegram-trading-bot",
+        WalletPublicKey: walletPublicKey
       };
 
       await insertHolding(newHolding, processRunCounter).catch((err: any) => {
@@ -355,6 +363,7 @@ export async function fetchAndSaveSwapDetails(tx: string, processRunCounter: num
         Slot: swapTransactionData.slot,
         Program: swapTransactionData.programInfo ? swapTransactionData.programInfo.source : "N/A",
         BotName: "telegram-trading-bot",
+        WalletPublicKey: walletPublicKey
       };
       
       // Insert transaction into database

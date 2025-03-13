@@ -176,60 +176,87 @@ export async function getRugCheckConfirmed(token: string, processRunCounter: num
   }
 }
   
-  export async function validateAndSwapToken(token: string, processRunCounter: number): Promise<boolean> {
-    console.log(`[telegram-trading-bot]|[validateAndSwapToken]| Validating token: ${token}`, processRunCounter);
-    const tokenRecord = await getHoldingRecord(token, processRunCounter);
-    console.log(`[telegram-trading-bot]|[validateAndSwapToken]| Checking if token already in holding: ${tokenRecord}, Buy additional holding: ${config.swap.is_additional_holding}`, processRunCounter);
-    if(tokenRecord && config.swap.is_additional_holding) {
-        console.log(`[telegram-trading-bot]|[validateAndSwapToken]| Additional holding is disabled. Skipping validation and swapping.`, processRunCounter);
-        return false;
-    }
-    const isRugCheckPassed = await getRugCheckConfirmed(token, processRunCounter);
-    if (!isRugCheckPassed) {
-        console.warn(`[telegram-trading-bot]|[validateAndSwapToken]| Rug Check not passed! Transaction aborted.`, processRunCounter);
-        console.log(`[telegram-trading-bot]|[validateAndSwapToken]| 🟢 Resuming looking for new tokens...`, processRunCounter);
-        return false;
-    }
-    console.log(`[telegram-trading-bot]|[validateAndSwapToken]| 🚀 Rug Check passed! Swapping token: ${token}`, processRunCounter);
+export async function validateAndSwapToken(token: string, processRunCounter: number): Promise<boolean> {
+  console.log(`[telegram-trading-bot]|[validateAndSwapToken]| Validating token: ${token}`, processRunCounter);
+  
+  // Get wallet private keys from environment variable
+  const walletPrivateKeys = (process.env.PRIV_KEY_WALLETS || "").split(",").map(key => key.trim()).filter(key => key);
+  if (!walletPrivateKeys.length) {
+    console.error(`[telegram-trading-bot]|[validateAndSwapToken]| ⛔ No wallet private keys found in PRIV_KEY_WALLETS`, processRunCounter);
+    return false;
+  }
 
-    // Handle ignored tokens
-    if (token.trim().toLowerCase().endsWith("pump") && config.rug_check.ignore_pump_fun) {
-        // Check if ignored
-        console.log(`[telegram-trading-bot]|[validateAndSwapToken]| 🚫 Transaction skipped. Ignoring Pump.fun.`, processRunCounter);
-        console.log(`[telegram-trading-bot]|[validateAndSwapToken]| 🟢 Resuming looking for new tokens..`, processRunCounter);
-        return false;
+  // Check if token is already in holdings for any wallet
+  const tokenRecord = await getHoldingRecord(token, processRunCounter);
+  console.log(`[telegram-trading-bot]|[validateAndSwapToken]| Checking if token already in holding: ${tokenRecord}, Buy additional holding: ${config.swap.is_additional_holding}`, processRunCounter);
+  if(tokenRecord && !config.swap.is_additional_holding) {
+    console.log(`[telegram-trading-bot]|[validateAndSwapToken]| Additional holding is disabled. Skipping validation and swapping.`, processRunCounter);
+    return false;
+  }
+
+  const isRugCheckPassed = await getRugCheckConfirmed(token, processRunCounter);
+  if (!isRugCheckPassed) {
+    console.warn(`[telegram-trading-bot]|[validateAndSwapToken]| Rug Check not passed! Transaction aborted.`, processRunCounter);
+    console.log(`[telegram-trading-bot]|[validateAndSwapToken]| 🟢 Resuming looking for new tokens...`, processRunCounter);
+    return false;
+  }
+  console.log(`[telegram-trading-bot]|[validateAndSwapToken]| 🚀 Rug Check passed! Swapping token: ${token}`, processRunCounter);
+
+  // Handle ignored tokens
+  if (token.trim().toLowerCase().endsWith("pump") && config.rug_check.ignore_pump_fun) {
+    console.log(`[telegram-trading-bot]|[validateAndSwapToken]| 🚫 Transaction skipped. Ignoring Pump.fun.`, processRunCounter);
+    console.log(`[telegram-trading-bot]|[validateAndSwapToken]| 🟢 Resuming looking for new tokens..`, processRunCounter);
+    return false;
+  }
+
+  // Output logs
+  console.log(`[telegram-trading-bot]|[validateAndSwapToken]| Token found`, processRunCounter);
+  console.log(`[telegram-trading-bot]|[validateAndSwapToken]| 👽 GMGN: https://gmgn.ai/sol/token/${token}`, processRunCounter);
+  console.log(`[telegram-trading-bot]|[validateAndSwapToken]| 😈 BullX: https://neo.bullx.io/terminal?chainId=1399811149&address=${token}`, processRunCounter);
+
+  // Check if simulation mode is enabled
+  if (config.simulation_mode) {
+    console.log(`[telegram-trading-bot]|[validateAndSwapToken]| 👀 Token not swapped. Simulation mode is enabled.`, processRunCounter);
+    console.log(`[telegram-trading-bot]|[validateAndSwapToken]| 🟢 Resuming looking for new tokens..`, processRunCounter);
+    return false;
+  }
+
+  // Add initial delay before first buy
+  await new Promise((resolve) => setTimeout(resolve, config.tx.swap_tx_initial_delay));
+
+  let successfulTransactions = 0;
+  
+  // Try to create swap transactions for each wallet
+  for (const privateKey of walletPrivateKeys) {
+    try {
+      // Create Swap transaction
+      const result = await createSwapTransaction(config.sol_mint, token, processRunCounter, privateKey);
+      if (!result || !result.txid) {
+        console.log(`[telegram-trading-bot]|[validateAndSwapToken]| ⛔ Transaction failed for wallet: with private key starts from ${privateKey.slice(0, 6)}...`, processRunCounter);
+        continue;
+      }
+
+      // Output logs
+      console.log(`[telegram-trading-bot]|[validateAndSwapToken]| 🚀 Swapping SOL for Token using wallet: ${result.walletPublicKey}`, processRunCounter);
+      console.log(`[telegram-trading-bot]|[validateAndSwapToken]| Swap Transaction: https://solscan.io/tx/${result.txid}`, processRunCounter);
+
+      // Fetch and store the transaction for tracking purposes
+      const saveConfirmation = await fetchAndSaveSwapDetails(result.txid, processRunCounter, result.walletPublicKey);
+      if (!saveConfirmation) {
+        console.warn(`[telegram-trading-bot]|[validateAndSwapToken]| ❌ Warning: Transaction not saved for tracking! Track Manually!, Wallet: ${result.walletPublicKey}`, processRunCounter);
+      }
+
+      successfulTransactions++;
+    } catch (error: any) {
+      console.error(`[telegram-trading-bot]|[validateAndSwapToken]| ⛔ Error processing transaction for wallet with private key starts from ${privateKey.slice(0, 6)}...}: ${error.message}`, processRunCounter);
     }
+  }
 
-    // Ouput logs
-    console.log(`[telegram-trading-bot]|[validateAndSwapToken]| Token found`, processRunCounter);
-    console.log(`[telegram-trading-bot]|[validateAndSwapToken]| 👽 GMGN: https://gmgn.ai/sol/token/${token}`, processRunCounter);
-    console.log(`[telegram-trading-bot]|[validateAndSwapToken]| 😈 BullX: https://neo.bullx.io/terminal?chainId=1399811149&address=${token}`, processRunCounter);
+  if (successfulTransactions === 0) {
+    console.log(`[telegram-trading-bot]|[validateAndSwapToken]| ⛔ All transactions failed.`, processRunCounter);
+    return false;
+  }
 
-    // Check if simulation mode is enabled
-    if (config.simulation_mode) {
-        console.log(`[telegram-trading-bot]|[validateAndSwapToken]| 👀 Token not swapped. Simulation mode is enabled.`, processRunCounter);
-        console.log(`[telegram-trading-bot]|[validateAndSwapToken]| 🟢 Resuming looking for new tokens..`, processRunCounter);
-        return false;
-    }
-    // Add initial delay before first buy
-    await new Promise((resolve) => setTimeout(resolve, config.tx.swap_tx_initial_delay));
-
-    // Create Swap transaction
-    const tx = await createSwapTransaction(config.sol_mint, token, processRunCounter);
-    if (!tx) {
-      console.log(`[telegram-trading-bot]|[validateAndSwapToken]| ⛔ Transaction aborted.`, processRunCounter);
-      console.log(`[telegram-trading-bot]|[validateAndSwapToken]| 🟢 Resuming looking for new tokens...`, processRunCounter);
-      return false;
-    }
-
-    // Output logs
-    console.log(`[telegram-trading-bot]|[validateAndSwapToken]| 🚀 Swapping SOL for Token.`, processRunCounter);
-    console.log(`[telegram-trading-bot]|[validateAndSwapToken]| Swap Transaction: https://solscan.io/tx/${tx}`, processRunCounter);
-
-    // Fetch and store the transaction for tracking purposes
-    const saveConfirmation = await fetchAndSaveSwapDetails(tx, processRunCounter);
-    if (!saveConfirmation) {
-      console.warn(`[telegram-trading-bot]|[validateAndSwapToken]| ❌ Warning: Transaction not saved for tracking! Track Manually!`, processRunCounter);
-    }
-    return true;
+  console.log(`[telegram-trading-bot]|[validateAndSwapToken]| ✅ Successfully processed ${successfulTransactions} out of ${walletPrivateKeys.length} transactions`, processRunCounter);
+  return true;
 }

@@ -141,7 +141,7 @@ export async function fetchTransactionDetails(signature: string, processRunCount
   return null;
 }
 
-export async function createSwapTransaction(solMint: string, tokenMint: string, processRunCounter: number, privateKey?: string): Promise<{ txid: string | null; walletPublicKey: string } | null> {
+export async function createSwapTransaction(solMint: string, tokenMint: string, processRunCounter: number, privateKey: string): Promise<{ txid: string | null; walletPublicKey: string } | null> {
   const quoteUrl = process.env.JUP_HTTPS_QUOTE_URI || "";
   const swapUrl = process.env.JUP_HTTPS_SWAP_URI || "";
   const rpcUrl = process.env.HELIUS_HTTPS_URI || "";
@@ -150,13 +150,12 @@ export async function createSwapTransaction(solMint: string, tokenMint: string, 
   const connection = new Connection(rpcUrl);
   
   // Use provided private key or fallback to environment variable
-  const walletPrivateKey = privateKey || process.env.PRIV_KEY_WALLET_2 || "";
-  if (!walletPrivateKey) {
+  if (!privateKey) {
     console.error(`[solana-sniper-bot]|[createSwapTransaction]| ⛔ No private key provided`, processRunCounter);
     return null;
   }
   
-  const myWallet = new Wallet(Keypair.fromSecretKey(bs58.decode(walletPrivateKey)));
+  const myWallet = new Wallet(Keypair.fromSecretKey(bs58.decode(privateKey)));
   const walletPublicKey = myWallet.publicKey.toString();
 
   console.log(`[solana-sniper-bot]|[createSwapTransaction]|Creating swap transaction for wallet: ${walletPublicKey}, tokenMint: ${tokenMint}, amount: ${config.swap.amount}, slippageBps: ${config.swap.slippageBps}`, processRunCounter);
