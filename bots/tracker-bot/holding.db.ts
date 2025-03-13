@@ -107,7 +107,7 @@ export async function insertHolding(holding: HoldingRecord, processRunCounter: n
 }
 // ***************************GET HOLDING RECORD**************************
 
-export async function getHoldingRecord(token: string, processRunCounter: number): Promise<HoldingRecord | null> {
+export async function getHoldingRecord(token: string, processRunCounter: number, walletPublicKey?: string): Promise<HoldingRecord | null> {
   const db = await open({
     filename: config.db_name_tracker_holdings,
     driver: sqlite3.Database,
@@ -120,25 +120,185 @@ export async function getHoldingRecord(token: string, processRunCounter: number)
     return null;
   }
   
-  const tokenRecord = await db.get(
-    `
-    SELECT * 
-    FROM holdings 
-    WHERE Token = ? 
-    LIMIT 1;
-  `,
-    [token]
-  );
+  // If walletPublicKey is provided, search for holdings for that specific wallet
+  // Otherwise, search for any holding of the token
+  const query = walletPublicKey 
+    ? `SELECT * FROM holdings WHERE Token = ? AND WalletPublicKey = ? LIMIT 1;`
+    : `SELECT * FROM holdings WHERE Token = ? LIMIT 1;`;
+  
+  const params = walletPublicKey ? [token, walletPublicKey] : [token];
+  
+  const tokenRecord = await db.get(query, params);
 
   await db.close();
 
-  console.log(`[holding-db]|[getHoldingRecord]| Found token: ${tokenRecord ? "Found" : "Not Found"}`, processRunCounter, tokenRecord);
+  console.log(`[holding-db]|[getHoldingRecord]| Found token: ${tokenRecord ? "Found" : "Not Found"}${walletPublicKey ? ` for wallet ${walletPublicKey}` : ''}`, processRunCounter, tokenRecord);
 
   return tokenRecord || null;
 }
+
+// Update getWalletHoldings to make wallet optional
+export async function getWalletHoldings(walletPublicKey?: string): Promise<HoldingRecord[]> {
+  const db = await open({
+    filename: config.db_name_tracker_holdings,
+    driver: sqlite3.Database,
+  });
+
+  // Create Table if not exists
+  const holdingsTableExist = await createTableHoldings(db);
+  if (!holdingsTableExist) {
+    await db.close();
+    return [];
+  }
+
+  // If walletPublicKey is provided, filter by wallet, otherwise get all holdings
+  const query = walletPublicKey
+    ? `SELECT * FROM holdings WHERE WalletPublicKey = ?;`
+    : `SELECT * FROM holdings ORDER BY Time DESC;`;
+  
+  const params = walletPublicKey ? [walletPublicKey] : [];
+  
+  const holdings = await db.all(query, params);
+  
+  await db.close();
+  return holdings;
+}
+
+// Update getAllHoldingsGroupedByWallet to accept optional filters
+export async function getAllHoldingsGroupedByWallet(options?: {
+  walletPublicKey?: string;
+  token?: string;
+  botName?: string;
+  startTime?: number;
+  endTime?: number;
+}): Promise<{ [walletPublicKey: string]: HoldingRecord[] }> {
+  const db = await open({
+    filename: config.db_name_tracker_holdings,
+    driver: sqlite3.Database,
+  });
+
+  // Create Table if not exists
+  const holdingsTableExist = await createTableHoldings(db);
+  if (!holdingsTableExist) {
+    await db.close();
+    return {};
+  }
+
+  let query = `SELECT * FROM holdings WHERE 1=1`;
+  const params: any[] = [];
+
+  if (options?.walletPublicKey) {
+    query += ` AND WalletPublicKey = ?`;
+    params.push(options.walletPublicKey);
+  }
+
+  if (options?.token) {
+    query += ` AND Token = ?`;
+    params.push(options.token);
+  }
+
+  if (options?.botName) {
+    query += ` AND BotName = ?`;
+    params.push(options.botName);
+  }
+
+  if (options?.startTime) {
+    query += ` AND Time >= ?`;
+    params.push(options.startTime);
+  }
+
+  if (options?.endTime) {
+    query += ` AND Time <= ?`;
+    params.push(options.endTime);
+  }
+
+  query += ` ORDER BY WalletPublicKey, Time DESC`;
+
+  const holdings = await db.all(query, params);
+  await db.close();
+
+  // Group holdings by wallet
+  const groupedHoldings: { [walletPublicKey: string]: HoldingRecord[] } = {};
+  for (const holding of holdings) {
+    if (!groupedHoldings[holding.WalletPublicKey]) {
+      groupedHoldings[holding.WalletPublicKey] = [];
+    }
+    groupedHoldings[holding.WalletPublicKey].push(holding);
+  }
+
+  return groupedHoldings;
+}
+
+// Add a new function to get holdings with flexible filtering
+export async function getHoldings(options?: {
+  walletPublicKey?: string;
+  token?: string;
+  botName?: string;
+  startTime?: number;
+  endTime?: number;
+  limit?: number;
+  offset?: number;
+}): Promise<HoldingRecord[]> {
+  const db = await open({
+    filename: config.db_name_tracker_holdings,
+    driver: sqlite3.Database,
+  });
+
+  // Create Table if not exists
+  const holdingsTableExist = await createTableHoldings(db);
+  if (!holdingsTableExist) {
+    await db.close();
+    return [];
+  }
+
+  let query = `SELECT * FROM holdings WHERE 1=1`;
+  const params: any[] = [];
+
+  if (options?.walletPublicKey) {
+    query += ` AND WalletPublicKey = ?`;
+    params.push(options.walletPublicKey);
+  }
+
+  if (options?.token) {
+    query += ` AND Token = ?`;
+    params.push(options.token);
+  }
+
+  if (options?.botName) {
+    query += ` AND BotName = ?`;
+    params.push(options.botName);
+  }
+
+  if (options?.startTime) {
+    query += ` AND Time >= ?`;
+    params.push(options.startTime);
+  }
+
+  if (options?.endTime) {
+    query += ` AND Time <= ?`;
+    params.push(options.endTime);
+  }
+
+  query += ` ORDER BY Time DESC`;
+
+  if (options?.limit) {
+    query += ` LIMIT ?`;
+    params.push(options.limit);
+
+    if (options?.offset) {
+      query += ` OFFSET ?`;
+      params.push(options.offset);
+    }
+  }
+
+  const holdings = await db.all(query, params);
+  await db.close();
+  return holdings;
+}
+
 // ***************************REMOVE HOLDING**************************
 
-export async function removeHolding(tokenMint: string, processRunCounter: number) {
+export async function removeHolding(tokenMint: string, processRunCounter: number, walletPublicKey?: string) {
   const db = await open({
     filename: config.db_name_tracker_holdings,
     driver: sqlite3.Database,
@@ -151,16 +311,16 @@ export async function removeHolding(tokenMint: string, processRunCounter: number
     return;
   }
 
-  // Proceed with deleting the holding
-  await db.run(
-    `
-    DELETE FROM holdings
-    WHERE Token = ?;
-    `,
-    [tokenMint]
-  );
+  // If walletPublicKey is provided, only remove holding for that wallet
+  const query = walletPublicKey
+    ? `DELETE FROM holdings WHERE Token = ? AND WalletPublicKey = ?;`
+    : `DELETE FROM holdings WHERE Token = ?;`;
+  
+  const params = walletPublicKey ? [tokenMint, walletPublicKey] : [tokenMint];
 
-  console.log(`[holding-db]|[removeHolding]| Holding removed successfully`, processRunCounter);
+  await db.run(query, params);
+
+  console.log(`[holding-db]|[removeHolding]| Holding removed successfully${walletPublicKey ? ` for wallet ${walletPublicKey}` : ''}`, processRunCounter);
 
   await db.close();
 }
@@ -473,7 +633,7 @@ export async function getTokenProfitLossHistory(token: string): Promise<ProfitLo
 }
 
 // ***************************GET TOTAL PROFIT LOSS**************************
-export async function getTotalProfitLoss(botName?: string): Promise<{ totalProfitLossSOL: number; totalProfitLossUSDC: number }> {
+export async function getTotalProfitLoss(botName?: string, walletPublicKey?: string): Promise<{ totalProfitLossSOL: number; totalProfitLossUSDC: number }> {
   const db = await open({
     filename: config.db_name_tracker_holdings,
     driver: sqlite3.Database,
@@ -486,12 +646,20 @@ export async function getTotalProfitLoss(botName?: string): Promise<{ totalProfi
     return { totalProfitLossSOL: 0, totalProfitLossUSDC: 0 };
   }
 
-  const result = await db.get(`
-    SELECT 
-      SUM(ProfitLossSOL) as totalProfitLossSOL,
-      SUM(ProfitLossUSDC) as totalProfitLossUSDC
-    FROM profit_loss${botName ? ' WHERE BotName = ?' : ''};
-  `, [botName]);
+  let query = `SELECT SUM(ProfitLossSOL) as totalProfitLossSOL, SUM(ProfitLossUSDC) as totalProfitLossUSDC FROM profit_loss WHERE 1=1`;
+  const params: any[] = [];
+
+  if (botName) {
+    query += ` AND BotName = ?`;
+    params.push(botName);
+  }
+
+  if (walletPublicKey) {
+    query += ` AND WalletPublicKey = ?`;
+    params.push(walletPublicKey);
+  }
+
+  const result = await db.get(query, params);
 
   await db.close();
   return {
@@ -506,6 +674,7 @@ export async function getProfitLossRecords(params: {
   limit?: number;
   offset?: number;
   module?: string;
+  walletPublicKey?: string;
 }): Promise<ProfitLossRecord[]> {
   const db = await open({
     filename: config.db_name_tracker_holdings,
@@ -537,6 +706,11 @@ export async function getProfitLossRecords(params: {
     queryParams.push(params.module);
   }
 
+  if (params.walletPublicKey) {
+    query += ' AND WalletPublicKey = ?';
+    queryParams.push(params.walletPublicKey);
+  }
+
   query += ' ORDER BY Time DESC';
 
   if (params.limit) {
@@ -550,6 +724,88 @@ export async function getProfitLossRecords(params: {
   }
 
   const records = await db.all(query, queryParams);
+  await db.close();
+  return records;
+}
+
+// Add a new function to get profit/loss records grouped by wallet
+export async function getProfitLossRecordsGroupedByWallet(params: {
+  startDate?: number;
+  endDate?: number;
+  module?: string;
+}): Promise<{ [walletPublicKey: string]: { records: ProfitLossRecord[], totals: { totalProfitLossSOL: number; totalProfitLossUSDC: number } } }> {
+  const db = await open({
+    filename: config.db_name_tracker_holdings,
+    driver: sqlite3.Database,
+  });
+
+  // Create Table if not exists
+  const profitLossTableExist = await createTableProfitLoss(db);
+  if (!profitLossTableExist) {
+    await db.close();
+    return {};
+  }
+
+  let query = 'SELECT * FROM profit_loss WHERE 1=1';
+  const queryParams: any[] = [];
+
+  if (params.startDate) {
+    query += ' AND Time >= ?';
+    queryParams.push(params.startDate);
+  }
+
+  if (params.endDate) {
+    query += ' AND Time <= ?';
+    queryParams.push(params.endDate);
+  }
+
+  if (params.module) {
+    query += ' AND BotName = ?';
+    queryParams.push(params.module);
+  }
+
+  query += ' ORDER BY WalletPublicKey, Time DESC';
+
+  const records = await db.all(query, queryParams);
+  await db.close();
+
+  // Group records by wallet and calculate totals
+  const groupedRecords: { [walletPublicKey: string]: { records: ProfitLossRecord[], totals: { totalProfitLossSOL: number; totalProfitLossUSDC: number } } } = {};
+  
+  for (const record of records) {
+    if (!groupedRecords[record.WalletPublicKey]) {
+      groupedRecords[record.WalletPublicKey] = {
+        records: [],
+        totals: { totalProfitLossSOL: 0, totalProfitLossUSDC: 0 }
+      };
+    }
+    groupedRecords[record.WalletPublicKey].records.push(record);
+    groupedRecords[record.WalletPublicKey].totals.totalProfitLossSOL += record.ProfitLossSOL;
+    groupedRecords[record.WalletPublicKey].totals.totalProfitLossUSDC += record.ProfitLossUSDC;
+  }
+
+  return groupedRecords;
+}
+
+// Add a new function to get token profit/loss history for a specific wallet
+export async function getTokenProfitLossHistoryByWallet(token: string, walletPublicKey: string): Promise<ProfitLossRecord[]> {
+  const db = await open({
+    filename: config.db_name_tracker_holdings,
+    driver: sqlite3.Database,
+  });
+
+  // Create Table if not exists
+  const profitLossTableExist = await createTableProfitLoss(db);
+  if (!profitLossTableExist) {
+    await db.close();
+    return [];
+  }
+
+  const records = await db.all(
+    `SELECT * FROM profit_loss WHERE Token = ? AND WalletPublicKey = ? ORDER BY Time DESC;`,
+    [token, walletPublicKey]
+  );
+
   await db.close();
   return records;
 }
@@ -647,7 +903,12 @@ export async function insertTransaction(transaction: {
 }
 
 // ***************************GET ALL TRANSACTIONS**************************
-export async function getAllTransactions(options?: { offset?: number; limit?: number, module?: string }): Promise<TransactionRecord[]> {
+export async function getAllTransactions(options?: { 
+  offset?: number; 
+  limit?: number; 
+  module?: string;
+  walletPublicKey?: string;
+}): Promise<TransactionRecord[]> {
   const db = await open({
     filename: config.db_name_tracker_holdings,
     driver: sqlite3.Database,
@@ -660,8 +921,20 @@ export async function getAllTransactions(options?: { offset?: number; limit?: nu
     return [];
   }
 
-  let query = `SELECT * FROM transactions ORDER BY Time DESC`;
+  let query = `SELECT * FROM transactions WHERE 1=1`;
   const params: any[] = [];
+
+  if (options?.module) {
+    query += ` AND BotName = ?`;
+    params.push(options.module);
+  }
+
+  if (options?.walletPublicKey) {
+    query += ` AND WalletPublicKey = ?`;
+    params.push(options.walletPublicKey);
+  }
+
+  query += ` ORDER BY Time DESC`;
 
   if (options?.limit !== undefined) {
     query += ` LIMIT ?`;
@@ -673,13 +946,134 @@ export async function getAllTransactions(options?: { offset?: number; limit?: nu
     }
   }
 
+  const records = await db.all(query, params);
+  await db.close();
+  return records;
+}
+
+// Add a new function to get transactions grouped by wallet
+export async function getTransactionsGroupedByWallet(options?: {
+  module?: string;
+  startDate?: number;
+  endDate?: number;
+}): Promise<{ [walletPublicKey: string]: TransactionRecord[] }> {
+  const db = await open({
+    filename: config.db_name_tracker_holdings,
+    driver: sqlite3.Database,
+  });
+
+  // Create Table if not exists
+  const transactionsTableExist = await createTableTransactions(db);
+  if (!transactionsTableExist) {
+    await db.close();
+    return {};
+  }
+
+  let query = `SELECT * FROM transactions WHERE 1=1`;
+  const params: any[] = [];
+
   if (options?.module) {
     query += ` AND BotName = ?`;
     params.push(options.module);
   }
 
-  const records = await db.all(query + `;`, params);
+  if (options?.startDate) {
+    query += ` AND Time >= ?`;
+    params.push(options.startDate);
+  }
+
+  if (options?.endDate) {
+    query += ` AND Time <= ?`;
+    params.push(options.endDate);
+  }
+
+  query += ` ORDER BY WalletPublicKey, Time DESC`;
+
+  const records = await db.all(query, params);
   await db.close();
-  return records;
+
+  // Group transactions by wallet
+  const groupedTransactions: { [walletPublicKey: string]: TransactionRecord[] } = {};
+  for (const record of records) {
+    if (!groupedTransactions[record.WalletPublicKey]) {
+      groupedTransactions[record.WalletPublicKey] = [];
+    }
+    groupedTransactions[record.WalletPublicKey].push(record);
+  }
+
+  return groupedTransactions;
+}
+
+// Add a new function to get wallet transaction statistics
+export async function getWalletTransactionStats(walletPublicKey: string, options?: {
+  module?: string;
+  startDate?: number;
+  endDate?: number;
+}): Promise<{
+  totalBuyTransactions: number;
+  totalSellTransactions: number;
+  totalSolSpent: number;
+  totalSolReceived: number;
+  totalSolFees: number;
+  totalUSDCValue: number;
+}> {
+  const db = await open({
+    filename: config.db_name_tracker_holdings,
+    driver: sqlite3.Database,
+  });
+
+  // Create Table if not exists
+  const transactionsTableExist = await createTableTransactions(db);
+  if (!transactionsTableExist) {
+    await db.close();
+    return {
+      totalBuyTransactions: 0,
+      totalSellTransactions: 0,
+      totalSolSpent: 0,
+      totalSolReceived: 0,
+      totalSolFees: 0,
+      totalUSDCValue: 0
+    };
+  }
+
+  let query = `
+    SELECT 
+      COUNT(CASE WHEN TransactionType = 'BUY' THEN 1 END) as totalBuyTransactions,
+      COUNT(CASE WHEN TransactionType = 'SELL' THEN 1 END) as totalSellTransactions,
+      SUM(CASE WHEN TransactionType = 'BUY' THEN SolAmount ELSE 0 END) as totalSolSpent,
+      SUM(CASE WHEN TransactionType = 'SELL' THEN SolAmount ELSE 0 END) as totalSolReceived,
+      SUM(SolFee) as totalSolFees,
+      SUM(TotalUSDC) as totalUSDCValue
+    FROM transactions 
+    WHERE WalletPublicKey = ?
+  `;
+  const params: any[] = [walletPublicKey];
+
+  if (options?.module) {
+    query += ` AND BotName = ?`;
+    params.push(options.module);
+  }
+
+  if (options?.startDate) {
+    query += ` AND Time >= ?`;
+    params.push(options.startDate);
+  }
+
+  if (options?.endDate) {
+    query += ` AND Time <= ?`;
+    params.push(options.endDate);
+  }
+
+  const result = await db.get(query, params);
+  await db.close();
+
+  return {
+    totalBuyTransactions: result?.totalBuyTransactions || 0,
+    totalSellTransactions: result?.totalSellTransactions || 0,
+    totalSolSpent: result?.totalSolSpent || 0,
+    totalSolReceived: result?.totalSolReceived || 0,
+    totalSolFees: result?.totalSolFees || 0,
+    totalUSDCValue: result?.totalUSDCValue || 0
+  };
 }
 

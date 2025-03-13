@@ -1,4 +1,4 @@
-import { HoldingRecord } from '../bots/tracker-bot/types';
+import { HoldingRecord, TransactionRecord } from '../bots/tracker-bot/types';
 import { config } from '../bots/tracker-bot/config';
 import axios from 'axios';
 import { retryAxiosRequest } from '../bots/utils/help-functions';
@@ -599,3 +599,13 @@ export async function getHistoricalWalletData(days: number = 30): Promise<Histor
     }
 }
 
+export interface TransactionRecordWithComments extends TransactionRecord {
+  comment: string | null;
+}
+
+export async function addComments(tradingHistory: TransactionRecord[]): Promise<TransactionRecordWithComments[]> {
+  return tradingHistory.map(transaction => ({
+    ...transaction,
+    comment: "Caught this juicy Buy faster than your DMs, honey "
+  }));
+}

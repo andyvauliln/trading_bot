@@ -2,7 +2,7 @@ import * as express from 'express';
 import { Request, Response } from 'express';
 import { getAllHoldings, getTotalProfitLoss, getProfitLossRecords, getAllTransactions } from '../bots/tracker-bot/holding.db';
 import { HoldingRecord } from '../bots/tracker-bot/types';
-import { getWalletData, populateWithCurrentProfitsLosses, getHistoricalWalletData, WalletToken } from './helpers';
+import { getWalletData, populateWithCurrentProfitsLosses, getHistoricalWalletData, WalletToken, addComments } from './helpers';
 
 
 const router = express.Router();
@@ -326,9 +326,10 @@ router.get('/get-trading-history', (req: Request, res: Response) => {
     try {
       const { module, limit, offset } = req.query;
       const tradingHistory = await getAllTransactions({ module: module as string, limit: limit ? parseInt(limit as string) : undefined, offset: offset ? parseInt(offset as string) : undefined });
+      const historyWithComments = addComments(tradingHistory);
       res.json({
         success: true,
-        tradingHistory
+        historyWithComments
       });
     } catch (error) {
       console.error('Error fetching trading history:', error);

@@ -114,6 +114,7 @@ async function main() {
           const tokenSlot = holding.Slot;
           const tokenProgram = holding.Program;
           const tokenBotName = holding.BotName;
+          const tokenWalletPublicKey = holding.WalletPublicKey;
           // Conver Trade Time
           const tradeTime = DateTime.fromMillis(tokenTime).toLocal();
           const hrTradeTime = tradeTime.toFormat("HH:mm:ss");
@@ -142,79 +143,96 @@ async function main() {
             // Sell via Take Profit unrealizedPnLPercentage >= config.sell.take_profit_percent
             if (true) {
               try {
-                const result: createSellTransactionResponse = await createSellTransaction(config.liquidity_pool.wsol_pc_mint, token, amountIn, processRunCounter, "take-profit");
-                const txErrorMsg = result.msg;
-                const txSuccess = result.success;
-                const txTransaction = result.tx;
-                
-                // Add success to log output
-                if (txSuccess && txTransaction) {
-                  console.log(`[tracker-bot]|[main]| ✅🟢 ${hrTradeTime}: Took profit for ${tokenName}\nTx: ${txTransaction}`, processRunCounter);
-                  
-                  // Create profit/loss record for successful take-profit
-                  const profitLossRecord: ProfitLossRecord = {
-                    Time: Date.now(),
-                    EntryTime: tokenTime,
-                    Token: token,
-                    TokenName: tokenName,
-                    EntryBalance: tokenBalance,
-                    ExitBalance: Number(amountIn),
-                    EntrySolPaid: tokenSolPaid,
-                    ExitSolReceived: tokenCurrentPrice * Number(amountIn), // Using current price for the calculation
-                    TotalSolFees: tokenSolFeePaid,
-                    ProfitLossSOL: (tokenCurrentPrice * Number(amountIn)) - tokenSolPaid,
-                    ProfitLossUSDC: unrealizedPnLUSDC,
-                    ROIPercentage: unrealizedPnLPercentage,
-                    EntryPriceUSDC: tokenPerTokenPaidUSDC,
-                    ExitPriceUSDC: tokenCurrentPrice,
-                    HoldingTimeSeconds: Math.floor(Date.now() / 1000) - Math.floor(tokenTime / 1000),
-                    Slot: tokenSlot,
-                    IsTakeProfit: unrealizedPnLPercentage >= 0,
-                    Program: tokenProgram,
-                    BotName: tokenBotName
-                  };
+                // Get wallet private keys from environment variable
+                const walletPrivateKeys = (process.env.PRIV_KEY_WALLETS || "").split(",").map(key => key.trim()).filter(key => key);
+                if (!walletPrivateKeys.length) {
+                  console.error(`[tracker-bot]|[main]| ⛔ No wallet private keys found in PRIV_KEY_WALLETS`, processRunCounter);
+                  return;
+                }
 
-                  await insertProfitLoss(profitLossRecord, processRunCounter);
-                  console.log(`[tracker-bot]|[main]| Profit/Loss Record Created for Take-Profit:`, processRunCounter, {
-                    token: token,
-                    profitLossUSDC: unrealizedPnLUSDC,
-                    roiPercentage: unrealizedPnLPercentage,
-                    IsTakeProfit: unrealizedPnLPercentage >= 0
-                  });
+                let successfulTransactions = 0;
+
+                // Try to sell with each wallet
+                for (const privateKey of walletPrivateKeys) {
+                  const result = await createSellTransaction(config.liquidity_pool.wsol_pc_mint, token, amountIn, processRunCounter, "take-profit", privateKey);
+                  const txErrorMsg = result.msg;
+                  const txSuccess = result.success;
+                  const txTransaction = result.tx;
+                  const walletPublicKey = result.walletPublicKey;
                   
-                  // Insert transaction record
-                  const transactionData = {
-                    Time: Math.floor(Date.now() / 1000),
-                    Token: token,
-                    TokenName: tokenName,
-                    TransactionType: 'SELL' as 'BUY' | 'SELL',
-                    TokenAmount: Number(amountIn),
-                    SolAmount: tokenCurrentPrice * Number(amountIn),
-                    SolFee: tokenSolFeePaid,
-                    PricePerTokenUSDC: tokenCurrentPrice,
-                    TotalUSDC: tokenCurrentPrice * Number(amountIn),
-                    Slot: tokenSlot,
-                    Program: tokenProgram,
-                    BotName: tokenBotName,
-                  };
-                  
-                  await insertTransaction(transactionData, processRunCounter).catch((err: any) => {
-                    console.log(`[tracker-bot]|[main]| ⛔ Insert Transaction Database Error: ${err}`, processRunCounter);
-                  });
-                  
-                  console.log(`[tracker-bot]|[main]| Transaction Record Created for Take-Profit:`, processRunCounter, {
-                    token: token,
-                    transactionType: 'SELL',
-                    tokenAmount: Number(amountIn),
-                    solAmount: tokenCurrentPrice * Number(amountIn)
-                  });
-                } else {
-                  console.error(`[tracker-bot]|[main]| ⚠️ ERROR when taking profit for ${tokenName}: ${txErrorMsg}`, processRunCounter);
+                  // Add success to log output
+                  if (txSuccess && txTransaction) {
+                    console.log(`[tracker-bot]|[main]| ✅🟢 ${hrTradeTime}: Took profit for ${tokenName} with wallet ${walletPublicKey}\nTx: ${txTransaction}`, processRunCounter);
+                    
+                    // Create profit/loss record for successful take-profit
+                    const profitLossRecord: ProfitLossRecord = {
+                      Time: Date.now(),
+                      EntryTime: tokenTime,
+                      Token: token,
+                      TokenName: tokenName,
+                      EntryBalance: tokenBalance,
+                      ExitBalance: Number(amountIn),
+                      EntrySolPaid: tokenSolPaid,
+                      ExitSolReceived: tokenCurrentPrice * Number(amountIn),
+                      TotalSolFees: tokenSolFeePaid,
+                      ProfitLossSOL: (tokenCurrentPrice * Number(amountIn)) - tokenSolPaid,
+                      ProfitLossUSDC: unrealizedPnLUSDC,
+                      ROIPercentage: unrealizedPnLPercentage,
+                      EntryPriceUSDC: tokenPerTokenPaidUSDC,
+                      ExitPriceUSDC: tokenCurrentPrice,
+                      HoldingTimeSeconds: Math.floor(Date.now() / 1000) - Math.floor(tokenTime / 1000),
+                      Slot: tokenSlot,
+                      Program: tokenProgram,
+                      BotName: tokenBotName,
+                      IsTakeProfit: unrealizedPnLPercentage >= 0,
+                      WalletPublicKey: walletPublicKey
+                    };
+
+                    await insertProfitLoss(profitLossRecord, processRunCounter);
+                    console.log(`[tracker-bot]|[main]| Profit/Loss Record Created for Take-Profit:`, processRunCounter, {
+                      token: token,
+                      profitLossUSDC: unrealizedPnLUSDC,
+                      roiPercentage: unrealizedPnLPercentage,
+                      IsTakeProfit: unrealizedPnLPercentage >= 0,
+                      wallet: walletPublicKey
+                    });
+                    
+                    // Insert transaction record
+                    const transactionData = {
+                      Time: Math.floor(Date.now() / 1000),
+                      Token: token,
+                      TokenName: tokenName,
+                      TransactionType: 'SELL' as 'BUY' | 'SELL',
+                      TokenAmount: Number(amountIn),
+                      SolAmount: tokenCurrentPrice * Number(amountIn),
+                      SolFee: tokenSolFeePaid,
+                      PricePerTokenUSDC: tokenCurrentPrice,
+                      TotalUSDC: tokenCurrentPrice * Number(amountIn),
+                      Slot: tokenSlot,
+                      Program: tokenProgram,
+                      BotName: tokenBotName,
+                      WalletPublicKey: walletPublicKey
+                    };
+                    
+                    await insertTransaction(transactionData, processRunCounter).catch((err: any) => {
+                      console.log(`[tracker-bot]|[main]| ⛔ Insert Transaction Database Error: ${err}`, processRunCounter);
+                    });
+                    
+                    successfulTransactions++;
+                  } else {
+                    console.error(`[tracker-bot]|[main]| ⚠️ ERROR when taking profit for ${tokenName} with wallet ${walletPublicKey}: ${txErrorMsg}`, processRunCounter);
+                  }
+                }
+
+                if (successfulTransactions === 0) {
+                  console.error(`[tracker-bot]|[main]| ⚠️ All take-profit transactions failed for ${tokenName}`, processRunCounter);
                   console.log(`[tracker-bot]|[main]| CYCLE_END`, processRunCounter, ++processRunCounter);
                   return;
                 }
+
+                console.log(`[tracker-bot]|[main]| ✅ Successfully processed ${successfulTransactions} out of ${walletPrivateKeys.length} take-profit transactions for ${tokenName}`, processRunCounter);
               } catch (error: any) {
-                console.error(`[tracker-bot]|[main]| ⚠️  ERROR when taking profit for ${tokenName}: ${error.message}`, processRunCounter);
+                console.error(`[tracker-bot]|[main]| ⚠️ ERROR when taking profit for ${tokenName}: ${error.message}`, processRunCounter);
                 console.log(`[tracker-bot]|[main]| CYCLE_END`, processRunCounter, ++processRunCounter);
                 return;
               }
@@ -223,79 +241,96 @@ async function main() {
             // Sell via Stop Loss
             if (unrealizedPnLPercentage <= -config.sell.stop_loss_percent) {
               try {
-                const result: createSellTransactionResponse = await createSellTransaction(config.liquidity_pool.wsol_pc_mint, token, amountIn, processRunCounter, "stop-loss");
-                const txErrorMsg = result.msg;
-                const txSuccess = result.success;
-                const txTransaction = result.tx;
-                
-                // Add success to log output
-                if (txSuccess && txTransaction) {
-                  console.log(`[tracker-bot]|[main]| ✅🔴 ${hrTradeTime}: Triggered Stop Loss for ${tokenName}\nTx: ${txTransaction}`, processRunCounter);
-                  
-                  // Create profit/loss record for stop-loss
-                  const profitLossRecord: ProfitLossRecord = {
-                    Time: Date.now(),
-                    EntryTime: tokenTime,
-                    Token: token,
-                    TokenName: tokenName,
-                    EntryBalance: tokenBalance,
-                    ExitBalance: Number(amountIn),
-                    EntrySolPaid: tokenSolPaid,
-                    ExitSolReceived: tokenCurrentPrice * Number(amountIn), // Using current price for the calculation
-                    TotalSolFees: tokenSolFeePaid,
-                    ProfitLossSOL: (tokenCurrentPrice * Number(amountIn)) - tokenSolPaid,
-                    ProfitLossUSDC: unrealizedPnLUSDC,
-                    ROIPercentage: unrealizedPnLPercentage,
-                    EntryPriceUSDC: tokenPerTokenPaidUSDC,
-                    ExitPriceUSDC: tokenCurrentPrice,
-                    HoldingTimeSeconds: Math.floor(Date.now() / 1000) - Math.floor(tokenTime / 1000),
-                    Slot: tokenSlot,
-                    Program: tokenProgram,
-                    BotName: tokenBotName,
-                    IsTakeProfit: unrealizedPnLPercentage >= 0
-                  };
+                // Get wallet private keys from environment variable
+                const walletPrivateKeys = (process.env.PRIV_KEY_WALLETS || "").split(",").map(key => key.trim()).filter(key => key);
+                if (!walletPrivateKeys.length) {
+                  console.error(`[tracker-bot]|[main]| ⛔ No wallet private keys found in PRIV_KEY_WALLETS`, processRunCounter);
+                  return;
+                }
 
-                  await insertProfitLoss(profitLossRecord, processRunCounter);
-                  console.log(`[tracker-bot]|[main]| Profit/Loss Record Created for Stop-Loss:`, processRunCounter, {
-                    token: token,
-                    profitLossUSDC: unrealizedPnLUSDC,
-                    roiPercentage: unrealizedPnLPercentage,
-                    IsTakeProfit: unrealizedPnLPercentage >= 0
-                  });
+                let successfulTransactions = 0;
+
+                // Try to sell with each wallet
+                for (const privateKey of walletPrivateKeys) {
+                  const result = await createSellTransaction(config.liquidity_pool.wsol_pc_mint, token, amountIn, processRunCounter, "stop-loss", privateKey);
+                  const txErrorMsg = result.msg;
+                  const txSuccess = result.success;
+                  const txTransaction = result.tx;
+                  const walletPublicKey = result.walletPublicKey;
                   
-                  // Insert transaction record
-                  const transactionData = {
-                    Time: Math.floor(Date.now() / 1000),
-                    Token: token,
-                    TokenName: tokenName,
-                    TransactionType: 'SELL' as 'BUY' | 'SELL',
-                    TokenAmount: Number(amountIn),
-                    SolAmount: tokenCurrentPrice * Number(amountIn),
-                    SolFee: tokenSolFeePaid,
-                    PricePerTokenUSDC: tokenCurrentPrice,
-                    TotalUSDC: tokenCurrentPrice * Number(amountIn),
-                    Slot: tokenSlot,
-                    Program: tokenProgram,
-                    BotName: tokenBotName,
-                  };
-                  
-                  await insertTransaction(transactionData, processRunCounter).catch((err: any) => {
-                    console.log(`[tracker-bot]|[main]| ⛔ Insert Transaction Database Error: ${err}`, processRunCounter);
-                  });
-                  
-                  console.log(`[tracker-bot]|[main]| Transaction Record Created for Stop-Loss:`, processRunCounter, {
-                    token: token,
-                    transactionType: 'SELL',
-                    tokenAmount: Number(amountIn),
-                    solAmount: tokenCurrentPrice * Number(amountIn)
-                  });
-                } else {
-                  console.error(`[tracker-bot]|[main]| ⚠️ ERROR when triggering stop loss for ${tokenName}: ${txErrorMsg}`, processRunCounter);
+                  // Add success to log output
+                  if (txSuccess && txTransaction) {
+                    console.log(`[tracker-bot]|[main]| ✅🔴 ${hrTradeTime}: Triggered Stop Loss for ${tokenName} with wallet ${walletPublicKey}\nTx: ${txTransaction}`, processRunCounter);
+                    
+                    // Create profit/loss record for stop-loss
+                    const profitLossRecord: ProfitLossRecord = {
+                      Time: Date.now(),
+                      EntryTime: tokenTime,
+                      Token: token,
+                      TokenName: tokenName,
+                      EntryBalance: tokenBalance,
+                      ExitBalance: Number(amountIn),
+                      EntrySolPaid: tokenSolPaid,
+                      ExitSolReceived: tokenCurrentPrice * Number(amountIn),
+                      TotalSolFees: tokenSolFeePaid,
+                      ProfitLossSOL: (tokenCurrentPrice * Number(amountIn)) - tokenSolPaid,
+                      ProfitLossUSDC: unrealizedPnLUSDC,
+                      ROIPercentage: unrealizedPnLPercentage,
+                      EntryPriceUSDC: tokenPerTokenPaidUSDC,
+                      ExitPriceUSDC: tokenCurrentPrice,
+                      HoldingTimeSeconds: Math.floor(Date.now() / 1000) - Math.floor(tokenTime / 1000),
+                      Slot: tokenSlot,
+                      Program: tokenProgram,
+                      BotName: tokenBotName,
+                      IsTakeProfit: unrealizedPnLPercentage >= 0,
+                      WalletPublicKey: walletPublicKey
+                    };
+
+                    await insertProfitLoss(profitLossRecord, processRunCounter);
+                    console.log(`[tracker-bot]|[main]| Profit/Loss Record Created for Stop-Loss:`, processRunCounter, {
+                      token: token,
+                      profitLossUSDC: unrealizedPnLUSDC,
+                      roiPercentage: unrealizedPnLPercentage,
+                      IsTakeProfit: unrealizedPnLPercentage >= 0,
+                      wallet: walletPublicKey
+                    });
+                    
+                    // Insert transaction record
+                    const transactionData = {
+                      Time: Math.floor(Date.now() / 1000),
+                      Token: token,
+                      TokenName: tokenName,
+                      TransactionType: 'SELL' as 'BUY' | 'SELL',
+                      TokenAmount: Number(amountIn),
+                      SolAmount: tokenCurrentPrice * Number(amountIn),
+                      SolFee: tokenSolFeePaid,
+                      PricePerTokenUSDC: tokenCurrentPrice,
+                      TotalUSDC: tokenCurrentPrice * Number(amountIn),
+                      Slot: tokenSlot,
+                      Program: tokenProgram,
+                      BotName: tokenBotName,
+                      WalletPublicKey: walletPublicKey
+                    };
+                    
+                    await insertTransaction(transactionData, processRunCounter).catch((err: any) => {
+                      console.log(`[tracker-bot]|[main]| ⛔ Insert Transaction Database Error: ${err}`, processRunCounter);
+                    });
+                    
+                    successfulTransactions++;
+                  } else {
+                    console.error(`[tracker-bot]|[main]| ⚠️ ERROR when triggering stop loss for ${tokenName} with wallet ${walletPublicKey}: ${txErrorMsg}`, processRunCounter);
+                  }
+                }
+
+                if (successfulTransactions === 0) {
+                  console.error(`[tracker-bot]|[main]| ⚠️ All stop-loss transactions failed for ${tokenName}`, processRunCounter);
                   console.log(`[tracker-bot]|[main]| CYCLE_END`, processRunCounter, ++processRunCounter);
                   return;
                 }
+
+                console.log(`[tracker-bot]|[main]| ✅ Successfully processed ${successfulTransactions} out of ${walletPrivateKeys.length} stop-loss transactions for ${tokenName}`, processRunCounter);
               } catch (error: any) {
-                console.error(`[tracker-bot]|[main]| ⚠️ ERROR when triggering Stop Loss for ${tokenName}: ${error.message}: \n`, processRunCounter);
+                console.error(`[tracker-bot]|[main]| ⚠️ ERROR when triggering Stop Loss for ${tokenName}: ${error.message}`, processRunCounter);
                 console.log(`[tracker-bot]|[main]| CYCLE_END`, processRunCounter, ++processRunCounter);
                 return;
               }
