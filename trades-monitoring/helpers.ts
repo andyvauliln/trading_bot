@@ -5,18 +5,19 @@ import { retryAxiosRequest } from '../bots/utils/help-functions';
 import { Keypair, Connection, PublicKey } from '@solana/web3.js';
 import { Wallet } from "@project-serum/anchor";
 import bs58 from 'bs58';
-import { Metaplex, SOL, token } from "@metaplex-foundation/js";
+import { Metaplex } from "@metaplex-foundation/js";
 import { DateTime } from 'luxon';
 import { selectHistoricalDataByAccount } from './db';
-
-export interface WalletToken {
-  tokenName: string; 
-  tokenSymbol: string;
-  tokenMint: string;
-  balance: number;
-  tokenValueUSDC: number;
-  percentage: number;
-}
+import { 
+  WalletToken, 
+  TokenPrices, 
+  DexscreenerResult,
+  DexscreenerPair,
+  TokenHistoricalPrices,
+  HistoricalPoolData,
+  TransactionRecordWithComments,
+  BirdeyeHistoricalPriceResponse
+} from './types';
 
 async function getTokenMetadata(connection: Connection, mint: string) {
   try {
@@ -34,31 +35,6 @@ async function getTokenMetadata(connection: Connection, mint: string) {
     console.error(`Error fetching metadata for token ${mint}:`, error);
     return { name: mint, symbol: 'UNKNOWN' };
   }
-}
-
-interface TokenPrices {
-  [address: string]: number | null;
-}
-
-interface DexscreenerToken {
-  address: string;
-  name: string;
-  symbol: string;
-}
-
-interface DexscreenerPair {
-  chainId: string;
-  dexId: string;
-  pairAddress: string;
-  baseToken: DexscreenerToken;
-  quoteToken: DexscreenerToken;
-  priceUsd: string;
-  labels?: string[];
-}
-
-interface DexscreenerResult {
-  prices: { [address: string]: number | null };
-  pairs: Record<string, DexscreenerPair[]>;
 }
 
 export async function getDexscreenerPrices(tokenAddresses: string[]): Promise<DexscreenerResult> {
@@ -327,28 +303,6 @@ export async function populateWithCurrentProfitsLosses(holdings: HoldingRecord[]
     }
   }
 
-export interface HistoricalPoolData {
-  timestamp: number;
-  totalValueUSDC: number;
-  tokens: WalletToken[];
-}
-
-interface BirdeyePriceItem {
-  unixTime: number;
-  value: number;
-}
-
-interface BirdeyeHistoricalPriceResponse {
-  success: boolean;
-  data: {
-    items: BirdeyePriceItem[];
-  };
-}
-
-interface TokenHistoricalPrices {
-  [tokenAddress: string]: BirdeyePriceItem[];
-}
-
 async function getBirdeyeHistoricalPrices(
   tokenAddresses: string[],
   timeFrom: number,
@@ -597,10 +551,6 @@ export async function getHistoricalWalletData(days: number = 30): Promise<Histor
         console.error('Error fetching historical wallet data:', error);
         return [];
     }
-}
-
-export interface TransactionRecordWithComments extends TransactionRecord {
-  comment: string | null;
 }
 
 export async function addComments(tradingHistory: TransactionRecord[]): Promise<TransactionRecordWithComments[]> {
