@@ -106,9 +106,13 @@ Will run all bots simultaneously in different processes
 
 
 TODO API:
-[] check pool size data from perfomance metrics
+[*] check pool size data from perfomance metrics
 [*] agent-performance-chart
-[] check /api/get-pool-data with wallets
+[*] check /api/get-pool-data with wallets
 [*] fix /api/get-pool-historical-data
-[] fix /api/get-pool-historical-data price issues
+[*] fix /api/get-pool-historical-data price issues
 [*] check /api/get-trading-history
+[] check pool history data, looks like wrong, from where price for askii
+[] trading pool chart show only sol
+[] make live updates
+[] fix hydration error on ui for livechat

@@ -73,11 +73,7 @@ class TelegramReader {
     }
 
     private async initializeStorage() {
-        if (this.config.storage_type === "sqlite") {
-            await this.initializeSqliteDb();
-        } else {
-            throw new Error(`Unsupported storage type: ${this.config.storage_type}`);
-        }
+        await this.initializeSqliteDb();
     }
 
     private async initializeSqliteDb() {

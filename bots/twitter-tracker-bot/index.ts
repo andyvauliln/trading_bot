@@ -1,5 +1,5 @@
 import * as dotenv from "dotenv";
-import puppeteer from "puppeteer"; // Puppeteer is a JavaScript library which provides a high-level API to control Chrome or Firefox
+import puppeteer, { ConsoleMessage } from "puppeteer"; // Puppeteer is a JavaScript library which provides a high-level API to control Chrome or Firefox
 import { config } from "./config"; // Configuration parameters for our bot
 import { insertNewPost, selectPostExistsByPostId } from "./db";
 import { sendMessageOnDiscord } from "../discord/discordSend";
@@ -12,54 +12,177 @@ dotenv.config();
 // Create a new browser
 let browser: any;
 async function initBrowser() {
-  browser = await puppeteer.launch({
-    headless: config.bot_twitter.run_headless || false,
-    executablePath: config.bot_twitter.default_browser,
-    userDataDir: config.bot_twitter.default_browser_data,
-    args: ["--start-maximized"], // Launch maximized Window
-    defaultViewport: null, // Disable default viewport settings
-  });
+  try {
+    if (browser) {
+      try {
+        await browser.disconnect();
+      } catch (e) {
+        console.log('Browser was already disconnected');
+      }
+      browser = null;
+    }
+    
+    console.log('Attempting to connect to Chrome debugging port...');
+    
+    // Try multiple endpoints to verify connection
+    const endpoints = ['http://127.0.0.1:9223', 'http://localhost:9223'];
+    let connected = false;
+    let debugData;
+    
+    for (const endpoint of endpoints) {
+      try {
+        console.log(`Trying to connect to ${endpoint}/json/version...`);
+        const response = await fetch(`${endpoint}/json/version`);
+        debugData = await response.json();
+        console.log('Debug connection available at', endpoint, debugData);
+        connected = true;
+        
+        // Connect to the existing Chrome instance
+        browser = await puppeteer.connect({
+          browserURL: endpoint,
+          defaultViewport: {
+            width: 1920,
+            height: 1080
+          }
+        });
+        
+        console.log('Successfully connected to Chrome!');
+        break;
+      } catch (e: any) {
+        console.log(`Failed to connect to ${endpoint}:`, e?.message || 'Unknown error');
+      }
+    }
+    
+    if (!connected) {
+      console.error('Could not connect to Chrome on any endpoint');
+      console.log('Please make sure Chrome is running with --remote-debugging-port=9223');
+      console.log('And try accessing http://127.0.0.1:9223/json/version in your browser');
+      return false;
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Failed to connect to browser:', error);
+    browser = null;
+    return false;
+  }
 }
 
 // Function to get the posts
 async function getXAccountLatestPosts(name: string, handle: string): Promise<string[]> {
   if (!name || !handle) return [];
 
-  // Create new browser if not available
-  if (!browser) await initBrowser();
+  try {
+    // Create new browser if not available
+    const initialized = await initBrowser();
+    if (!initialized || !browser) {
+      console.error('Failed to initialize browser');
+      return [];
+    }
 
-  // Open a new page in the browser
-  const page = await browser.newPage();
-  await page.goto("https://x.com/" + handle, { waitUntil: "load" });
+    // Open a new page in the browser
+    const page = await browser.newPage();
+    await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+    
+    // Set viewport
+    await page.setViewport({
+      width: 1920,
+      height: 1080
+    });
+    
+    console.log(`Navigating to https://x.com/${handle}`);
+    
+    // Navigate to the Twitter profile
+    await page.goto(`https://x.com/${handle}`, { 
+      waitUntil: "networkidle0",
+      timeout: 60000 
+    });
 
-  // Wait for 1 more second to be sure we can copy the link
-  await new Promise((resolve) => setTimeout(resolve, 5000));
+    // Check for sensitive content warning and handle it
+    try {
+      // Look for the button using data-testid
+      const buttonSelector = await page.waitForSelector('button[data-testid="empty_state_button_text"]', { timeout: 5000 });
+      if (buttonSelector) {
+        console.log("Found sensitive content warning button, clicking to view profile...");
+        await buttonSelector.evaluate((button: HTMLButtonElement) => button.click());
+        // Wait for the page to load after clicking
+        await page.waitForTimeout(5000);
+      }
+    } catch (e) {
+      // No sensitive content warning found, continue normally
+      console.log("No sensitive content warning detected");
+    }
 
-  // Extract links with "/handle/status/{id}"
-  const filteredLinks = await page.evaluate(
-    (name: string, handle: string) => {
-      // Find the parent div with the specific aria-label
-      const parentDiv = document.querySelector(`div[aria-label="Timeline: ${name}’s posts"]`);
-      if (!parentDiv) return [];
+    // Wait for the timeline to load
+    await page.waitForSelector('div[data-testid="cellInnerDiv"]', { timeout: 10000 });
+    console.log("Found timeline posts");
 
-      // Find all <a> tags within the nested divs
-      const anchorTags = Array.from(parentDiv.querySelectorAll("a"));
+    // Wait a bit more for dynamic content
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+    console.log("Waiting for content to load...");
 
-      // Filter links containing "/handle/status/" but not "/analytics"
-      const links = anchorTags
-        .map((anchor) => anchor.href)
-        .filter((href) => href.includes(`/status/`) && !href.includes("/analytics") && !href.includes("/photo"));
+    // Extract links with "/handle/status/{id}"
+    // Enable console log from browser to node
+    page.on('console', (msg: ConsoleMessage) => console.log('Browser Console:', msg.text()));
+    
+    const filteredLinks = await page.evaluate(
+      (name: string, handle: string) => {
+        console.log('Looking for posts...');
+        
+        // Find all post containers
+        const postContainers = Array.from(document.querySelectorAll('div[data-testid="cellInnerDiv"]'));
+        console.log('Number of post containers found:', postContainers.length);
+        
+        if (postContainers.length === 0) {
+          // Try to find the timeline container
+          const timeline = document.querySelector('div[data-testid="primaryColumn"]');
+          console.log('Timeline container found:', timeline ? 'yes' : 'no');
+          return [];
+        }
 
-      return links; // Return the filtered links
-    },
-    name,
-    handle // Pass the parameters to the browser context
-  );
+        // Get all article elements within the containers (these are the actual posts)
+        const articles = postContainers.map(container => 
+          container.querySelector('article[data-testid="tweet"]')
+        ).filter(article => article !== null);
+        
+        console.log('Number of articles found:', articles.length);
 
-  await browser.close();
-  browser = null;
+        // Find all <a> tags within the articles
+        const anchorTags = articles.flatMap(article => 
+          Array.from(article?.querySelectorAll('a') || [])
+        );
+        console.log("Number of anchor tags found:", anchorTags.length);
+        
+        // Log the first few anchors for debugging
+        const firstThreeUrls = anchorTags.slice(0, 3).map(anchor => anchor.href);
+        console.log('First three URLs:', JSON.stringify(firstThreeUrls));
+        
+        // Filter links containing "/handle/status/" but not "/analytics"
+        const links = anchorTags
+          .map((anchor) => anchor.href)
+          .filter((href) => href.includes(`/status/`) && !href.includes("/analytics") && !href.includes("/photo"));
 
-  return filteredLinks;
+        console.log("Filtered links count:", links.length);
+        return links;
+      },
+      name,
+      handle
+    );
+
+    console.log(`Found ${filteredLinks.length} posts for ${name}`);
+    
+    // // Take a screenshot for debugging
+    // await page.screenshot({ path: 'debug-screenshot.png' });
+    // console.log("Saved debug screenshot to debug-screenshot.png");
+    
+    await page.close();
+    
+    return filteredLinks;
+  } catch (error) {
+    console.error('Error in getXAccountLatestPosts:', error);
+    return [];
+  } finally {
+  }
 }
 
 // Discord
@@ -107,8 +230,8 @@ async function main(): Promise<void> {
     // Discord Parameters
     const discordChannel = process.env.DISCORD_CT_TRACKER_CHANNEL || "";
     const discordBot = process.env.DISCORD_BOT_TOKEN || "";
-    const init = await initializeDiscord(discordChannel, discordBot);
-    if (init) console.log("✅ Discord bot ready for use.");
+    // const init = await initializeDiscord(discordChannel, discordBot);
+    // if (init) console.log("✅ Discord bot ready for use.");
   }
 
   try {
@@ -127,6 +250,7 @@ async function main(): Promise<void> {
       console.log("🔍 Checking posts for " + xName);
 
       const latestPosts = await getXAccountLatestPosts(xName, xhandle);
+      console.log(latestPosts);
       if (!latestPosts) continue;
 
       for (const post of latestPosts) {
@@ -178,8 +302,8 @@ async function main(): Promise<void> {
       // Output amount of posts
       console.log("✅ Collected " + discordMessages.length + " tweets.");
 
-      const sentConfirmation = await sendMessageOnDiscord(botChannel, discordMessages);
-      if (sentConfirmation) console.log("✅ Discord Messages Sent!");
+      // const sentConfirmation = await sendMessageOnDiscord(botChannel, discordMessages);
+      // if (sentConfirmation) console.log("✅ Discord Messages Sent!");
     }
 
     setTimeout(main, config.bot_twitter.tracker_timeout);

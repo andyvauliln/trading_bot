@@ -56,8 +56,6 @@ export interface TelegramConfig {
     name: string;
     base_url: string;
     messages_db_path: string;
-    messages_json_path: string;
-    storage_type: string | "sqlite" | "json";
     check_interval: number;
     max_messages_per_channel: number;
     request_timeout: number;
