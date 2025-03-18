@@ -1,12 +1,21 @@
 import axios from 'axios';
 import {config} from '../trades-monitoring/config';
 import { DateTime } from 'luxon';
+import { retryAxiosRequest } from '../bots/utils/help-functions';
+import dotenv from 'dotenv';
 
-const API_BASE_URL = `http://localhost:${config.port}`;
+dotenv.config();
+
+const API_BASE_URL = process.env.SERVER_URL;
 
 async function fetchPoolHistoricData() {
     try {
-        const response = await axios.get(`${API_BASE_URL}/api/make-account-historical-data`);
+        const response = await retryAxiosRequest(
+            () => axios.get(`${API_BASE_URL}/api/make-account-historical-data`),
+            3, // maxRetries
+            1000, // initialDelay
+            1 // processRunCounter
+        );
         
         if (response.data.status === 'success' || response.data.status === 'partial_success') {
             console.log(`[${DateTime.now().toISO()}] Historical data collection completed successfully.`);

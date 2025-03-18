@@ -18,17 +18,9 @@ export async function retryAxiosRequest<T>(
   
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        // First attempt or retry
-        if (attempt > 0 && processRunCounter) {
-          console.log(`[tracker-bot]|[retryAxiosRequest]| Retry attempt ${attempt}/${maxRetries} after ${delay}ms delay`, processRunCounter);
-        }
         return await requestFn();
       } catch (error: any) {
         lastError = error;
-        if (processRunCounter) {
-          console.log(`[tracker-bot]|[retryAxiosRequest]| Request failed: ${error.message}`, processRunCounter);
-        }
-        
         if (attempt >= maxRetries) {
           break;
         }

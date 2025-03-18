@@ -72,43 +72,16 @@ module.exports = {
       env: {
         NODE_ENV: process.env.NODE_ENV,
       },
-      ...(process.env.NODE_ENV === 'production' ? {
-        // No watch and logs in production
-      } : {
-        watch: ['cron'],
-        ignore_watch: ['node_modules', '.git', 'data', 'tmp', 'docs', 'logs', '.vscode'],
-      })
     },
     {
       name: 'clean-db-logs-cron',
       script: './dist/crons/clean-db-logs.js',
       out_file: process.env.NODE_ENV === 'development' ? 'logs/pm2/clean-db-logs.log' : '/dev/null',
       error_file: process.env.NODE_ENV === 'development' ? 'logs/pm2/clean-db-logs.error.log' : '/dev/null',
-      cron_restart: '0 0 * * *',  // Run every day at midnight
+      cron_restart: '59 23 * * *',  // Run every day at midnight
       env: {
         NODE_ENV: process.env.NODE_ENV,
       },
-      ...(process.env.NODE_ENV === 'production' ? {
-        // No watch and logs in production
-      } : {
-        watch: ['crons'],
-        ignore_watch: ['node_modules', '.git', 'data', 'tmp', 'docs', 'logs', '.vscode'],
-      })
     },
-    {
-      name: 'test',
-      script: './test.js',
-      out_file: process.env.NODE_ENV === 'development' ? 'logs/pm2/test.log' : '/dev/null',
-      error_file: process.env.NODE_ENV === 'development' ? 'logs/pm2/test.error.log' : '/dev/null',
-      env: {
-        NODE_ENV: process.env.NODE_ENV,
-      },
-      ...(process.env.NODE_ENV === 'production' ? {
-        // No watch and logs in production
-      } : {
-        watch: ['test'],
-        ignore_watch: ['node_modules', '.git', 'data', 'tmp', 'docs', 'logs', '.vscode'],
-      })
-    }
   ]
 }; 

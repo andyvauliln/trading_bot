@@ -142,7 +142,7 @@ async function main() {
             const amountIn = tokenBalance.toString().replace(".", "");
 
             // Sell via Take Profit unrealizedPnLPercentage >= config.sell.take_profit_percent
-            if (true) {
+            if (unrealizedPnLPercentage >= config.sell.take_profit_percent) {
               try {
                 // Get wallet private keys from environment variable
                 const walletPrivateKeys = (process.env.PRIV_KEY_WALLETS || "").split(",").map(key => key.trim()).filter(key => key);

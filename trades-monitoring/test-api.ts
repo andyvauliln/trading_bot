@@ -1,7 +1,12 @@
 import axios from 'axios';
 import { DateTime } from 'luxon';
 import { config } from './config';
-const BASE_URL = `http://localhost:${config.port}`; // adjust port if different
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+// const BASE_URL = `http://localhost:${config.port}`;
+const BASE_URL = process.env.SERVER_URL;
 
 // Helper function to format test results
 const formatResponse = (endpoint: string, success: boolean, data: any, error?: any) => {

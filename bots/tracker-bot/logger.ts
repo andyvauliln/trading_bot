@@ -6,6 +6,34 @@ import { config } from './config';
 import { v4 as uuidv4 } from 'uuid';
 import { initializeDiscordClient, getDiscordChannel, sendMessageOnDiscord } from "../discord/discordSend";
 
+/**
+ * Simple mutex implementation to prevent concurrent database operations
+ */
+class Mutex {
+  private locked: boolean = false;
+  private waitingQueue: Array<() => void> = [];
+
+  async acquire(): Promise<void> {
+    return new Promise<void>(resolve => {
+      if (!this.locked) {
+        this.locked = true;
+        resolve();
+      } else {
+        this.waitingQueue.push(resolve);
+      }
+    });
+  }
+
+  release(): void {
+    if (this.waitingQueue.length > 0) {
+      const nextResolve = this.waitingQueue.shift();
+      if (nextResolve) nextResolve();
+    } else {
+      this.locked = false;
+    }
+  }
+}
+
 // Logger class to handle logging to console, file, and database
 class Logger {
   private dbConnection: any = null;
@@ -20,6 +48,8 @@ class Logger {
   private isInTransaction: boolean = false;
   private discordChannel: string = '';
   private discordEnabled: boolean = false;
+  private dbMutex = new Mutex(); // Mutex to prevent concurrent database operations
+  private saveInProgress: boolean = false; // Flag to prevent concurrent save operations
 
   constructor() {
     this.moduleName = config.name;
@@ -287,6 +317,21 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
     }
   }
 
+  /**
+   * Check the actual transaction state in the database
+   * This helps ensure our isInTransaction flag matches reality
+   */
+  private async checkTransactionState(): Promise<boolean> {
+    try {
+      // SQLite keeps track of transaction state in a special table
+      const result = await this.dbConnection.get("PRAGMA transaction_status");
+      return result && result.transaction_status !== 0;
+    } catch (error) {
+      // If we can't check, assume we're not in a transaction to be safe
+      return false;
+    }
+  }
+
   private async retryOperation<T>(operation: () => Promise<T>, maxRetries: number = 3): Promise<T> {
     let lastError;
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -294,15 +339,24 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
         return await operation();
       } catch (error: any) {
         lastError = error;
+        
         // Reset transaction state if SQLite already rolled back
-        if (error.code === 'SQLITE_ERROR' && error.message?.includes('no transaction is active')) {
-          this.isInTransaction = false;
+        if (error.code === 'SQLITE_ERROR') {
+          if (error.message?.includes('no transaction is active')) {
+            this.isInTransaction = false;
+          } else if (error.message?.includes('cannot start a transaction within a transaction')) {
+            // Force rollback if we tried to start a transaction within a transaction
+            this.originalConsoleWarn(`${config.name}|[logger]|Detected nested transaction attempt, forcing rollback`);
+            await this.forceRollbackTransaction();
+            continue; // Try again after rollback
+          }
         }
+        
         if (error.code === 'SQLITE_BUSY' || error.code === 'SQLITE_LOCKED') {
           // Wait with exponential backoff: 100ms, 200ms, 400ms
           await new Promise(resolve => setTimeout(resolve, 100 * Math.pow(2, attempt - 1)));
           // Ensure we're not in a transaction before retrying
-          await this.rollbackTransaction();
+          await this.forceRollbackTransaction();
           continue;
         }
         throw error;
@@ -313,9 +367,14 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
 
   private async beginTransaction() {
     try {
-      if (this.isInTransaction) {
-        await this.rollbackTransaction();
+      // Double-check if we're actually in a transaction in the database
+      const actuallyInTransaction = await this.checkTransactionState();
+      
+      if (actuallyInTransaction || this.isInTransaction) {
+        this.originalConsoleWarn(`${config.name}|[logger]|Transaction already active, rolling back before starting new one`);
+        await this.forceRollbackTransaction();
       }
+      
       await this.dbConnection.exec('BEGIN IMMEDIATE TRANSACTION');
       this.isInTransaction = true;
     } catch (error: any) {
@@ -328,9 +387,19 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
 
   private async commitTransaction() {
     try {
+      // Verify we actually have an active transaction before committing
       if (!this.isInTransaction) {
+        this.originalConsoleWarn(`${config.name}|[logger]|Attempted to commit when no transaction is active (in our records)`);
         return;
       }
+      
+      const actuallyInTransaction = await this.checkTransactionState();
+      if (!actuallyInTransaction) {
+        this.originalConsoleWarn(`${config.name}|[logger]|Attempted to commit when no transaction is active (in database)`);
+        this.isInTransaction = false;
+        return;
+      }
+      
       await this.dbConnection.exec('COMMIT');
       this.isInTransaction = false;
     } catch (error: any) {
@@ -338,6 +407,25 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
         this.isInTransaction = false;
       }
       throw error;
+    }
+  }
+
+  /**
+   * Force rollback regardless of our internal state
+   * This is used as a recovery mechanism when we detect inconsistencies
+   */
+  private async forceRollbackTransaction() {
+    try {
+      // Try to rollback even if our flag says we're not in a transaction
+      await this.dbConnection.exec('ROLLBACK');
+      this.originalConsoleLog(`${config.name}|[logger]|Successfully forced transaction rollback`);
+    } catch (error: any) {
+      // Only warn about errors that aren't "no transaction is active"
+      if (!(error.code === 'SQLITE_ERROR' && error.message?.includes('no transaction is active'))) {
+        this.originalConsoleWarn(`${config.name}|[logger]|Error during forced rollback:`, error);
+      }
+    } finally {
+      this.isInTransaction = false;
     }
   }
 
@@ -352,7 +440,7 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
       if (error.code === 'SQLITE_ERROR' && error.message?.includes('no transaction is active')) {
         // Do nothing, this is expected sometimes
       } else {
-        throw error;
+        this.originalConsoleWarn(`${config.name}|[logger]|Error during rollback:`, error);
       }
     } finally {
       this.isInTransaction = false;
@@ -360,19 +448,36 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
   }
 
   /**
-   * Save logs to database
+   * Save logs to database with improved transaction handling and concurrency control
    */
   async saveLogs() {
-    // Save to file first
+    // Early return if already in progress to prevent concurrent save operations
+    if (this.saveInProgress || this.logs.length === 0) {
+      return;
+    }
+    
+    // Mark save as in progress
+    this.saveInProgress = true;
+    
+    // Save to file first (outside of mutex lock since file operations are separate)
     this.saveFileLogsSync();
     
     // Then save to database
-    if (!config.logger.db_logs || !this.dbConnection || this.logs.length === 0) {
+    if (!config.logger.db_logs || !this.dbConnection) {
+      this.saveInProgress = false;
       return;
     }
 
+    // Make a copy of the logs array to allow new logs to be collected
+    const logsToSave = [...this.logs];
+    this.logs = [];
+    
     let stmt: Statement | undefined;
+    
     try {
+      // Acquire mutex lock for database operations
+      await this.dbMutex.acquire();
+      
       await this.retryOperation(async () => {
         // Begin transaction
         await this.beginTransaction();
@@ -384,7 +489,7 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
         `);
         stmt = preparedStmt;
 
-        for (const log of this.logs) {
+        for (const log of logsToSave) {
           await preparedStmt.run(
             log.date,
             log.time,
@@ -403,17 +508,18 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
         // Commit transaction
         await this.commitTransaction();
       });
-
-      // Clear logs array only if successful
-      this.logs = [];
     } catch (error) {
-      // Attempt rollback but don't throw if it fails
-      try {
-        await this.rollbackTransaction();
-      } catch (rollbackError) {
-        // Already logged in rollbackTransaction
-      }
       this.originalConsoleError(`${config.name}|[logger]|Failed to save logs to database:`, error);
+      
+      // If we failed to save logs, put them back in the logs array
+      this.logs = [...logsToSave, ...this.logs];
+      
+      // Attempt rollback
+      try {
+        await this.forceRollbackTransaction();
+      } catch (rollbackError) {
+        // Already handled in forceRollbackTransaction
+      }
     } finally {
       // Ensure statement is finalized
       if (stmt?.finalize) {
@@ -423,6 +529,12 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
           // Ignore finalization errors
         }
       }
+      
+      // Release the mutex
+      this.dbMutex.release();
+      
+      // Mark save as no longer in progress
+      this.saveInProgress = false;
     }
   }
 
@@ -483,14 +595,20 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
    */
   async close() {
     try {
+      // Acquire mutex to ensure no other operations are happening
+      await this.dbMutex.acquire();
+      
       await this.saveLogs();
     } finally {
       if (this.isInTransaction) {
-        await this.rollbackTransaction();
+        await this.forceRollbackTransaction();
       }
       if (this.dbConnection) {
         await this.dbConnection.close();
       }
+      
+      // Release mutex
+      this.dbMutex.release();
       
       // Shutdown Discord client if it was initialized
       if (this.discordEnabled) {
