@@ -78,7 +78,7 @@ class Logger {
         // Set up daily cleanup
         this.setupDailyCleanup();
       } catch (error) {
-        this.originalConsoleError('Failed to initialize logger database:', error);
+        console.log('[api]|[logger]|Failed to initialize logger database:', 0, error);
       }
     }
   }
@@ -103,7 +103,7 @@ class Logger {
     setTimeout(() => {
       // Run cleanup
       this.cleanOldLogs().catch(error => {
-        this.originalConsoleError('Error during daily log cleanup:', error);
+        console.log('[api]|[logger]|Error during daily log cleanup:', 0, error);
       });
       
       // Then set up daily interval (24 hours = 86400000 ms)
@@ -111,12 +111,12 @@ class Logger {
         try {
           await this.cleanOldLogs();
         } catch (error) {
-          this.originalConsoleError('Error during daily log cleanup:', error);
+          console.log('[api]|[logger]|Error during daily log cleanup:', 0, error);
         }
       }, 86400000);
     }, timeUntilMidnight);
     
-    this.originalConsoleLog(`[${this.moduleName}]|[logger]| Log cleanup scheduled to run at midnight`);
+    console.log('[api]|[logger]| Log cleanup scheduled to run at midnight');
   }
 
   /**
@@ -179,13 +179,6 @@ class Logger {
     let data = null;
     let tag = '';
 
-    // Parse arguments
-    if (args.length >= 2 && typeof args[1] === 'number') {
-      // If a cycle is provided and it's different from the current cycle, save logs first
-      this.setCycle(args[1]);
-      cycle = args[1];
-    }
-
     if (args.length >= 3) {
       data = args[2];
     }
@@ -214,6 +207,15 @@ class Logger {
 
     // Add to logs array for database
     this.logs.push(logEntry);
+
+    // Save to database and wait for it to complete
+    if (this.logs.length > 10) {
+      try {
+        this.saveLogs();
+      } catch (error) {
+        console.log('[api]|[logger]|Failed to save logs on cycle change:', 0, error);
+      }
+    }
   }
 
   /**
@@ -244,7 +246,7 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
       
       fs.appendFileSync(config.logger.file_logs_path, logContent);
     } catch (error) {
-      this.originalConsoleError('Failed to write logs to file:', error);
+      console.log('[api]|[logger]|Failed to write logs to file:', 0, error);
     }
   }
   /**
@@ -331,7 +333,7 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
       } catch (rollbackError) {
         // Ignore rollback errors as the transaction might have already been rolled back
       }
-      this.originalConsoleError('Failed to save logs to database:', error);
+      console.log('[api]|[logger]|Failed to save logs to database:', 0, error);
     } finally {
       // Ensure statement is finalized
       if (stmt?.finalize) {
@@ -350,7 +352,7 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
 
     try {
       await this.retryOperation(async () => {
-        this.originalConsoleLog(`[${this.moduleName}]|[logger]| Cleaning logs older than ${config.logger.keeping_days_in_db} days`);
+        console.log(`[api]|[logger]| Cleaning logs older than ${config.logger.keeping_days_in_db} days`);
         
         const keepingDays = config.logger.keeping_days_in_db;
         const cutoffDate = new Date();
@@ -360,32 +362,10 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
         // Delete logs older than the cutoff date
         const result = await this.dbConnection.run(`DELETE FROM ${this.logsTableName} WHERE date < ?`, cutoffDateStr);
         
-        this.originalConsoleLog(`[${this.moduleName}]|[logger]| Cleaned ${result.changes} old log entries`);
+        console.log(`[api]|[logger]| Cleaned ${result.changes} old log entries`);
       });
     } catch (error) {
-      this.originalConsoleError('Failed to clean old logs:', error);
-    }
-  }
-
-  /**
-   * Set the current cycle
-   */
-  async setCycle(cycle: number) {
-    // If cycle is changing and we have logs, save them first
-    if (cycle > this.cycle && (this.logs.length > 0)) {
-      const oldCycle = this.cycle;
-      // Update cycle before saving so logs are saved with the correct cycle
-      this.cycle = cycle;
-      this.originalConsoleLog(`[${this.moduleName}]|[logger]| Cycle changing from ${oldCycle} to ${cycle}, saving logs`);
-      
-      // Save to database and wait for it to complete
-      try {
-        await this.saveLogs();
-      } catch (error) {
-        this.originalConsoleError('Failed to save logs on cycle change:', error);
-      }
-    } else {
-      this.cycle = cycle;
+      console.log('[api]|[logger]|Failed to clean old logs:', 0, error);
     }
   }
 

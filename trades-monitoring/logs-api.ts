@@ -30,7 +30,7 @@ const initDb = async (tableName: string) => {
       tag TEXT
     )
   `);
-
+  console.log('[api]|[initDb]|Table created',0,{tableName:tableName});
   return db;
 };
 
@@ -107,7 +107,7 @@ router.get('/logs', (req: Request, res: Response) => {
       
       await db.close();
     } catch (error) {
-      console.error('Error fetching logs:', error);
+      console.log('[api]|[logs-api]|Error fetching logs:', 0, error);
       res.status(500).json({ error: 'Failed to fetch logs' });
     }
   })();

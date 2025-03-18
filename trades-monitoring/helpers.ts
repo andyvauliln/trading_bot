@@ -27,13 +27,13 @@ async function getTokenMetadata(connection: Connection, mint: string) {
     
     // Fetch metadata using Metaplex
     const nft = await metaplex.nfts().findByMint({ mintAddress: mintPubkey });
-    
+    console.log('[api]|[getTokenMetadata]|Successfully fetched metadata', 0, nft);
     return {
       name: nft.name.trim().replace(/\0/g, ''),  // Remove null characters and trim
       symbol: nft.symbol.trim().replace(/\0/g, '') // Remove null characters and trim
     };
   } catch (error) {
-    console.error(`Error fetching metadata for token ${mint}:`, error);
+    console.log(`[api]|[getTokenMetadata]|Error fetching metadata for token ${mint}:`, 0, error);
     return { name: mint, symbol: 'UNKNOWN' };
   }
 }
@@ -42,13 +42,13 @@ export async function getDexscreenerPrices(tokenAddresses: string[]): Promise<De
     try {
       const tokenValues = tokenAddresses.join(",");
       const dexPriceUrl = `https://api.dexscreener.com/tokens/v1/solana/${tokenValues}`;
-      console.log(dexPriceUrl, "dexPriceUrl");
+      console.log('[api]|[getDexscreenerPrices]|Getting prices for tokens:', 0, tokenValues);
 
       const response = await retryAxiosRequest(
         () => axios.get<DexscreenerPair[]>(dexPriceUrl, {
           timeout: config.tx.get_timeout,
         }).then(response => response.data),
-        5,
+        10,
         2000,
         0
       );
@@ -79,10 +79,10 @@ export async function getDexscreenerPrices(tokenAddresses: string[]): Promise<De
         prices[tokenAddress] = bestPair ? parseFloat(bestPair.priceUsd) : null;
       }
 
-      console.log(prices, "prices2");
+      console.log('[api]|[getDexscreenerPrices]|Prices:', 0, prices);
       return { prices, pairs: pairsByToken };
     } catch (error) {
-      console.error('Error fetching Dexscreener prices:', error);
+      console.error('[api]|[getDexscreenerPrices]|Error fetching Dexscreener prices:', 0, error);
       return { 
         prices: Object.fromEntries(tokenAddresses.map(address => [address, null])), 
         pairs: {} 
@@ -128,7 +128,7 @@ export async function getPoolSizeData(): Promise<PoolSizeData> {
     : 0;
 
   // Log values to verify calculation
-  console.log('Pool Size Data:', {
+  console.log('[api]|[getPoolSizeData]|Pool Size Data:', 0, {
     currentValue: totalPoolUsdValue,
     previousValue: previousTotalPoolUsdValue,
     percentageChange: change,
@@ -256,7 +256,7 @@ export async function populateWithCurrentProfitsLosses(holdings: HoldingRecord[]
               priceError: null
             };
           } else {
-            // Mark holding as having price issues
+            console.warn(`[api]|[populateWithCurrentProfitsLosses]|can not get price for ${holding.Token}`, tokenCurrentPrice);
             return {
               ...holding,
               currentPrice: null,
@@ -268,7 +268,7 @@ export async function populateWithCurrentProfitsLosses(holdings: HoldingRecord[]
             };
           }
         } catch (error) {
-          console.error(`Error processing holding ${holding.Token}:`, error);
+          console.warn(`[api]|[populateWithCurrentProfitsLosses]|Error processing holding ${holding.Token}:`, error);
           return {
             ...holding,
             currentPrice: null,
@@ -281,7 +281,7 @@ export async function populateWithCurrentProfitsLosses(holdings: HoldingRecord[]
         }
       });
     } catch (error) {
-      console.error('Error fetching current prices:', error);
+      console.warn('[api]|[populateWithCurrentProfitsLosses]|Error fetching current prices:', 0, {error, holdings});
       // Return holdings with error status
       return holdings.map(holding => ({
         ...holding,
@@ -317,7 +317,6 @@ export async function populateWithCurrentProfitsLosses(holdings: HoldingRecord[]
             1000,
             processRunCounter
           );
-          console.log(priceResponse, "priceResponse");
           
           // If we got a valid response with price data, break out of the retry loop
           if (priceResponse && priceResponse.data && priceResponse.data.data && 
@@ -341,16 +340,14 @@ export async function populateWithCurrentProfitsLosses(holdings: HoldingRecord[]
       
       const prices: TokenPrices = {};
       for (const tokenAddress of tokenAddresses) {
-        // Use the correct price path that includes the actual price
-        console.log(priceResponse.data.data[tokenAddress], "priceResponse[tokenAddress]");
-        prices[tokenAddress] = null; //priceResponse?.data?.data[tokenAddress]?.price || null;
+        prices[tokenAddress] = priceResponse?.data?.data[tokenAddress]?.price || null;
       }
 
-      console.log(prices, "prices");
+      console.log('[api]|[getJupiterPrices]|Prices:', 0, prices);
       
       return prices;
     } catch (error) {
-      console.error('Error fetching Jupiter prices:', error);
+      console.log('[api]|[getJupiterPrices]|Error fetching Jupiter prices:', 0, error);
       return Object.fromEntries(tokenAddresses.map(address => [address, null]));
     }
   }
@@ -398,10 +395,10 @@ async function getBirdeyeHistoricalPrices(
         if (response?.data?.success && response.data.data.items) {
           return [address, response.data.data.items];
         }
-        console.warn(`No price data found for token ${address}`);
+        console.log('[api]|[getBirdeyeHistoricalPrices]|No price data found for token', 0, `${address}`);
         return [address, []];
       } catch (error) {
-        console.error(`Error fetching historical prices for token ${address}:`, error);
+        console.log('[api]|[getBirdeyeHistoricalPrices]|Error fetching historical prices for token', 0, `${address}:`, error);
         return [address, []];
       }
     });
@@ -409,7 +406,7 @@ async function getBirdeyeHistoricalPrices(
     const results = await Promise.all(pricePromises);
     return Object.fromEntries(results);
   } catch (error) {
-    console.error('Error fetching Birdeye historical prices:', error);
+    console.log('[api]|[getBirdeyeHistoricalPrices]|Error fetching Birdeye historical prices:', 0, error);
     return {};
   }
 }
@@ -419,7 +416,7 @@ export async function getHistoricalWalletData(days: number = 30): Promise<Histor
         // Get the addresses from environment variables
         const addresses = process.env.PRIV_KEY_WALLETS?.split(',');
         if (!addresses || addresses.length === 0) {
-            console.error('No wallet addresses found in environment variables');
+            console.log('[api]|[getHistoricalWalletData]|No wallet addresses found in environment variables');
             return [];
         }
 
@@ -448,7 +445,7 @@ export async function getHistoricalWalletData(days: number = 30): Promise<Histor
             const rawData = await selectHistoricalDataByAccount(address, startDate, endDate);
             
             if (!rawData || rawData.length === 0) {
-                console.log(`No historical data found for wallet ${address}`);
+                console.log('[api]|[getHistoricalWalletData]|No historical data found for wallet', 0, `${address}`);
                 continue;
             }
 
@@ -494,12 +491,12 @@ export async function getHistoricalWalletData(days: number = 30): Promise<Histor
         const todayKey = endDate.toFormat('yyyy-MM-dd');
         const todayData = dailyData.get(todayKey);
         if (!todayData || todayData.tokens.length === 0) {
-            console.log('No data found for today, creating new records...');
+            console.log('[api]|[getHistoricalWalletData]|No data found for today, creating new records...');
             try {
                 // Create new records for the current time
                 const now = DateTime.now();
                 const results = await makeAccountHistoricalData(now);
-                console.log('Created new records for today:', results);
+                console.log('[api]|[getHistoricalWalletData]|Created new records for today:', results);
 
                 // Fetch the newly created records
                 const todayRecords = await selectHistoricalDataByAccount(addresses[0], endDate, endDate.plus({ days: 1 }));
@@ -533,14 +530,14 @@ export async function getHistoricalWalletData(days: number = 30): Promise<Histor
                     dailyData.set(todayKey, newTodayData);
                 }
             } catch (error) {
-                console.error('Error creating today\'s records:', error);
+                console.log('[api]|[getHistoricalWalletData]|Error creating today\'s records:', 0, error);
             }
         }
 
         // Convert map to sorted array and return
         return Array.from(dailyData.values()).sort((a, b) => a.timestamp - b.timestamp);
     } catch (error) {
-        console.error('Error fetching historical wallet data:', error);
+        console.log('[api]|[getHistoricalWalletData]|Error fetching historical wallet data:', 0, error);
         return [];
     }
 }
@@ -548,7 +545,7 @@ export async function getHistoricalWalletData(days: number = 30): Promise<Histor
 export async function addComments(tradingHistory: TransactionRecord[]): Promise<TransactionRecordWithComments[]> {
   return tradingHistory.map(transaction => ({
     ...transaction,
-    comment: "Caught this juicy Buy faster than your DMs, honey "
+    comment: "Wow that is the trade of the century, honey "
   }));
 }
 
@@ -579,11 +576,12 @@ export async function makeAccountHistoricalData(dateToUse: DateTime): Promise<{ 
                 if (success) {
                     results.success.push(`${token.tokenSymbol} (${address})`);
                 } else {
+                    console.log('[api]|[makeAccountHistoricalData]|Failed to insert', 0, `${token.tokenSymbol} (${address})`);
                     results.errors.push(`Failed to insert ${token.tokenSymbol} (${address})`);
                 }
             }
         } catch (error) {
-            console.error(`Error processing wallet ${address}:`, error);
+            console.log('[api]|[makeAccountHistoricalData]|Error processing wallet', 0, `${address}:`, error);
             results.errors.push(`Failed to process wallet ${address}: ${error instanceof Error ? error.message : String(error)}`);
         }
     }

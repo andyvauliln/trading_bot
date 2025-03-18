@@ -1,14 +1,10 @@
 import * as express from 'express';
 import { Request, Response } from 'express';
 import { getAllHoldings, getTotalProfitLoss, getProfitLossRecords, getAllTransactions } from '../bots/tracker-bot/holding.db';
-import { HoldingRecord } from '../bots/tracker-bot/types';
 import { getWalletData, populateWithCurrentProfitsLosses, getHistoricalWalletData, addComments, getPoolSizeData } from './helpers';
 import { WalletToken } from './types';
 
-
 const router = express.Router();
-
-
 
 // Get active holdings
 router.get('/active-holdings', (req: Request, res: Response) => {
@@ -27,7 +23,7 @@ router.get('/active-holdings', (req: Request, res: Response) => {
         data: holdingsWithCurrentProfitsLosses
       });
     } catch (error) {
-      console.error('Error fetching active holdings:', error);
+      console.error(`[api]|[active-holdings-api]|Error fetching active holdings: ${error}`, 0, req);
       res.status(500).json({ error: 'Failed to fetch active holdings' });
     }
   })();
@@ -45,7 +41,7 @@ router.get('/get-total-profit-loss', (req: Request, res: Response) => {
         data: profitLoss
       });
     } catch (error) {
-      console.error('Error fetching total profit/loss:', error);
+      console.error(`[api]|[get-total-profit-loss-api]|Error fetching total profit/loss: ${error}`, 0, req);
       res.status(500).json({ error: 'Failed to fetch total profit/loss' });
     }
   })();
@@ -69,7 +65,7 @@ router.get('/get-profit-losses', (req: Request, res: Response) => {
         data: records
       });
     } catch (error) {
-      console.error('Error getting profit/losses:', error);
+      console.error(`[api]|[get-profit-losses-api]|Error getting profit/losses: ${error}`, 0, req);
       res.status(500).json({ error: 'Failed to get profit/losses' });
     }
   })();
@@ -143,7 +139,7 @@ router.get('/performance-metrics', (req: Request, res: Response) => {
         }
       });
     } catch (error) {
-      console.error('Error fetching performance metrics:', error);
+      console.error(`[api]|[performance-metrics-api]|Error fetching performance metrics: ${error}`, 0, req);
       res.status(500).json({ error: 'Failed to fetch performance metrics' });
     }
   })();
@@ -203,7 +199,7 @@ router.get('/agent-performance-chart', (req: Request, res: Response) => {
         data: chartData
       });
     } catch (error) {
-      console.error('Error fetching agent performance chart data:', error);
+      console.error(`[api]|[agent-performance-chart-api]|Error fetching agent performance chart data: ${error}`, 0, req);
       res.status(500).json({ error: 'Failed to fetch agent performance chart data' });
     }
   })();
@@ -244,7 +240,7 @@ router.get('/get-pool-data', (req: Request, res: Response) => {
       });
 
     } catch (error) {
-      console.error('Error fetching pool data:', error);
+      console.error(`[api]|[get-pool-data-api]|Error fetching pool data: ${error}`, 0, req);
       res.status(500).json({ error: 'Failed to fetch pool data' });
     }
   })();
@@ -278,7 +274,7 @@ router.get('/get-pool-historical-data', (req: Request, res: Response) => {
       res.json(response);
 
     } catch (error) {
-      console.error('Error fetching pool historical data:', error);
+      console.error(`[api]|[get-pool-historical-data-api]|Error fetching pool historical data: ${error}`, 0, req);
       res.status(500).json({ error: 'Failed to fetch pool historical data' });
     }
   })();
@@ -289,15 +285,15 @@ router.get('/get-trading-history', (req: Request, res: Response) => {
     try {
       const { module, limit, offset } = req.query;
       const tradingHistory = await getAllTransactions({ module: module as string, limit: limit ? parseInt(limit as string) : undefined, offset: offset ? parseInt(offset as string) : undefined });
-      console.log(`[bots-api]|[get-trading-history]| Trading history:`, tradingHistory);
+      console.log(`[api]|[get-trading-history]| Trading history:`, tradingHistory);
       const historyWithComments = await addComments(tradingHistory);
-      console.log(`[bots-api]|[get-trading-history]| History with comments:`, historyWithComments);
+      console.log(`[api]|[get-trading-history]| History with comments:`, historyWithComments);
       res.json({
         success: true,
         data: historyWithComments
       });
     } catch (error) {
-      console.error('Error fetching trading history:', error);
+      console.error(`[api]|[get-trading-history-api]|Error fetching trading history: ${error}`, 0, req);
       res.status(500).json({ error: 'Failed to fetch trading history' });
     }
   })();

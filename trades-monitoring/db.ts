@@ -6,6 +6,7 @@ import { DateTime } from "luxon";
 
 // Posts
 export async function createHistoricalDataTable(database: any): Promise<boolean> {
+  console.log('Creating historical data table...');
   try {
     await database.exec(`
         CREATE TABLE IF NOT EXISTS historical_data (
@@ -21,7 +22,7 @@ export async function createHistoricalDataTable(database: any): Promise<boolean>
       `);
     return true;
   } catch (error: any) {
-    console.error("Error creating TokenData table:", error);
+    console.error(`[api]|[createHistoricalDataTable]|Error creating TokenData table: ${error}`);
     return false;
   }
 }
@@ -64,12 +65,12 @@ export async function selectHistoricalDataByAccount(account?: string, date_from?
     // Return the results
     return transfer;
   } catch (error: any) {
-    console.error("Error while getting historical data:", error);
+    console.error(`[api]|[selectHistoricalDataByAccount]|Error while getting historical data: ${error}`);
     return [];
   }
 }
 
-export async function insertHistoricalData(newPost: InsertHistoricalDataDetails): Promise<boolean> {
+export async function insertHistoricalData(data: InsertHistoricalDataDetails): Promise<boolean> {
   try {
     const db = await open({
       filename: config.db_historical_data_path,
@@ -85,7 +86,7 @@ export async function insertHistoricalData(newPost: InsertHistoricalDataDetails)
 
     // Proceed with adding holding
     if (historicalDataTableExists) {
-      const { account, token, symbol, tokenName, amount, usdPrice, time } = newPost;
+      const { account, token, symbol, tokenName, amount, usdPrice, time } = data;
 
       await db.run(
         `
@@ -97,9 +98,10 @@ export async function insertHistoricalData(newPost: InsertHistoricalDataDetails)
 
       await db.close();
     }
+    console.log(`[api]|[insertHistoricalData]|Historical data stored successfully`, 0, data);
     return true;
   } catch (error: any) {
-    console.error("Error storing historical data:", error);
+    console.error(`[api]|[insertHistoricalData]|Error storing historical data: ${error}`);
     return false;
   }
 }

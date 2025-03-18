@@ -1,7 +1,7 @@
 import express from 'express';
 import logsRouter from './logs-api';
 import holdingsRouter from './bots-api';
-import historicalDataRouter from './historical-data-api';
+import historicalDataRouter from './historical-wallet-data-api';
 import { config } from './config';
 import { exec } from 'child_process';
 import * as net from 'net';
@@ -52,16 +52,16 @@ const startServer = async () => {
     await logger.init();
     
     if (!portAvailable) {
-      console.log(`Port ${PORT} is busy, attempting to free it...`);
+      console.log(`[api]|[startServer]|Port ${PORT} is busy, attempting to free it...`);
       const pid = await findProcess(PORT);
       if (pid) {
         await killProcess(pid);
-        console.log(`Killed process ${pid} using port ${PORT}`);
+        console.log(`[api]|[startServer]|Killed process ${pid} using port ${PORT}`);
       }
     }
 
     app.listen(PORT, () => {
-      console.log(`Server is running on port ${PORT}`);
+      console.log(`[api]|[startServer]|Server is running on port ${PORT}`);
     }).on('error', async (e: any) => {
       if (e.code === 'EADDRINUSE') {
         console.log(`Port ${PORT} still in use, retrying in 1 second...`);
@@ -69,7 +69,7 @@ const startServer = async () => {
       }
     });
   } catch (error) {
-    console.error('Error starting server:', error);
+    console.error(`[api]|[startServer]|Error starting server:`, error);
     process.exit(1);
   }
 };

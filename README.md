@@ -140,3 +140,6 @@ TODO API:
 
 git config --global user.name "Andrei Vaulin"
 git config --global user.email "andy.vaulin@gmail.com"
+
+## Test server Api
+`http://35.204.20.112:9090/api/logs?module=tracker-bot`
