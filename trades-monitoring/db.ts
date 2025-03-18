@@ -22,7 +22,7 @@ export async function createHistoricalDataTable(database: any): Promise<boolean>
       `);
     return true;
   } catch (error: any) {
-    console.error(`[api]|[createHistoricalDataTable]|Error creating TokenData table: ${error}`);
+    console.error(`${config.name}|[createHistoricalDataTable]|Error creating TokenData table: ${error}`);
     return false;
   }
 }
@@ -65,7 +65,7 @@ export async function selectHistoricalDataByAccount(account?: string, date_from?
     // Return the results
     return transfer;
   } catch (error: any) {
-    console.error(`[api]|[selectHistoricalDataByAccount]|Error while getting historical data: ${error}`);
+    console.error(`${config.name}|[selectHistoricalDataByAccount]|Error while getting historical data: ${error}`);
     return [];
   }
 }
@@ -98,10 +98,10 @@ export async function insertHistoricalData(data: InsertHistoricalDataDetails): P
 
       await db.close();
     }
-    console.log(`[api]|[insertHistoricalData]|Historical data stored successfully`, 0, data);
+    console.log(`${config.name}|[insertHistoricalData]|Historical data stored successfully`, 0, data);
     return true;
   } catch (error: any) {
-    console.error(`[api]|[insertHistoricalData]|Error storing historical data: ${error}`);
+    console.error(`${config.name}|[insertHistoricalData]|Error storing historical data: ${error}`);
     return false;
   }
 }

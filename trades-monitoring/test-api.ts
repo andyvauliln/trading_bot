@@ -58,11 +58,13 @@ async function testHistoricalDataApi() {
 
 async function testLogsApi() {
     try {
-        const today = DateTime.now().toFormat('yyyy-MM-dd');
         
         // Test logs with module and date
         const logsResponse = await axios.get(`${BASE_URL}/api/logs?limit=10&module=tracker-bot`);
         formatResponse('/api/logs', true, logsResponse.data);
+
+        const liveLogsResponse = await axios.get(`${BASE_URL}/api/live-logs`);
+        formatResponse('/api/live-logs', true, liveLogsResponse.data);
 
     } catch (error) {
         formatResponse('Logs API', false, null, error);

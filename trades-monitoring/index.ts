@@ -52,24 +52,24 @@ const startServer = async () => {
     await logger.init();
     
     if (!portAvailable) {
-      console.log(`[api]|[startServer]|Port ${PORT} is busy, attempting to free it...`);
+      console.log(`${config.name}|[startServer]|Port ${PORT} is busy, attempting to free it...`);
       const pid = await findProcess(PORT);
       if (pid) {
         await killProcess(pid);
-        console.log(`[api]|[startServer]|Killed process ${pid} using port ${PORT}`);
+        console.log(`${config.name}|[startServer]|Killed process ${pid} using port ${PORT}`);
       }
     }
 
     app.listen(PORT, '0.0.0.0', () => {
-      console.log(`[api]|[startServer]| Server is running on http://0.0.0.0:${PORT}`);
+      console.log(`${config.name}|[startServer]| Server is running on http://0.0.0.0:${PORT}`);
     }).on('error', async (e: any) => {
       if (e.code === 'EADDRINUSE') {
-        console.log(`[api]|[startServer]|Port ${PORT} still in use, retrying in 1 second...`);
+        console.log(`${config.name}|[startServer]|Port ${PORT} still in use, retrying in 1 second...`);
         setTimeout(startServer, 1000);
       }
     });
   } catch (error) {
-    console.error(`[api]|[startServer]|Error starting server:`, error);
+    console.error(`${config.name}|[startServer]|Error starting server:`, error);
     process.exit(1);
   }
 };

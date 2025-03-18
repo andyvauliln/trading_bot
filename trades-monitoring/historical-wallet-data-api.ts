@@ -1,8 +1,8 @@
 import * as express from 'express';
 import { Request, Response } from 'express';
-import { getWalletData, getHistoricalWalletData, makeAccountHistoricalData } from './helpers';
+import { getHistoricalWalletData, makeAccountHistoricalData } from './helpers';
 import { DateTime } from 'luxon';
-
+import { config } from './config';
 const router = express.Router();
 
 // Helper function to round time to nearest 4-hour interval
@@ -81,7 +81,7 @@ router.get('/historical-wallet-data', (req: Request, res: Response) => {
                 count: historicalData.length
             });
         } catch (error) {
-            console.error('Error retrieving historical wallet data:', error);
+            console.error(`${config.name}|[historical-wallet-data-api]|Error retrieving historical wallet data:`, 0, error);
             return res.status(500).json({ 
                 status: 'error', 
                 message: 'Failed to retrieve historical wallet data',

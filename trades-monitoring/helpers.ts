@@ -27,13 +27,13 @@ async function getTokenMetadata(connection: Connection, mint: string) {
     
     // Fetch metadata using Metaplex
     const nft = await metaplex.nfts().findByMint({ mintAddress: mintPubkey });
-    console.log('[api]|[getTokenMetadata]|Successfully fetched metadata', 0, nft);
+    console.log(`${config.name}|[getTokenMetadata]|Successfully fetched metadata`, 0, nft);
     return {
       name: nft.name.trim().replace(/\0/g, ''),  // Remove null characters and trim
       symbol: nft.symbol.trim().replace(/\0/g, '') // Remove null characters and trim
     };
   } catch (error) {
-    console.log(`[api]|[getTokenMetadata]|Error fetching metadata for token ${mint}:`, 0, error);
+    console.log(`${config.name}|[getTokenMetadata]|Error fetching metadata for token ${mint}:`, 0, error);
     return { name: mint, symbol: 'UNKNOWN' };
   }
 }
@@ -42,7 +42,7 @@ export async function getDexscreenerPrices(tokenAddresses: string[]): Promise<De
     try {
       const tokenValues = tokenAddresses.join(",");
       const dexPriceUrl = `https://api.dexscreener.com/tokens/v1/solana/${tokenValues}`;
-      console.log('[api]|[getDexscreenerPrices]|Getting prices for tokens:', 0, tokenValues);
+      console.log(`${config.name}|[getDexscreenerPrices]|Getting prices for tokens:`, 0, tokenValues);
 
       const response = await retryAxiosRequest(
         () => axios.get<DexscreenerPair[]>(dexPriceUrl, {
@@ -79,10 +79,10 @@ export async function getDexscreenerPrices(tokenAddresses: string[]): Promise<De
         prices[tokenAddress] = bestPair ? parseFloat(bestPair.priceUsd) : null;
       }
 
-      console.log('[api]|[getDexscreenerPrices]|Prices:', 0, prices);
+      console.log(`${config.name}|[getDexscreenerPrices]|Prices:`, 0, prices);
       return { prices, pairs: pairsByToken };
     } catch (error) {
-      console.error('[api]|[getDexscreenerPrices]|Error fetching Dexscreener prices:', 0, error);
+      console.error(`${config.name}|[getDexscreenerPrices]|Error fetching Dexscreener prices:`, 0, error);
       return { 
         prices: Object.fromEntries(tokenAddresses.map(address => [address, null])), 
         pairs: {} 
@@ -128,7 +128,7 @@ export async function getPoolSizeData(): Promise<PoolSizeData> {
     : 0;
 
   // Log values to verify calculation
-  console.log('[api]|[getPoolSizeData]|Pool Size Data:', 0, {
+  console.log(`${config.name}|[getPoolSizeData]|Pool Size Data:`, 0, {
     currentValue: totalPoolUsdValue,
     previousValue: previousTotalPoolUsdValue,
     percentageChange: change,
@@ -256,7 +256,7 @@ export async function populateWithCurrentProfitsLosses(holdings: HoldingRecord[]
               priceError: null
             };
           } else {
-            console.warn(`[api]|[populateWithCurrentProfitsLosses]|can not get price for ${holding.Token}`, tokenCurrentPrice);
+            console.warn(`${config.name}|[populateWithCurrentProfitsLosses]|can not get price for ${holding.Token}`, tokenCurrentPrice);
             return {
               ...holding,
               currentPrice: null,
@@ -268,7 +268,7 @@ export async function populateWithCurrentProfitsLosses(holdings: HoldingRecord[]
             };
           }
         } catch (error) {
-          console.warn(`[api]|[populateWithCurrentProfitsLosses]|Error processing holding ${holding.Token}:`, error);
+          console.warn(`${config.name}|[populateWithCurrentProfitsLosses]|Error processing holding ${holding.Token}:`, error);
           return {
             ...holding,
             currentPrice: null,
@@ -281,7 +281,7 @@ export async function populateWithCurrentProfitsLosses(holdings: HoldingRecord[]
         }
       });
     } catch (error) {
-      console.warn('[api]|[populateWithCurrentProfitsLosses]|Error fetching current prices:', 0, {error, holdings});
+      console.warn(`${config.name}|[populateWithCurrentProfitsLosses]|Error fetching current prices:`, 0, {error, holdings});
       // Return holdings with error status
       return holdings.map(holding => ({
         ...holding,
@@ -343,11 +343,11 @@ export async function populateWithCurrentProfitsLosses(holdings: HoldingRecord[]
         prices[tokenAddress] = priceResponse?.data?.data[tokenAddress]?.price || null;
       }
 
-      console.log('[api]|[getJupiterPrices]|Prices:', 0, prices);
+      console.log(`${config.name}|[getJupiterPrices]|Prices:`, 0, prices);
       
       return prices;
     } catch (error) {
-      console.log('[api]|[getJupiterPrices]|Error fetching Jupiter prices:', 0, error);
+      console.warn(`${config.name}|[getJupiterPrices]|Error fetching Jupiter prices:`, 0, error);
       return Object.fromEntries(tokenAddresses.map(address => [address, null]));
     }
   }
@@ -395,10 +395,10 @@ async function getBirdeyeHistoricalPrices(
         if (response?.data?.success && response.data.data.items) {
           return [address, response.data.data.items];
         }
-        console.log('[api]|[getBirdeyeHistoricalPrices]|No price data found for token', 0, `${address}`);
+        console.warn(`${config.name}|[getBirdeyeHistoricalPrices]|No price data found for token`, 0, `${address}`);
         return [address, []];
       } catch (error) {
-        console.log('[api]|[getBirdeyeHistoricalPrices]|Error fetching historical prices for token', 0, `${address}:`, error);
+        console.error(`${config.name}|[getBirdeyeHistoricalPrices]|Error fetching historical prices for token`, 0, `${address}:`, error);
         return [address, []];
       }
     });
@@ -406,7 +406,7 @@ async function getBirdeyeHistoricalPrices(
     const results = await Promise.all(pricePromises);
     return Object.fromEntries(results);
   } catch (error) {
-    console.log('[api]|[getBirdeyeHistoricalPrices]|Error fetching Birdeye historical prices:', 0, error);
+    console.error(`${config.name}|[getBirdeyeHistoricalPrices]|Error fetching Birdeye historical prices:`, 0, error);
     return {};
   }
 }
@@ -416,7 +416,7 @@ export async function getHistoricalWalletData(days: number = 30): Promise<Histor
         // Get the addresses from environment variables
         const addresses = process.env.PRIV_KEY_WALLETS?.split(',');
         if (!addresses || addresses.length === 0) {
-            console.log('[api]|[getHistoricalWalletData]|No wallet addresses found in environment variables');
+            console.warn(`${config.name}|[getHistoricalWalletData]|No wallet addresses found in environment variables`);
             return [];
         }
 
@@ -445,7 +445,7 @@ export async function getHistoricalWalletData(days: number = 30): Promise<Histor
             const rawData = await selectHistoricalDataByAccount(address, startDate, endDate);
             
             if (!rawData || rawData.length === 0) {
-                console.log('[api]|[getHistoricalWalletData]|No historical data found for wallet', 0, `${address}`);
+                console.warn(`${config.name}|[getHistoricalWalletData]|No historical data found for wallet`, 0, `${address}`);
                 continue;
             }
 
@@ -491,12 +491,12 @@ export async function getHistoricalWalletData(days: number = 30): Promise<Histor
         const todayKey = endDate.toFormat('yyyy-MM-dd');
         const todayData = dailyData.get(todayKey);
         if (!todayData || todayData.tokens.length === 0) {
-            console.log('[api]|[getHistoricalWalletData]|No data found for today, creating new records...');
+            console.warn(`${config.name}|[getHistoricalWalletData]|No data found for today, creating new records...`);
             try {
                 // Create new records for the current time
                 const now = DateTime.now();
                 const results = await makeAccountHistoricalData(now);
-                console.log('[api]|[getHistoricalWalletData]|Created new records for today:', results);
+                console.log(`${config.name}|[getHistoricalWalletData]|Created new records for today:`, results);
 
                 // Fetch the newly created records
                 const todayRecords = await selectHistoricalDataByAccount(addresses[0], endDate, endDate.plus({ days: 1 }));
@@ -530,14 +530,14 @@ export async function getHistoricalWalletData(days: number = 30): Promise<Histor
                     dailyData.set(todayKey, newTodayData);
                 }
             } catch (error) {
-                console.log('[api]|[getHistoricalWalletData]|Error creating today\'s records:', 0, error);
+                console.error(`${config.name}|[getHistoricalWalletData]|Error creating today\'s records:`, 0, error);
             }
         }
 
         // Convert map to sorted array and return
         return Array.from(dailyData.values()).sort((a, b) => a.timestamp - b.timestamp);
     } catch (error) {
-        console.log('[api]|[getHistoricalWalletData]|Error fetching historical wallet data:', 0, error);
+        console.error(`${config.name}|[getHistoricalWalletData]|Error fetching historical wallet data:`, 0, error);
         return [];
     }
 }
@@ -576,12 +576,12 @@ export async function makeAccountHistoricalData(dateToUse: DateTime): Promise<{ 
                 if (success) {
                     results.success.push(`${token.tokenSymbol} (${address})`);
                 } else {
-                    console.log('[api]|[makeAccountHistoricalData]|Failed to insert', 0, `${token.tokenSymbol} (${address})`);
+                    console.warn(`${config.name}|[makeAccountHistoricalData]|Failed to insert`, 0, `${token.tokenSymbol} (${address})`);
                     results.errors.push(`Failed to insert ${token.tokenSymbol} (${address})`);
                 }
             }
         } catch (error) {
-            console.log('[api]|[makeAccountHistoricalData]|Error processing wallet', 0, `${address}:`, error);
+            console.error(`${config.name}|[makeAccountHistoricalData]|Error processing wallet`, 0, `${address}:`, error);
             results.errors.push(`Failed to process wallet ${address}: ${error instanceof Error ? error.message : String(error)}`);
         }
     }

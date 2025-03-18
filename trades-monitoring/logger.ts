@@ -73,22 +73,22 @@ class Logger {
       try {
         const discordClient = await initializeDiscordClient();
         if (discordClient) {
-          console.log('[api]|[logger]|✅ Discord client initialized for error logging');
+          console.log(`${config.name}|[logger]|✅ Discord client initialized for error logging`);
           
           // Test the channel to ensure it exists
           const channel = await getDiscordChannel(this.discordChannel);
           if (channel) {
-            console.log(`[api]|[logger]|✅ Successfully connected to Discord error channel: ${this.discordChannel}`);
+            console.log(`${config.name}|[logger]|✅ Successfully connected to Discord error channel: ${this.discordChannel}`);
           } else {
-            console.warn(`[api]|[logger]|⚠️ Could not find Discord error channel with ID: ${this.discordChannel}`);
+            console.warn(`${config.name}|[logger]|⚠️ Could not find Discord error channel with ID: ${this.discordChannel}`);
             this.discordEnabled = false;
           }
         } else {
-          console.warn('[api]|[logger]|⚠️ Failed to initialize Discord client for error logging');
+          console.warn(`${config.name}|[logger]|⚠️ Failed to initialize Discord client for error logging`);
           this.discordEnabled = false;
         }
       } catch (error) {
-        console.error('[api]|[logger]|🚫 Error initializing Discord for error logging:', error);
+        console.error(`${config.name}|[logger]|🚫 Error initializing Discord for error logging:`, error);
         this.discordEnabled = false;
       }
     }
@@ -123,7 +123,7 @@ class Logger {
           )
         `);
       } catch (error) {
-        this.originalConsoleError('[api]|[logger]|Failed to initialize logger database:', 0, error);
+        this.originalConsoleError(`${config.name}|[logger]|Failed to initialize logger database:`, 0, error);
       }
     }
   }
@@ -218,7 +218,7 @@ class Logger {
     if ((type === 'error' || type === 'warn' || tag !== '') && this.discordEnabled) {
       // Use a non-blocking call to avoid delaying the logging process
       this.sendLogsToDiscord(logEntry).catch(err => {
-        this.originalConsoleError('[api]|[logger]|Failed to send log to Discord:', err);
+        this.originalConsoleError(`${config.name}|[logger]|Failed to send log to Discord:`, err);
       });
     }
 
@@ -230,7 +230,7 @@ class Logger {
       try {
         this.saveLogs();
       } catch (error) {
-        this.originalConsoleError('[api]|[logger]|Failed to save logs on cycle change:', 0, error);
+        this.originalConsoleError(`${config.name}|[logger]|Failed to save logs on cycle change:`, 0, error);
       }
     }
   }
@@ -263,7 +263,7 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
       
       fs.appendFileSync(config.logger.file_logs_path, logContent);
     } catch (error) {
-      console.error('[api]|[logger]|Failed to write logs to file:', 0, error);
+      console.error(`${config.name}|[logger]|Failed to write logs to file:`, 0, error);
     }
   }
   
@@ -351,7 +351,7 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
       } catch (rollbackError) {
         // Ignore rollback errors as the transaction might have already been rolled back
       }
-      this.originalConsoleError('[api]|[logger]|Failed to save logs to database:', error);
+      this.originalConsoleError(`${config.name}|[logger]|Failed to save logs to database:`, error);
     } finally {
       // Ensure statement is finalized
       if (stmt?.finalize) {
@@ -385,7 +385,7 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
       // Send the message to Discord
       return await sendMessageOnDiscord(this.discordChannel, [formattedMessage.join('\n')]);
     } catch (error) {
-      this.originalConsoleError('[api]|[logger]|Failed to send log to Discord:', error);
+      this.originalConsoleError(`${config.name}|[logger]|Failed to send log to Discord:`, error);
       return false;
     }
   }
