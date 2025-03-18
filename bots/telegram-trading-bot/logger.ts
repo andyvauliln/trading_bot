@@ -44,13 +44,13 @@ class Logger {
                           !!this.discordChannel;
     
     if (isDiscordExplicitlyDisabled) {
-      console.log(`[${this.moduleName}]|[logger]|ℹ️ Discord logging is disabled by SEND_TO_DISCORD setting`);
+      console.log(`${config.name}|[logger]|ℹ️ Discord logging is disabled by SEND_TO_DISCORD setting`);
     } else if (!process.env.SEND_TO_DISCORD) {
-      console.log(`[${this.moduleName}]|[logger]|ℹ️ Discord logging is disabled (SEND_TO_DISCORD not set)`);
+      console.log(`${config.name}|[logger]|ℹ️ Discord logging is disabled (SEND_TO_DISCORD not set)`);
     } else if (this.discordEnabled) {
-      console.log(`[${this.moduleName}]|[logger]|✅ Discord logging is enabled`);
+      console.log(`${config.name}|[logger]|✅ Discord logging is enabled`);
     } else {
-      console.log(`[${this.moduleName}]|[logger]|🚫 Discord logging is disabled - missing DISCORD_BOT_TOKEN or DISCORD_TELEGRAM_BOT_CHANNEL`);
+      console.log(`${config.name}|[logger]|🚫 Discord logging is disabled - missing DISCORD_BOT_TOKEN or DISCORD_TELEGRAM_BOT_CHANNEL`);
     }
   }
 
@@ -74,22 +74,22 @@ class Logger {
       try {
         const discordClient = await initializeDiscordClient();
         if (discordClient) {
-          console.log(`[${this.moduleName}]|[logger]|✅ Discord client initialized for error logging`);
+          console.log(`${config.name}|[logger]|✅ Discord client initialized for error logging`);
           
           // Test the channel to ensure it exists
           const channel = await getDiscordChannel(this.discordChannel);
           if (channel) {
-            console.log(`[${this.moduleName}]|[logger]|✅ Successfully connected to Discord error channel: ${this.discordChannel}`);
+            console.log(`${config.name}|[logger]|✅ Successfully connected to Discord error channel: ${this.discordChannel}`);
           } else {
-            console.warn(`[${this.moduleName}]|[logger]|⚠️ Could not find Discord error channel with ID: ${this.discordChannel}`);
+            console.warn(`${config.name}|[logger]|⚠️ Could not find Discord error channel with ID: ${this.discordChannel}`);
             this.discordEnabled = false;
           }
         } else {
-          console.warn(`[${this.moduleName}]|[logger]|⚠️ Failed to initialize Discord client for error logging`);
+          console.warn(`${config.name}|[logger]|⚠️ Failed to initialize Discord client for error logging`);
           this.discordEnabled = false;
         }
       } catch (error) {
-        console.error(`[${this.moduleName}]|[logger]|🚫 Error initializing Discord for error logging:`, error);
+        console.error(`${config.name}|[logger]|🚫 Error initializing Discord for error logging:`, error);
         this.discordEnabled = false;
       }
     }
@@ -226,7 +226,7 @@ class Logger {
     if ((type === 'error' || type === 'warn' || tag !== '') && this.discordEnabled) {
       // Use a non-blocking call to avoid delaying the logging process
       this.sendLogsToDiscord(logEntry).catch(err => {
-        this.originalConsoleError(`[${this.moduleName}]|[logger]|Failed to send log to Discord:`, err);
+        this.originalConsoleError(`${config.name}|[logger]|Failed to send log to Discord:`, err);
       });
     }
 
@@ -367,7 +367,7 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
       const oldCycle = this.cycle;
       // Update cycle before saving so logs are saved with the correct cycle
       this.cycle = cycle;
-      this.originalConsoleLog(`[${this.moduleName}]|[logger]| Cycle changing from ${oldCycle} to ${cycle}, saving logs`);
+      this.originalConsoleLog(`${config.name}|[logger]| Cycle changing from ${oldCycle} to ${cycle}, saving logs`);
       
       // Save to database and wait for it to complete
       try {
@@ -418,7 +418,7 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
       // Send the message to Discord
       return await sendMessageOnDiscord(this.discordChannel, [formattedMessage.join('\n')]);
     } catch (error) {
-      this.originalConsoleError(`[${this.moduleName}]|[logger]|Failed to send log to Discord:`, error);
+      this.originalConsoleError(`${config.name}|[logger]|Failed to send log to Discord:`, error);
       return false;
     }
   }
@@ -440,7 +440,7 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
           await module.shutdownDiscordClient();
         });
       } catch (error) {
-        this.originalConsoleError(`[${this.moduleName}]|[logger]|Error shutting down Discord client:`, error);
+        this.originalConsoleError(`${config.name}|[logger]|Error shutting down Discord client:`, error);
       }
     }
   }

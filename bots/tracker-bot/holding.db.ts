@@ -23,7 +23,7 @@ export async function initializeDatabaseTables(): Promise<boolean> {
     return holdingsTableCreated && tokensTableCreated && 
            profitLossTableCreated && transactionsTableCreated;  // Update this line
   } catch (error: any) {
-    console.error(`Error initializing database tables: ${error.message}`);
+    console.error(`${config.name}|[initializeDatabaseTables]| Error initializing database tables: ${error.message}`);
     return false;
   }
 }
@@ -69,9 +69,6 @@ export async function getAllHoldings(): Promise<HoldingRecord[]> {
   }
 
   const holdings = await db.all(`SELECT * FROM holdings;`);
-  console.log(`Holdings table exists: ${holdingsTableExist}`);
-  console.log(`Fetched holdings: ${holdings.length}`, holdings);
-  console.log(`[holding-db]|[getAllHoldings]| Fetched holdings: ${config.db_name_tracker_holdings}`);
   await db.close();
   return holdings;
 }
@@ -79,9 +76,6 @@ export async function getAllHoldings(): Promise<HoldingRecord[]> {
 // ***************************INSERT HOLDING**************************
 
 export async function insertHolding(holding: HoldingRecord, processRunCounter: number) {
-  console.log(`[holding-db]|[insertHolding]| Database file: ${config.db_name_tracker_holdings}`); // Log the database file path
-  console.log(`[holding-db]|[insertHolding]| Holding data:`, holding); // Log the holding data being inserted
-  console.log(`[holding-db]|[insertHolding]| Inserting holding:`, processRunCounter, holding);
   const db = await open({
     filename: config.db_name_tracker_holdings,
     driver: sqlite3.Database,
@@ -104,7 +98,7 @@ export async function insertHolding(holding: HoldingRecord, processRunCounter: n
       [Time, Token, TokenName, Balance, SolPaid, SolFeePaid, SolPaidUSDC, SolFeePaidUSDC, PerTokenPaidUSDC, Slot, Program, BotName, WalletPublicKey]
     );
 
-    console.log(`[holding-db]|[insertHolding]| Holding inserted successfully`, processRunCounter);
+    console.log(`${config.name}|[insertHolding]| Holding inserted successfully`, processRunCounter, holding);
 
     await db.close();
   }
@@ -136,7 +130,9 @@ export async function getHoldingRecord(token: string, processRunCounter: number,
 
   await db.close();
 
-  console.log(`[holding-db]|[getHoldingRecord]| Found token: ${tokenRecord ? "Found" : "Not Found"}${walletPublicKey ? ` for wallet ${walletPublicKey}` : ''}`, processRunCounter, tokenRecord);
+  if (!tokenRecord) {
+    console.warn(`${config.name}|[getHoldingRecord]| Token not found: ${token}${walletPublicKey ? ` for wallet ${walletPublicKey}` : ''}`, processRunCounter);
+  }
 
   return tokenRecord || null;
 }
@@ -164,8 +160,6 @@ export async function getWalletHoldings(walletPublicKey?: string): Promise<Holdi
   
   const holdings = await db.all(query, params);
   
-  console.log(`Holdings table exists: ${holdingsTableExist}`);
-  console.log(`Fetched holdings: ${holdings.length}`, holdings);
   await db.close();
   return holdings;
 }
@@ -298,8 +292,6 @@ export async function getHoldings(options?: {
   }
 
   const holdings = await db.all(query, params);
-  console.log(`Holdings table exists: ${holdingsTableExist}`);
-  console.log(`Fetched holdings: ${holdings.length}`, holdings);
   await db.close();
   return holdings;
 }
@@ -328,7 +320,7 @@ export async function removeHolding(tokenMint: string, processRunCounter: number
 
   await db.run(query, params);
 
-  console.log(`[holding-db]|[removeHolding]| Holding removed successfully${walletPublicKey ? ` for wallet ${walletPublicKey}` : ''}`, processRunCounter);
+  console.log(`${config.name}|[removeHolding]| Holding removed successfully${walletPublicKey ? ` for wallet ${walletPublicKey}` : ''}`, processRunCounter);
 
   await db.close();
 }
@@ -355,7 +347,6 @@ export async function createTableNewTokens(database: any): Promise<boolean> {
 }
 
 export async function insertNewToken(newToken: NewTokenRecord, processRunCounter: number, rug_conditions: any[]) {
-  console.log(`[holding-db]|[insertNewToken]| Inserting new token:`, processRunCounter, newToken);
   const db = await open({
     filename: config.db_name_tracker_holdings,
     driver: sqlite3.Database,
@@ -378,7 +369,6 @@ export async function insertNewToken(newToken: NewTokenRecord, processRunCounter
     `,
     [mint]
   );
-  console.log(`[holding-db]|[insertNewToken]| Existing token: ${existingToken ? "Found" : "Not Found"}`, processRunCounter, existingToken);
   if (existingToken) {
     await db.close();
     return;
@@ -392,7 +382,7 @@ export async function insertNewToken(newToken: NewTokenRecord, processRunCounter
     `,
     [time, name, mint, creator, rug_conditions]
   );
-  console.log(`[holding-db]|[insertNewToken]| New token inserted successfully`, processRunCounter);
+  console.log(`${config.name}|[insertNewToken]| New token inserted successfully`, processRunCounter);
 
   await db.close();
 }
@@ -421,8 +411,6 @@ export async function selectTokenByNameAndCreator(name: string, creator: string,
     [name, creator]
   );
 
-  console.log(`[holding-db]|[selectTokenByNameAndCreator]| Found token number: ${tokens.length}`, processRunCounter, tokens);
-
   // Close the database
   await db.close();
 
@@ -431,7 +419,6 @@ export async function selectTokenByNameAndCreator(name: string, creator: string,
 }
 
 export async function selectTokenByMint(mint: string, processRunCounter: number): Promise<NewTokenRecord[]> {
-  console.log(`[holding-db]|[selectTokenByMint]| Selecting token by mint: ${mint}`, processRunCounter);
   // Open the database
   const db = await open({
     filename: config.db_name_tracker_holdings,
@@ -455,8 +442,6 @@ export async function selectTokenByMint(mint: string, processRunCounter: number)
   `,
     [mint]
   );
-
-  console.log(`[holding-db]|[selectTokenByMint]| Found token number: ${tokens.length}`, processRunCounter, tokens);
 
   // Close the database
   await db.close();
@@ -486,8 +471,6 @@ export async function selectAllTokens(processRunCounter: number): Promise<NewTok
     FROM tokens;
   `
   );
-
-  console.log(`[holding-db]|[selectAllTokens]| Found token number: ${tokens.length}`, processRunCounter, tokens);
 
   // Close the database
   await db.close();
@@ -526,14 +509,13 @@ export async function createTableProfitLoss(database: any): Promise<boolean> {
   `);
     return true;
   } catch (error: any) {
-    console.error(`Error creating profit_loss table: ${error.message}`);
+    console.error(`${config.name}|[createTableProfitLoss]| Error creating profit_loss table: ${error.message}`);
     return false;
   }
 }
 
 // ***************************INSERT PROFIT LOSS RECORD**************************
 export async function insertProfitLoss(record: ProfitLossRecord, processRunCounter: number) {
-  console.log(`[holding-db]|[insertProfitLoss]| Inserting profit/loss record:`, processRunCounter, record);
   const db = await open({
     filename: config.db_name_tracker_holdings,
     driver: sqlite3.Database,
@@ -588,7 +570,7 @@ export async function insertProfitLoss(record: ProfitLossRecord, processRunCount
     ]
   );
 
-  console.log(`[holding-db]|[insertProfitLoss]| Profit/loss record inserted successfully`, processRunCounter);
+  console.log(`${config.name}|[insertProfitLoss]| Profit/loss record inserted successfully`, processRunCounter, record);
 
   await db.close();
 }
@@ -841,7 +823,7 @@ export async function createTableTransactions(database: any): Promise<boolean> {
   `);
     return true;
   } catch (error: any) {
-    console.error(`Error creating transactions table: ${error.message}`);
+    console.error(`${config.name}|[createTableTransactions]| Error creating transactions table: ${error.message}`);
     return false;
   }
 }
@@ -861,7 +843,6 @@ export async function insertTransaction(transaction: {
   BotName: string;
   WalletPublicKey: string;
 }, processRunCounter: number) {
-  console.log(`[holding-db]|[insertTransaction]| Inserting transaction:`, processRunCounter, transaction);
   const db = await open({
     filename: config.db_name_tracker_holdings,
     driver: sqlite3.Database,
@@ -905,7 +886,7 @@ export async function insertTransaction(transaction: {
     ]
   );
 
-  console.log(`[holding-db]|[insertTransaction]| Transaction inserted successfully`, processRunCounter);
+  console.log(`${config.name}|[insertTransaction]| Transaction inserted successfully`, processRunCounter, transaction);
 
   await db.close();
 }
@@ -921,7 +902,6 @@ export async function getAllTransactions(options?: {
     filename: config.db_name_tracker_holdings,
     driver: sqlite3.Database,
   });
-  console.log(`[holding-db]|[getAllTransactions]| Database file: ${config.db_name_tracker_holdings}`);
 
   // Create Table if not exists
   const transactionsTableExist = await createTableTransactions(db);
@@ -957,7 +937,6 @@ export async function getAllTransactions(options?: {
   
 
   const records = await db.all(query, params);
-  console.log(`[holding-db]|[getAllTransactions]| Query: ${query}`,0, records);
   await db.close();
   return records;
 }
