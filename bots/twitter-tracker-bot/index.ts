@@ -2,8 +2,7 @@ import * as dotenv from "dotenv";
 import puppeteer, { ConsoleMessage } from "puppeteer"; // Puppeteer is a JavaScript library which provides a high-level API to control Chrome or Firefox
 import { config } from "./config"; // Configuration parameters for our bot
 import { insertNewPost, selectPostExistsByPostId } from "./db";
-import { sendMessageOnDiscord } from "../discord/discordSend";
-import { Client, Events, GatewayIntentBits, EmbedBuilder } from "discord.js";
+import { initializeDiscordClient, getDiscordChannel, sendMessageOnDiscord, shutdownDiscordClient } from "../discord/discordSend";
 import { InsertNewPostDetails } from "./types";
 
 // Load environment variables from the .env file
@@ -185,56 +184,21 @@ async function getXAccountLatestPosts(name: string, handle: string): Promise<str
   }
 }
 
-// Discord
-let discordClient: any = null;
-let botChannel: any = null;
-async function initializeDiscord(channel: string, botToken: string): Promise<boolean> {
-  const discordBotToken = botToken || "";
-  const botChannelId = channel || "";
-
-  if (!discordBotToken || !botChannelId) {
-    console.log("🚫 Discord Bot not started. Missing Discord bot token or channel ID.");
-    return false;
-  }
-
-  try {
-    // Initialize and log in the Discord client
-    discordClient = new Client({
-      intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
-    });
-    await discordClient.login(discordBotToken);
-
-    // Make sure bot is ready
-    await discordClient.on(Events.ClientReady, () => {
-      // Fetch the bot channel
-      botChannel = discordClient.channels.cache.get(botChannelId);
-
-      if (botChannel) {
-        console.log("✅ Discord bot connected.");
-      } else {
-        console.log("🚫 Bot channel not found or is not a TextChannel.");
-        return false;
-      }
-    });
-
-    return true;
-  } catch (error) {
-    console.error("🚫 Error initializing Discord bot:", error);
-    return false;
-  }
-}
-
 // Main to fetch tweets
 async function main(): Promise<void> {
-  if (!discordClient && !botChannel) {
-    // Discord Parameters
-    const discordChannel = process.env.DISCORD_CT_TRACKER_CHANNEL || "";
-    const discordBot = process.env.DISCORD_BOT_TOKEN || "";
-    // const init = await initializeDiscord(discordChannel, discordBot);
-    // if (init) console.log("✅ Discord bot ready for use.");
-  }
-
   try {
+    // Initialize Discord client
+    const discordChannel = process.env.DISCORD_CT_TRACKER_CHANNEL || "";
+    const discordClient = await initializeDiscordClient();
+    
+    // Get the Discord channel if client was initialized
+    const botChannel = discordClient ? await getDiscordChannel(discordChannel) : null;
+    if (botChannel) {
+      console.log("✅ Discord bot ready for use.");
+    } else {
+      console.warn("🚫 Discord bot not ready for use.");
+    }
+
     // Accounts
     const xAccounts = config.bot_twitter.accounts;
     const discordMessages: string[] = [];
@@ -302,8 +266,8 @@ async function main(): Promise<void> {
       // Output amount of posts
       console.log("✅ Collected " + discordMessages.length + " tweets.");
 
-      // const sentConfirmation = await sendMessageOnDiscord(botChannel, discordMessages);
-      // if (sentConfirmation) console.log("✅ Discord Messages Sent!");
+      const sentConfirmation = await sendMessageOnDiscord(botChannel, discordMessages);
+      if (sentConfirmation) console.log("✅ Discord Messages Sent!");
     }
 
     setTimeout(main, config.bot_twitter.tracker_timeout);
@@ -311,6 +275,19 @@ async function main(): Promise<void> {
     console.error("Error:", error);
   }
 }
+
+// Handle cleanup on process exit
+process.on('SIGINT', async () => {
+  console.log('Gracefully shutting down...');
+  await shutdownDiscordClient();
+  process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+  console.log('Gracefully shutting down...');
+  await shutdownDiscordClient();
+  process.exit(0);
+});
 
 main().catch((err) => {
   console.error("Initialization error:", err.message);

@@ -1,61 +1,69 @@
-import * as dotenv from "dotenv";
-import { Client, Events, GatewayIntentBits } from "discord.js";
+import dotenv from "dotenv";
+import { initializeDiscordClient, getDiscordChannel, sendMessageOnDiscord, shutdownDiscordClient } from "./discordSend";
 
 // Load environment variables
 dotenv.config();
 
-// Discord client setup
-const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-  ],
-});
-
 // Discord Parameters
 const discordChannel = process.env.DISCORD_CT_TRACKER_CHANNEL || "";
-const discordBotToken = "qY7vJYFszxyz6zkrCjLRvl17Si3Td5lT4-NN7Dy8akYHy90FEqlWddxTHJajBFlxsN6x";
+const discordBotToken = process.env.DISCORD_BOT_TOKEN || "";
 
 if (!discordBotToken || !discordChannel) {
   console.log("🚫 Missing Discord bot token or channel ID");
   process.exit(1);
 }
 
-// When bot is ready
-client.on(Events.ClientReady, async () => {
-  console.log("✅ Discord bot connected");
-  
-  // Get the channel
-  const channel = client.channels.cache.get(discordChannel);
-  
-  if (!channel) {
-    console.log("🚫 Channel not found");
+// Run a test to send a message via Discord
+async function runDiscordTest() {
+  try {
+    // Initialize the client
+    console.log("Initializing Discord client...");
+    const client = await initializeDiscordClient(discordBotToken);
+    
+    if (!client) {
+      console.log("🚫 Failed to initialize Discord client");
+      process.exit(1);
+    }
+    
+    console.log("✅ Discord client initialized");
+    
+    // Get the channel
+    console.log(`Getting channel ${discordChannel}...`);
+    const channel = await getDiscordChannel(discordChannel, client);
+    
+    if (!channel) {
+      console.log(`🚫 Channel with ID ${discordChannel} not found`);
+      await shutdownDiscordClient();
+      process.exit(1);
+    }
+    
+    console.log(`✅ Found channel ${channel.id}`);
+    
+    // Send a test message
+    console.log("Sending test message...");
+    const success = await sendMessageOnDiscord(channel, ["🤖 Test message from Discord bot!"]);
+    
+    if (success) {
+      console.log("✅ Test message sent successfully!");
+    } else {
+      console.log("🚫 Failed to send test message");
+      await shutdownDiscordClient();
+      process.exit(1);
+    }
+    
+    // Optional: Close the Discord client
+    // await shutdownDiscordClient();
+    // process.exit(0);
+  } catch (error) {
+    console.error("🚫 Error during Discord test:", error);
+    await shutdownDiscordClient();
     process.exit(1);
   }
+}
 
-  try {
-    // Send a test message
-    if ('send' in channel) {
-      await channel.send("🤖 Test message from Discord bot!");
-      console.log("✅ Test message sent successfully!");
-    }
-  } catch (error) {
-    console.error("🚫 Error sending message:", error);
-  }
-
-  // Optional: Close the bot after sending the message
-  // client.destroy();
-  // process.exit(0);
-});
-
-// Handle errors
-client.on('error', (error) => {
-  console.error('Discord client error:', error);
-});
-
-// Login
-client.login(discordBotToken).catch((error) => {
-  console.error("🚫 Failed to login:", error);
+// Start the test
+runDiscordTest().catch(async (error) => {
+  console.error("🚫 Unhandled error:", error);
+  await shutdownDiscordClient();
   process.exit(1);
 });

@@ -49,7 +49,7 @@ export const config = {
   simulation_mode: true,
   logger: {
     keeping_days_in_db: 10,
-    terminal_logs: process.env.NODE_ENV === 'development',
+    terminal_logs: process.env.IS_TERMINAL_LOG === 'true' || process.env.NODE_ENV === 'development',
     db_logs: true,
     file_logs: process.env.FILE_LOGS === 'true',
     db_logs_path: path.resolve(process.cwd(), 'data', 'app-logs.db'),

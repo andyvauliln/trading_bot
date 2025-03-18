@@ -4,6 +4,7 @@ import sqlite3 from 'sqlite3';
 import { open, Statement } from 'sqlite';
 import { config } from './config';
 import { v4 as uuidv4 } from 'uuid';
+import { initializeDiscordClient, getDiscordChannel, sendMessageOnDiscord } from "../discord/discordSend";
 
 // Logger class to handle logging to console, file, and database
 class Logger {
@@ -16,7 +17,8 @@ class Logger {
   private originalConsoleLog: any;
   private originalConsoleError: any;
   private originalConsoleWarn: any;
-  private cleanupInterval: NodeJS.Timeout | null = null;
+  private discordChannel: string = '';
+  private discordEnabled: boolean = false;
 
   constructor() {
     this.moduleName = config.name;
@@ -25,6 +27,31 @@ class Logger {
     this.originalConsoleLog = console.log;
     this.originalConsoleError = console.error;
     this.originalConsoleWarn = console.warn;
+    
+    // Initialize Discord settings
+    this.discordChannel = process.env.DISCORD_TELEGRAM_BOT_CHANNEL || '';
+    
+    // Check if Discord logging is explicitly enabled/disabled via SEND_TO_DISCORD flag
+    const sendToDiscord = process.env.SEND_TO_DISCORD?.toLowerCase();
+    const isDiscordExplicitlyEnabled = sendToDiscord === 'true' || sendToDiscord === '1' || sendToDiscord === 'yes';
+    const isDiscordExplicitlyDisabled = sendToDiscord === 'false' || sendToDiscord === '0' || sendToDiscord === 'no';
+    
+    // Enable Discord only if:
+    // 1. SEND_TO_DISCORD is explicitly set to true/1/yes, AND
+    // 2. We have both a bot token and channel ID
+    this.discordEnabled = isDiscordExplicitlyEnabled && 
+                          !!process.env.DISCORD_BOT_TOKEN && 
+                          !!this.discordChannel;
+    
+    if (isDiscordExplicitlyDisabled) {
+      console.log(`[${this.moduleName}]|[logger]|ℹ️ Discord logging is disabled by SEND_TO_DISCORD setting`);
+    } else if (!process.env.SEND_TO_DISCORD) {
+      console.log(`[${this.moduleName}]|[logger]|ℹ️ Discord logging is disabled (SEND_TO_DISCORD not set)`);
+    } else if (this.discordEnabled) {
+      console.log(`[${this.moduleName}]|[logger]|✅ Discord logging is enabled`);
+    } else {
+      console.log(`[${this.moduleName}]|[logger]|🚫 Discord logging is disabled - missing DISCORD_BOT_TOKEN or DISCORD_TELEGRAM_BOT_CHANNEL`);
+    }
   }
 
   /**
@@ -39,6 +66,31 @@ class Logger {
       const logsDir = path.dirname(config.logger.file_logs_path);
       if (!fs.existsSync(logsDir)) {
         fs.mkdirSync(logsDir, { recursive: true });
+      }
+    }
+
+    // Initialize Discord client if enabled
+    if (this.discordEnabled) {
+      try {
+        const discordClient = await initializeDiscordClient();
+        if (discordClient) {
+          console.log(`[${this.moduleName}]|[logger]|✅ Discord client initialized for error logging`);
+          
+          // Test the channel to ensure it exists
+          const channel = await getDiscordChannel(this.discordChannel);
+          if (channel) {
+            console.log(`[${this.moduleName}]|[logger]|✅ Successfully connected to Discord error channel: ${this.discordChannel}`);
+          } else {
+            console.warn(`[${this.moduleName}]|[logger]|⚠️ Could not find Discord error channel with ID: ${this.discordChannel}`);
+            this.discordEnabled = false;
+          }
+        } else {
+          console.warn(`[${this.moduleName}]|[logger]|⚠️ Failed to initialize Discord client for error logging`);
+          this.discordEnabled = false;
+        }
+      } catch (error) {
+        console.error(`[${this.moduleName}]|[logger]|🚫 Error initializing Discord for error logging:`, error);
+        this.discordEnabled = false;
       }
     }
 
@@ -71,52 +123,10 @@ class Logger {
             tag TEXT
           )
         `);
-
-        // Initial cleanup
-        await this.cleanOldLogs();
-        
-        // Set up daily cleanup
-        this.setupDailyCleanup();
       } catch (error) {
         this.originalConsoleError('Failed to initialize logger database:', error);
       }
     }
-  }
-
-  /**
-   * Set up daily cleanup of old logs
-   */
-  private setupDailyCleanup() {
-    // Clear any existing interval
-    if (this.cleanupInterval) {
-      clearInterval(this.cleanupInterval);
-    }
-    
-    // Calculate time until next midnight
-    const now = new Date();
-    const tomorrow = new Date(now);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(0, 0, 0, 0);
-    const timeUntilMidnight = tomorrow.getTime() - now.getTime();
-    
-    // Set initial timeout to run at midnight
-    setTimeout(() => {
-      // Run cleanup
-      this.cleanOldLogs().catch(error => {
-        this.originalConsoleError('Error during daily log cleanup:', error);
-      });
-      
-      // Then set up daily interval (24 hours = 86400000 ms)
-      this.cleanupInterval = setInterval(async () => {
-        try {
-          await this.cleanOldLogs();
-        } catch (error) {
-          this.originalConsoleError('Error during daily log cleanup:', error);
-        }
-      }, 86400000);
-    }, timeUntilMidnight);
-    
-    this.originalConsoleLog(`[${this.moduleName}]|[logger]| Log cleanup scheduled to run at midnight`);
   }
 
   /**
@@ -211,6 +221,14 @@ class Logger {
       cycle,
       tag
     };
+
+    // Send error and warning logs to Discord
+    if ((type === 'error' || type === 'warn' || tag !== '') && this.discordEnabled) {
+      // Use a non-blocking call to avoid delaying the logging process
+      this.sendLogsToDiscord(logEntry).catch(err => {
+        this.originalConsoleError(`[${this.moduleName}]|[logger]|Failed to send log to Discord:`, err);
+      });
+    }
 
     // Add to logs array for database
     this.logs.push(logEntry);
@@ -341,33 +359,6 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
   }
 
   /**
-   * Clean old logs from database
-   */
-  private async cleanOldLogs() {
-    if (!config.logger.db_logs || !this.dbConnection) {
-      return;
-    }
-
-    try {
-      await this.retryOperation(async () => {
-        this.originalConsoleLog(`[${this.moduleName}]|[logger]| Cleaning logs older than ${config.logger.keeping_days_in_db} days`);
-        
-        const keepingDays = config.logger.keeping_days_in_db;
-        const cutoffDate = new Date();
-        cutoffDate.setDate(cutoffDate.getDate() - keepingDays);
-        const cutoffDateStr = cutoffDate.toISOString().split('T')[0];
-
-        // Delete logs older than the cutoff date
-        const result = await this.dbConnection.run(`DELETE FROM ${this.logsTableName} WHERE date < ?`, cutoffDateStr);
-        
-        this.originalConsoleLog(`[${this.moduleName}]|[logger]| Cleaned ${result.changes} old log entries`);
-      });
-    } catch (error) {
-      this.originalConsoleError('Failed to clean old logs:', error);
-    }
-  }
-
-  /**
    * Set the current cycle
    */
   async setCycle(cycle: number) {
@@ -390,18 +381,67 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
   }
 
   /**
+   * Send logs to Discord 
+   * Sends error and warning logs to a dedicated Discord channel for monitoring
+   */
+  private async sendLogsToDiscord(logEntry: any): Promise<boolean> {
+    if (!this.discordEnabled || !this.discordChannel) {
+      return false;
+    }
+
+    try {
+      // Format the message for Discord
+      const emoji = logEntry.type === 'error' ? '🚨' : logEntry.type === 'warn' ? '⚠️' : 'ℹ️';
+      const modulePart = logEntry.module ? `[${logEntry.module}]` : '';
+      const functionPart = logEntry.function ? `[${logEntry.function}]` : '';
+      const tagPart = logEntry.tag ? `[${logEntry.tag}]` : '';
+      
+      // Create a formatted message with timestamp and details
+      const formattedMessage = [
+        `${emoji} **${logEntry.type.toUpperCase()}** ${emoji} - ${logEntry.date} ${logEntry.time}`,
+        `${modulePart}${functionPart}${tagPart} ${logEntry.message}`
+      ];
+
+      // Add data if available
+      if (logEntry.data) {
+        try {
+          const data = JSON.parse(logEntry.data);
+          if (data && typeof data === 'object') {
+            formattedMessage.push('```json\n' + JSON.stringify(data, null, 2) + '\n```');
+          }
+        } catch (e) {
+          // If data isn't valid JSON, add it as plain text
+          formattedMessage.push('```\n' + logEntry.data + '\n```');
+        }
+      }
+
+      // Send the message to Discord
+      return await sendMessageOnDiscord(this.discordChannel, [formattedMessage.join('\n')]);
+    } catch (error) {
+      this.originalConsoleError(`[${this.moduleName}]|[logger]|Failed to send log to Discord:`, error);
+      return false;
+    }
+  }
+
+  /**
    * Close the logger and save any pending logs
    */
   async close() {
-    // Clear the cleanup interval
-    if (this.cleanupInterval) {
-      clearInterval(this.cleanupInterval);
-      this.cleanupInterval = null;
-    }
     await this.saveLogs();
     
     if (this.dbConnection) {
       await this.dbConnection.close();
+    }
+    
+    // Shutdown Discord client if it was initialized
+    if (this.discordEnabled) {
+      try {
+        await import("../discord/discordSend").then(async (module) => {
+          await module.shutdownDiscordClient();
+        });
+      } catch (error) {
+        this.originalConsoleError(`[${this.moduleName}]|[logger]|Error shutting down Discord client:`, error);
+      }
     }
   }
 }
