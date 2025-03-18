@@ -58,7 +58,28 @@ Watch mode will automatically restart the application when you make changes to t
 
 ## Server runing
 Will run all bots simultaneously in different processes
-`pm2 start ecosystem.config.js --env production`
+`pm2 start ecosystem.config.js`
+`pm2 start   ecosystem.config.js --only tracker`
+`pm2 start   ecosystem.config.js --only api`
+`pm2 start   ecosystem.config.js --only telegram`
+`pm2 start   ecosystem.config.js --only sniper`
+`pm2 start   ecosystem.config.js --only cron`
+`pm2 start   ecosystem.config.js --only test`
+`pm2 restart ecosystem.config.js`
+`pm2 list`
+`pm2 delete all`
+`pm2 stop all`
+`pm2 monit`
+`pm2 plus`
+`pm2 prettylist`
+`pm2 describe 0`
+`pm2 show api`
+`pm2 logs api --raw --json  # Display all processes logs in streaming`
+`pm2 logs --lines n     # Display last n logs, --nostream, --highlight [value]`
+`pm2 flush              # Empty all log files`
+`pm2 reloadLogs         # Reload all logs`
+`pm2 reloadLogs         # Reload all logs`
+`pm2 env 0              # Show Env`
 
 
 ### Third Party documentation
@@ -116,3 +137,6 @@ TODO API:
 [] trading pool chart show only sol
 [] make live updates
 [] fix hydration error on ui for livechat
+
+git config --global user.name "Andrei Vaulin"
+git config --global user.email "andy.vaulin@gmail.com"

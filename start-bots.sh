@@ -26,6 +26,9 @@ pm2 delete all
 # Check and install dependencies
 check_dependencies
 
+# Build the project
+npm run build
+
 # Start all bots using PM2 ecosystem file
 pm2 start ecosystem.config.js
 
