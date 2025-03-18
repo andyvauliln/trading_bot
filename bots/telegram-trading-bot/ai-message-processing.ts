@@ -38,9 +38,9 @@ export class AIMessageProcessor {
       temperature: configData.ai_config.temperature
     };
 
-    console.log(`[AIMessageProcessor] Initializing with model: ${aiConfigFromEnv.initial_model}`);
-    console.log(`[AIMessageProcessor] Using base URL: ${aiConfigFromEnv.base_url}`);
-    console.log(`[AIMessageProcessor] API Key present: ${!!aiConfigFromEnv.openrouter_api_key}`);
+    console.log(`${configData.name}|[AIMessageProcessor]| Initializing with model: ${aiConfigFromEnv.initial_model}`);
+    console.log(`${configData.name}|[AIMessageProcessor]| Using base URL: ${aiConfigFromEnv.base_url}`);
+    console.log(`${configData.name}|[AIMessageProcessor]| API Key present: ${!!aiConfigFromEnv.openrouter_api_key}`);
 
     if (!aiConfigFromEnv.openrouter_api_key) {
       throw new Error("OpenRouter API key not found in environment or config");
@@ -63,9 +63,9 @@ export class AIMessageProcessor {
       - message_text: the text of the message
       If you are not sure about the token or if message contains no tokens, return an empty array.`;
 
-      console.log(`[AIMessageProcessor] Making request to: ${this.baseUrl}`);
-      console.log(`[AIMessageProcessor] Using model: ${this.model}`);
-      console.log(`[AIMessageProcessor] Auth header: Bearer ${this.apiKey.substring(0, 10)}...`);
+      console.log(`${configData.name}|[AIMessageProcessor]| Making request to: ${this.baseUrl}`);
+      console.log(`${configData.name}|[AIMessageProcessor]| Using model: ${this.model}`);
+      console.log(`${configData.name}|[AIMessageProcessor]| Auth header: Bearer ${this.apiKey.substring(0, 10)}...`);
 
       const response = await retryAxiosRequest(
         () => axios.post(
@@ -94,7 +94,7 @@ export class AIMessageProcessor {
       );
 
       const result = response.data.choices[0].message.content;
-      console.log(`[AIMessageProcessor] Raw API Response:`, result);
+      console.log(`${configData.name}|[AIMessageProcessor]| Raw API Response:`, result);
 
       // Parse the response as JSON
       const parsedResult = typeof result === 'string' ? JSON.parse(result) : result;
@@ -108,9 +108,9 @@ export class AIMessageProcessor {
       
       return [];
     } catch (error) {
-      console.error(`[telegram-trading-bot]|[processMessage]| Error parsing initial model output: ${error}`);
+      console.error(`${configData.name}|[AIMessageProcessor]|[processMessage]| Error parsing initial model output: ${error}`);
       if (axios.isAxiosError(error)) {
-        console.error('[telegram-trading-bot]|[processMessage]| API Response:', processRunCounter, error.response?.data);
+        console.error(`${configData.name}|[AIMessageProcessor]|[processMessage]| API Response:`, processRunCounter, error.response?.data);
       }
       return []; // Return an empty array if parsing fails
     }

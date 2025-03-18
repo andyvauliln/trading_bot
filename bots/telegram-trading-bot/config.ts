@@ -22,7 +22,7 @@ export const config: TelegramConfig = {
     "sol_mint": "So11111111111111111111111111111111111111112",
     "logger": {
         "keeping_days_in_db": 10,
-        terminal_logs: process.env.IS_TERMINAL_LOG === 'true' || process.env.NODE_ENV === 'development',
+        "terminal_logs": process.env.IS_TERMINAL_LOG === 'true' || process.env.NODE_ENV === 'development',
         "db_logs": true,
         "file_logs": process.env.FILE_LOGS === 'true',
         "db_logs_path": path.resolve(process.cwd(), 'data', 'app-logs.db'),
@@ -90,15 +90,15 @@ export const config: TelegramConfig = {
         "ignore_pump_fun": true,
         "max_score": 0, // Set to 0 to ignore
         "legacy_not_allowed": [
-        //   "Low Liquidity",
-        //   "Freeze Authority still enabled",
-        //   "Single holder ownership",
-        //   "High holder concentration",
-        //   "Freeze Authority still enabled",
-        //   "Large Amount of LP Unlocked",
-        //   "Low Liquidity",
-        //   "Copycat token",
-        //   "Low amount of LP Providers",
+          "Low Liquidity",
+          "Freeze Authority still enabled",
+          "Single holder ownership",
+          "High holder concentration",
+          "Freeze Authority still enabled",
+          "Large Amount of LP Unlocked",
+          "Low Liquidity",
+          "Copycat token",
+          "Low amount of LP Providers",
         ],
       },
 };

@@ -8,7 +8,7 @@ import { TAGS } from "../utils/log-tags";
 
 
 export async function getRugCheckConfirmed(token: string, processRunCounter: number): Promise<boolean> {
-  console.log(`[telegram-trading-bot]|[getRugCheckConfirmed]| Getting Rug Check for token: ${token}`, processRunCounter);
+  console.log(`${config.name}|[getRugCheckConfirmed]| Getting Rug Check for token: ${token}`, processRunCounter);
   try {
     const rugResponse = await retryAxiosRequest(
       () => axios.get<RugResponseExtended>("https://api.rugcheck.xyz/v1/tokens/" + token + "/report", {
@@ -20,16 +20,16 @@ export async function getRugCheckConfirmed(token: string, processRunCounter: num
     );
   
     if (!rugResponse.data) {
-      console.error(`[telegram-trading-bot]|[getRugCheckConfirmed]| ⛔ Could not fetch Rug Check: No response received from API.`, processRunCounter, rugResponse);
+      console.error(`${config.name}|[getRugCheckConfirmed]| ⛔ Could not fetch Rug Check: No response received from API.`, processRunCounter, rugResponse);
       return false;
     }
   
     if (config.verbose_log && config.verbose_log === true) {
-      console.log(`[telegram-trading-bot]|[getRugCheckConfirmed]| Rug Check Response:`, processRunCounter, rugResponse.data);
+      console.log(`${config.name}|[getRugCheckConfirmed]| Rug Check Response:`, processRunCounter, rugResponse.data);
     }
   
     // Extract information
-    console.log(`[telegram-trading-bot]|[getRugCheckConfirmed]| Extracting information from Rug Check Response`, processRunCounter);
+    console.log(`${config.name}|[getRugCheckConfirmed]| Extracting information from Rug Check Response`, processRunCounter);
     const tokenReport: RugResponseExtended = rugResponse.data;
     const tokenCreator = tokenReport.creator ? tokenReport.creator : token;
     const mintAuthority = tokenReport.token.mintAuthority;
@@ -60,7 +60,7 @@ export async function getRugCheckConfirmed(token: string, processRunCounter: num
   
     // Update topholders if liquidity pools are excluded
     if (config.rug_check.exclude_lp_from_topholders) {
-      console.log(`[telegram-trading-bot]|[getRugCheckConfirmed]| Excluding liquidity pools from top holders`, processRunCounter);
+      console.log(`${config.name}|[getRugCheckConfirmed]| Excluding liquidity pools from top holders`, processRunCounter);
       // local types
       type Market = {
         liquidityA?: string;
@@ -69,7 +69,7 @@ export async function getRugCheckConfirmed(token: string, processRunCounter: num
   
       const markets: Market[] | undefined = tokenReport.markets;
       if (markets) {
-        console.log(`[telegram-trading-bot]|[getRugCheckConfirmed]| Extracting liquidity addresses from markets`, processRunCounter, markets);
+        console.log(`${config.name}|[getRugCheckConfirmed]| Extracting liquidity addresses from markets`, processRunCounter, markets);
         // Safely extract liquidity addresses from markets
         const liquidityAddresses: string[] = (markets ?? [])
           .flatMap((market) => [market.liquidityA, market.liquidityB])
@@ -77,17 +77,17 @@ export async function getRugCheckConfirmed(token: string, processRunCounter: num
   
         // Filter out topHolders that match any of the liquidity addresses
         topHolders = topHolders.filter((holder) => !liquidityAddresses.includes(holder.address));
-        console.log(`[telegram-trading-bot]|[getRugCheckConfirmed]| Top Holders after filtering:`, processRunCounter, topHolders);
+        console.log(`${config.name}|[getRugCheckConfirmed]| Top Holders after filtering:`, processRunCounter, topHolders);
       }
     }
   
     // Get config
-    console.log(`[telegram-trading-bot]|[getRugCheckConfirmed]| Getting bot config`, processRunCounter, config);
+    console.log(`${config.name}|[getRugCheckConfirmed]| Getting bot config`, processRunCounter, config);
     const rugCheckConfig = config.rug_check;
     const rugCheckLegacy = rugCheckConfig.legacy_not_allowed;
   
     // Set conditions
-    console.log(`[telegram-trading-bot]|[getRugCheckConfirmed]| Setting conditions`, processRunCounter);
+    console.log(`${config.name}|[getRugCheckConfirmed]| Setting conditions`, processRunCounter);
     const conditions = [
       {
         check: !rugCheckConfig.allow_mint_authority && mintAuthority !== null,
@@ -147,7 +147,7 @@ export async function getRugCheckConfirmed(token: string, processRunCounter: num
       },
     ];
 
-    console.log(`[telegram-trading-bot]|[getRugCheckConfirmed]| Conditions:`, processRunCounter, conditions, TAGS.rug_validation.name);
+    console.log(`${config.name}|[getRugCheckConfirmed]| Rug Check Result ${conditions.every((condition) => !condition.check) ? "✅" : "⛔"}:`, processRunCounter, conditions, TAGS.rug_validation.name);
   
     // Create new token record
     const newToken: NewTokenRecord = {
@@ -157,13 +157,13 @@ export async function getRugCheckConfirmed(token: string, processRunCounter: num
       creator: tokenCreator,
     };
     await insertNewToken(newToken, processRunCounter, conditions).catch((err) => {
-        console.log(`[telegram-trading-bot]|[getRugCheckConfirmed]| ⛔ Unable to store new token for tracking duplicate tokens: ${err}`, processRunCounter);
+        console.log(`${config.name}|[getRugCheckConfirmed]| ⛔ Unable to store new token for tracking duplicate tokens: ${err}`, processRunCounter);
     });
   
     //Validate conditions
     for (const condition of conditions) {
       if (condition.check) {
-        console.log(`[telegram-trading-bot]|[getRugCheckConfirmed]| ⛔ Condition failed: ${condition.message}`, processRunCounter);
+        console.log(`${config.name}|[getRugCheckConfirmed]| ⛔ Condition failed: ${condition.message}`, processRunCounter);
       }
     }
 
@@ -171,53 +171,53 @@ export async function getRugCheckConfirmed(token: string, processRunCounter: num
     return conditions.every((condition) => !condition.check);
 
   } catch (error: any) {
-    console.error(`[telegram-trading-bot]|[getRugCheckConfirmed]| ⛔ Error during rug check: ${error.message}`, processRunCounter);
+    console.error(`${config.name}|[getRugCheckConfirmed]| ⛔ Error during rug check: ${error.message}`, processRunCounter);
     return false;
   }
 }
   
 export async function validateAndSwapToken(token: string, processRunCounter: number): Promise<boolean> {
-  console.log(`[telegram-trading-bot]|[validateAndSwapToken]| Validating token: ${token}`, processRunCounter);
+  console.log(`${config.name}|[validateAndSwapToken]| Validating token: ${token}`, processRunCounter);
   
   // Get wallet private keys from environment variable
   const walletPrivateKeys = (process.env.PRIV_KEY_WALLETS || "").split(",").map(key => key.trim()).filter(key => key);
   if (!walletPrivateKeys.length) {
-    console.error(`[telegram-trading-bot]|[validateAndSwapToken]| ⛔ No wallet private keys found in PRIV_KEY_WALLETS`, processRunCounter);
+    console.error(`${config.name}|[validateAndSwapToken]| ⛔ No wallet private keys found in PRIV_KEY_WALLETS`, processRunCounter);
     return false;
   }
 
   // Check if token is already in holdings for any wallet
   const tokenRecord = await getHoldingRecord(token, processRunCounter);
-  console.log(`[telegram-trading-bot]|[validateAndSwapToken]| Checking if token already in holding: ${tokenRecord}, Buy additional holding: ${config.swap.is_additional_holding}`, processRunCounter);
+  console.log(`${config.name}|[validateAndSwapToken]| Checking if token already in holding: ${tokenRecord}, Buy additional holding: ${config.swap.is_additional_holding}`, processRunCounter);
   if(tokenRecord && !config.swap.is_additional_holding) {
-    console.log(`[telegram-trading-bot]|[validateAndSwapToken]| Additional holding is disabled. Skipping validation and swapping.`, processRunCounter);
+    console.log(`${config.name}|[validateAndSwapToken]| Additional holding is disabled. Skipping validation and swapping.`, processRunCounter);
     return false;
   }
 
   const isRugCheckPassed = await getRugCheckConfirmed(token, processRunCounter);
   if (!isRugCheckPassed) {
-    console.warn(`[telegram-trading-bot]|[validateAndSwapToken]| Rug Check not passed! Transaction aborted.`, processRunCounter);
-    console.log(`[telegram-trading-bot]|[validateAndSwapToken]| 🟢 Resuming looking for new tokens...`, processRunCounter);
+    console.warn(`${config.name}|[validateAndSwapToken]| Rug Check not passed! Transaction aborted.`, processRunCounter);
+    console.log(`${config.name}|[validateAndSwapToken]| 🟢 Resuming looking for new tokens...`, processRunCounter);
     return false;
   }
-  console.log(`[telegram-trading-bot]|[validateAndSwapToken]| 🚀 Rug Check passed! Swapping token: ${token}`, processRunCounter);
+  console.log(`${config.name}|[validateAndSwapToken]| 🚀 Rug Check passed! Swapping token: ${token}`, processRunCounter);
 
   // Handle ignored tokens
   if (token.trim().toLowerCase().endsWith("pump") && config.rug_check.ignore_pump_fun) {
-    console.log(`[telegram-trading-bot]|[validateAndSwapToken]| 🚫 Transaction skipped. Ignoring Pump.fun.`, processRunCounter);
-    console.log(`[telegram-trading-bot]|[validateAndSwapToken]| 🟢 Resuming looking for new tokens..`, processRunCounter);
+    console.log(`${config.name}|[validateAndSwapToken]| 🚫 Transaction skipped. Ignoring Pump.fun.`, processRunCounter);
+    console.log(`${config.name}|[validateAndSwapToken]| 🟢 Resuming looking for new tokens..`, processRunCounter);
     return false;
   }
 
   // Output logs
-  console.log(`[telegram-trading-bot]|[validateAndSwapToken]| Token found`, processRunCounter);
-  console.log(`[telegram-trading-bot]|[validateAndSwapToken]| 👽 GMGN: https://gmgn.ai/sol/token/${token}`, processRunCounter);
-  console.log(`[telegram-trading-bot]|[validateAndSwapToken]| 😈 BullX: https://neo.bullx.io/terminal?chainId=1399811149&address=${token}`, processRunCounter);
+  console.log(`${config.name}|[validateAndSwapToken]| Token found`, processRunCounter);
+  console.log(`${config.name}|[validateAndSwapToken]| 👽 GMGN: https://gmgn.ai/sol/token/${token}`, processRunCounter);
+  console.log(`${config.name}|[validateAndSwapToken]| 😈 BullX: https://neo.bullx.io/terminal?chainId=1399811149&address=${token}`, processRunCounter);
 
   // Check if simulation mode is enabled
   if (config.simulation_mode) {
-    console.log(`[telegram-trading-bot]|[validateAndSwapToken]| 👀 Token not swapped. Simulation mode is enabled.`, processRunCounter);
-    console.log(`[telegram-trading-bot]|[validateAndSwapToken]| 🟢 Resuming looking for new tokens..`, processRunCounter);
+    console.log(`${config.name}|[validateAndSwapToken]| 👀 Token not swapped. Simulation mode is enabled.`, processRunCounter);
+    console.log(`${config.name}|[validateAndSwapToken]| 🟢 Resuming looking for new tokens..`, processRunCounter);
     return false;
   }
 
@@ -232,31 +232,31 @@ export async function validateAndSwapToken(token: string, processRunCounter: num
       // Create Swap transaction
       const result = await createSwapTransaction(config.sol_mint, token, processRunCounter, privateKey);
       if (!result || !result.txid) {
-        console.log(`[telegram-trading-bot]|[validateAndSwapToken]| ⛔ Transaction failed for wallet: with private key starts from ${privateKey.slice(0, 6)}...`, processRunCounter);
+        console.log(`${config.name}|[validateAndSwapToken]| ⛔ Transaction failed for wallet: with private key starts from ${privateKey.slice(0, 5)}...`, processRunCounter);
         continue;
       }
 
       // Output logs
-      console.log(`[telegram-trading-bot]|[validateAndSwapToken]| 🚀 Swapping SOL for Token using wallet: ${result.walletPublicKey}`, processRunCounter);
-      console.log(`[telegram-trading-bot]|[validateAndSwapToken]| Swap Transaction: https://solscan.io/tx/${result.txid}`, processRunCounter);
+      console.log(`${config.name}|[validateAndSwapToken]| 🚀 Swapping SOL for Token using wallet: ${result.walletPublicKey}`, processRunCounter);
+      console.log(`${config.name}|[validateAndSwapToken]| Swap Transaction: https://solscan.io/tx/${result.txid}`, processRunCounter);
 
       // Fetch and store the transaction for tracking purposes
       const saveConfirmation = await fetchAndSaveSwapDetails(result.txid, processRunCounter, result.walletPublicKey);
       if (!saveConfirmation) {
-        console.warn(`[telegram-trading-bot]|[validateAndSwapToken]| ❌ Warning: Transaction not saved for tracking! Track Manually!, Wallet: ${result.walletPublicKey}`, processRunCounter);
+        console.warn(`${config.name}|[validateAndSwapToken]| ❌ Warning: Transaction not saved for tracking! Track Manually!, Wallet: ${result.walletPublicKey}`, processRunCounter);
       }
 
       successfulTransactions++;
     } catch (error: any) {
-      console.error(`[telegram-trading-bot]|[validateAndSwapToken]| ⛔ Error processing transaction for wallet with private key starts from ${privateKey.slice(0, 6)}...}: ${error.message}`, processRunCounter);
+      console.error(`${config.name}|[validateAndSwapToken]| ⛔ Error processing transaction for wallet with private key starts from ${privateKey.slice(0, 5)}...}: ${error.message}`, processRunCounter);
     }
   }
 
   if (successfulTransactions === 0) {
-    console.log(`[telegram-trading-bot]|[validateAndSwapToken]| ⛔ All transactions failed.`, processRunCounter);
+    console.log(`${config.name}|[validateAndSwapToken]| ⛔ All transactions failed.`, processRunCounter);
     return false;
   }
 
-  console.log(`[telegram-trading-bot]|[validateAndSwapToken]| ✅ Successfully processed ${successfulTransactions} out of ${walletPrivateKeys.length} transactions`, processRunCounter);
+  console.log(`${config.name}|[validateAndSwapToken]| ✅ Successfully processed ${successfulTransactions} out of ${walletPrivateKeys.length} transactions`, processRunCounter);
   return true;
 }
