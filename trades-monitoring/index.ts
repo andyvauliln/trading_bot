@@ -60,11 +60,11 @@ const startServer = async () => {
       }
     }
 
-    app.listen(PORT, () => {
-      console.log(`[api]|[startServer]|Server is running on port ${PORT}`);
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`[api]|[startServer]| Server is running on http://0.0.0.0:${PORT}`);
     }).on('error', async (e: any) => {
       if (e.code === 'EADDRINUSE') {
-        console.log(`Port ${PORT} still in use, retrying in 1 second...`);
+        console.log(`[api]|[startServer]|Port ${PORT} still in use, retrying in 1 second...`);
         setTimeout(startServer, 1000);
       }
     });
