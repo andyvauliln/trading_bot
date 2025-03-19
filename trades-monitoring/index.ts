@@ -14,6 +14,10 @@ app.use('/api', logsRouter);
 app.use('/api', holdingsRouter);
 app.use('/api', historicalDataRouter);
 
+app.get('/api/health', (req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
+
 const findProcess = (port: number): Promise<string> => {
   return new Promise((resolve) => {
     exec(`lsof -i :${port} -t`, (error, stdout) => {

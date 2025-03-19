@@ -15,57 +15,12 @@ const API_CHECK_INTERVAL = 10000; // 10 seconds between retries
  */
 async function isApiReady(): Promise<boolean> {
     try {
-        // Try different health check endpoints
-        // We don't know which one exists, so we'll try a few common ones
-        const endpoints = [
-            '/api/health',
-            '/health',
-            '/api/status',
-            '/status',
-            // Try the actual endpoint we need as a last resort
-            '/api/make-account-historical-data'
-        ];
+        const response = await axios.get(`${API_BASE_URL}/api/health`, {
+            timeout: 5000 // 5 second timeout
+        });
         
-        // Try one endpoint at a time
-        for (const endpoint of endpoints) {
-            try {
-                const response = await axios.get(`${API_BASE_URL}${endpoint}`, {
-                    timeout: 5000 // 5 second timeout
-                });
-                
-                if (response.status >= 200 && response.status < 500) {
-                    // Any non-5xx response means the server is running
-                    console.log(`[${DateTime.now().toISO()}] API check succeeded with endpoint: ${endpoint}`);
-                    return true;
-                }
-            } catch (error: any) {
-                // Specifically check for connection errors vs application errors
-                if (
-                    error.code === 'ECONNREFUSED' || 
-                    error.code === 'ENOTFOUND' || 
-                    error.code === 'ETIMEDOUT'
-                ) {
-                    // Server isn't running at all
-                    return false;
-                }
-                
-                // If we get a 404 for this endpoint, that's fine, try the next one
-                if (error.response && error.response.status === 404) {
-                    continue;
-                }
-                
-                // If we get any other response (even an error), the server is running
-                if (error.response) {
-                    console.log(`[${DateTime.now().toISO()}] API is running (got status ${error.response.status} for ${endpoint})`);
-                    return true;
-                }
-            }
-        }
-        
-        // If all endpoints fail with connection errors, API is not ready
-        return false;
+        return response.status === 200;
     } catch (error) {
-        // If we can't connect at all, API is not ready
         return false;
     }
 }
