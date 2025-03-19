@@ -7,6 +7,7 @@ import { DateTime } from "luxon";
 import { createSellTransaction } from "./transactions";
 import { retryAxiosRequest } from "../utils/help-functions";
 import logger from "./logger"; // Import the logger
+import { TAGS } from "../utils/log-tags";
 
 dotenv.config();
 
@@ -188,6 +189,18 @@ async function main() {
             });
           }
           
+          // Log if PnL percentage is 5% or more in either direction
+          if (Math.abs(unrealizedPnLPercentage) >= 5) {
+            const pnlStatus = unrealizedPnLPercentage >= 0 ? "🟢 PROFIT" : "🔴 LOSS";
+            const pnlIcon = unrealizedPnLPercentage >= 0 ? "📈" : "📉";
+            
+            console.log(
+              `${config.name}|[main]| ${pnlIcon} SIGNIFICANT PNL ALERT: ${tokenName} has ${pnlStatus} of ${Math.abs(unrealizedPnLPercentage).toFixed(2)}%\n` +
+              `Unrealized PnL: $${unrealizedPnLUSDC.toFixed(2)}`,
+              processRunCounter
+            );
+          }
+          
           const iconPnl = unrealizedPnLUSDC > 0 ? "🟢" : "🔴";
 
           // Check SL/TP
@@ -196,6 +209,12 @@ async function main() {
 
             // Sell via Take Profit unrealizedPnLPercentage >= config.sell.take_profit_percent
             if (unrealizedPnLPercentage >= config.sell.take_profit_percent) {
+              console.log(`${config.name}|[main]| 🟢🔴 ${hrTradeTime}: Trying to make profit for ${tokenName} with PnL: $${unrealizedPnLUSDC.toFixed(2)} (${unrealizedPnLPercentage.toFixed(2)}%), Config TP: ${config.sell.take_profit_percent}%`, processRunCounter, {
+                tokenName,
+                unrealizedPnLUSDC,
+                unrealizedPnLPercentage,
+                config: config.sell
+              }, TAGS.pnl_change_alert.name);
               try {
                 // Get wallet private keys from environment variable
                 const walletPrivateKeys = (process.env.PRIV_KEY_WALLETS || "").split(",").map(key => key.trim()).filter(key => key);
@@ -294,6 +313,12 @@ async function main() {
 
             // Sell via Stop Loss
             if (unrealizedPnLPercentage <= -config.sell.stop_loss_percent) {
+              console.log(`${config.name}|[main]| 🟢🔴 ${hrTradeTime}: Trying to make profit for ${tokenName} with PnL: $${unrealizedPnLUSDC.toFixed(2)} (${unrealizedPnLPercentage.toFixed(2)}%), Config SL: ${config.sell.stop_loss_percent}%`, processRunCounter, {
+                tokenName,
+                unrealizedPnLUSDC,
+                unrealizedPnLPercentage,
+                config: config.sell
+              }, TAGS.pnl_change_alert.name);
               try {
                 // Get wallet private keys from environment variable
                 const walletPrivateKeys = (process.env.PRIV_KEY_WALLETS || "").split(",").map(key => key.trim()).filter(key => key);

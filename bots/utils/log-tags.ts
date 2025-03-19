@@ -6,4 +6,5 @@ export const TAGS = {
   tokens_finished: {name: "tokens-finished", description: "Tokens finished", color: "blue"},
   no_txid: {name: "no-txid", description: "No txid", color: "red"},
   saved_in_holding: {name: "saved-in-holding", description: "Saved in holding", color: "green"},
+  pnl_change_alert: {name: "pnl-change-alert", description: "PnL change alert", color: "yellow"},
 };
