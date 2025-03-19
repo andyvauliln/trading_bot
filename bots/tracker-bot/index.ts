@@ -78,21 +78,23 @@ async function main() {
 
         // Get raydium legacy pairs prices
         dexRaydiumPairs = currentPricesDex.pairs
-          .filter((pair) => pair.dexId === "raydium")
-          .reduce<Array<(typeof currentPricesDex.pairs)[0]>>((uniquePairs, pair) => {
-            // Check if the baseToken address already exists
-            const exists = uniquePairs.some((p) => p.baseToken.address === pair.baseToken.address);
+          ? currentPricesDex.pairs
+              .filter((pair) => pair.dexId === "raydium")
+              .reduce<Array<(typeof currentPricesDex.pairs)[0]>>((uniquePairs, pair) => {
+                // Check if the baseToken address already exists
+                const exists = uniquePairs.some((p) => p.baseToken.address === pair.baseToken.address);
 
-            // If it doesn't exist or the existing one has labels, replace it with the no-label version
-            if (!exists || (pair.labels && pair.labels.length === 0)) {
-              return uniquePairs.filter((p) => p.baseToken.address !== pair.baseToken.address).concat(pair);
-            }
+                // If it doesn't exist or the existing one has labels, replace it with the no-label version
+                if (!exists || (pair.labels && pair.labels.length === 0)) {
+                  return uniquePairs.filter((p) => p.baseToken.address !== pair.baseToken.address).concat(pair);
+                }
 
-            return uniquePairs;
-          }, []);
+                return uniquePairs;
+              }, [])
+          : [];
 
         if (!currentPrices) {
-          console.log(`${config.name}|[main]| ⛔ Latest prices from Dexscreener Tokens API could not be fetched. Trying again...`);
+          console.log(`${config.name}|[main]| ⛔ Latest prices from Jupitter didn't recived`);
           console.log(`${config.name}|[main]| CYCLE_END: ${processRunCounter}`, ++processRunCounter);
           return;
         }
@@ -132,6 +134,11 @@ async function main() {
             }
           }
           console.log(`${config.name}|[main]| 📈 Current price via ✅ ${currentPriceSource} | ${tokenCurrentPrice}`, processRunCounter);
+
+          if(!tokenCurrentPrice) {
+            console.warn(`${config.name}|[main]| 🚩 Latest prices for ${tokenName} not fetched.`, processRunCounter, {holding});
+            return;
+          }
           // Calculate PnL and profit/loss
           const unrealizedPnLUSDC = (tokenCurrentPrice - tokenPerTokenPaidUSDC) * tokenBalance - tokenSolFeePaidUSDC;
           const unrealizedPnLPercentage = (unrealizedPnLUSDC / (tokenPerTokenPaidUSDC * tokenBalance)) * 100;
@@ -172,11 +179,11 @@ async function main() {
                       Token: token,
                       TokenName: tokenName,
                       EntryBalance: tokenBalance,
-                      ExitBalance: Number(amountIn),
+                      ExitBalance: tokenBalance, // Use same format as EntryBalance, not converted
                       EntrySolPaid: tokenSolPaid,
-                      ExitSolReceived: tokenCurrentPrice * Number(amountIn),
+                      ExitSolReceived: tokenCurrentPrice * tokenBalance, // Use consistent calculation
                       TotalSolFees: tokenSolFeePaid,
-                      ProfitLossSOL: (tokenCurrentPrice * Number(amountIn)) - tokenSolPaid,
+                      ProfitLossSOL: (tokenCurrentPrice * tokenBalance) - tokenSolPaid,
                       ProfitLossUSDC: unrealizedPnLUSDC,
                       ROIPercentage: unrealizedPnLPercentage,
                       EntryPriceUSDC: tokenPerTokenPaidUSDC,
@@ -198,17 +205,17 @@ async function main() {
                       wallet: walletPublicKey
                     });
                     
-                    // Insert transaction record
+                    // Insert transaction record - FIXED to match sniper bot format
                     const transactionData = {
                       Time: Math.floor(Date.now() / 1000),
                       Token: token,
                       TokenName: tokenName,
                       TransactionType: 'SELL' as 'BUY' | 'SELL',
-                      TokenAmount: Number(amountIn),
-                      SolAmount: tokenCurrentPrice * Number(amountIn),
-                      SolFee: tokenSolFeePaid,
+                      TokenAmount: tokenBalance, // Use actual token balance without conversion
+                      SolAmount: tokenCurrentPrice * tokenBalance, // Calculate in original units
+                      SolFee: tokenSolFeePaid / 1e9, // Normalize to match sniper bot format (divide by 1e9)
                       PricePerTokenUSDC: tokenCurrentPrice,
-                      TotalUSDC: tokenCurrentPrice * Number(amountIn),
+                      TotalUSDC: tokenCurrentPrice * tokenBalance,
                       Slot: tokenSlot,
                       Program: tokenProgram,
                       BotName: config.name,
@@ -270,11 +277,11 @@ async function main() {
                       Token: token,
                       TokenName: tokenName,
                       EntryBalance: tokenBalance,
-                      ExitBalance: Number(amountIn),
+                      ExitBalance: tokenBalance, // Use same format as EntryBalance, not converted
                       EntrySolPaid: tokenSolPaid,
-                      ExitSolReceived: tokenCurrentPrice * Number(amountIn),
+                      ExitSolReceived: tokenCurrentPrice * tokenBalance, // Use consistent calculation
                       TotalSolFees: tokenSolFeePaid,
-                      ProfitLossSOL: (tokenCurrentPrice * Number(amountIn)) - tokenSolPaid,
+                      ProfitLossSOL: (tokenCurrentPrice * tokenBalance) - tokenSolPaid,
                       ProfitLossUSDC: unrealizedPnLUSDC,
                       ROIPercentage: unrealizedPnLPercentage,
                       EntryPriceUSDC: tokenPerTokenPaidUSDC,
@@ -296,17 +303,17 @@ async function main() {
                       wallet: walletPublicKey
                     });
                     
-                    // Insert transaction record
+                    // Insert transaction record - FIXED to match sniper bot format
                     const transactionData = {
                       Time: Math.floor(Date.now() / 1000),
                       Token: token,
                       TokenName: tokenName,
                       TransactionType: 'SELL' as 'BUY' | 'SELL',
-                      TokenAmount: Number(amountIn),
-                      SolAmount: tokenCurrentPrice * Number(amountIn),
-                      SolFee: tokenSolFeePaid,
+                      TokenAmount: tokenBalance, // Use actual token balance without conversion
+                      SolAmount: tokenCurrentPrice * tokenBalance, // Calculate in original units
+                      SolFee: tokenSolFeePaid / 1e9, // Normalize to match sniper bot format (divide by 1e9)
                       PricePerTokenUSDC: tokenCurrentPrice,
-                      TotalUSDC: tokenCurrentPrice * Number(amountIn),
+                      TotalUSDC: tokenCurrentPrice * tokenBalance,
                       Slot: tokenSlot,
                       Program: tokenProgram,
                       BotName: config.name,

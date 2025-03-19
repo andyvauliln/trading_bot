@@ -333,16 +333,85 @@ export async function createSwapTransaction(solMint: string, tokenMint: string, 
 
     // Fetch the current status of a transaction signature (processed, confirmed, finalized).
     console.log(`${config.name}|[createSwapTransaction]| Fetching the current status of a transaction signature (processed, confirmed, finalized).`, processRunCounter);
-    const conf = await connection.confirmTransaction({
-      blockhash: latestBlockHash.blockhash,
-      lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
-      signature: txid,
-    });
+    
+    // Add retry mechanism for transaction confirmation
+    const maxConfirmRetries = 3;
+    let confirmRetryCount = 0;
+    let conf = null;
+    
+    while (confirmRetryCount < maxConfirmRetries) {
+      try {
+        console.log(`${config.name}|[createSwapTransaction]| Confirmation attempt ${confirmRetryCount + 1}/${maxConfirmRetries}`, processRunCounter);
+        
+        conf = await connection.confirmTransaction({
+          blockhash: latestBlockHash.blockhash,
+          lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
+          signature: txid,
+        });
+        
+        // Check if there's an error in confirmation
+        if (!conf.value.err) {
+          // No error - confirmation successful
+          break;
+        }
+        
+        // If there's an error, log it but continue with retries
+        console.warn(`${config.name}|[createSwapTransaction]| ⚠️ Confirmation attempt ${confirmRetryCount + 1} failed, retrying...`, processRunCounter);
+        
+        // Increment retry counter
+        confirmRetryCount++;
+        
+        // If we haven't exhausted all retries, wait with exponential backoff
+        if (confirmRetryCount < maxConfirmRetries) {
+          const delay = Math.min(1000 * Math.pow(2, confirmRetryCount), 5000); // Exponential backoff with max delay of 5 seconds
+          console.log(`${config.name}|[createSwapTransaction]| Waiting ${delay / 1000} seconds before next confirmation attempt...`, processRunCounter);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      } catch (confirmError: any) {
+        console.error(`${config.name}|[createSwapTransaction]| ⛔ Error during confirmation attempt ${confirmRetryCount + 1}: ${confirmError.message}`, processRunCounter);
+        
+        // Increment retry counter
+        confirmRetryCount++;
+        
+        // If we haven't exhausted all retries, wait with exponential backoff
+        if (confirmRetryCount < maxConfirmRetries) {
+          const delay = Math.min(1000 * Math.pow(2, confirmRetryCount), 5000);
+          console.log(`${config.name}|[createSwapTransaction]| Waiting ${delay / 1000} seconds before next confirmation attempt...`, processRunCounter);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+    }
+    
+    // If we have no confirmation result after all retries, return null
+    if (!conf) {
+      console.error(`${config.name}|[createSwapTransaction]| ⛔ All confirmation attempts failed.`, processRunCounter);
+      return null;
+    }
 
-    // Return null when an error occured when confirming the transaction
+    // Return null when an error occurred when confirming the transaction
     console.log(`${config.name}|[createSwapTransaction]| Confirmation status:`, processRunCounter, conf);
     if (conf.value.err || conf.value.err !== null) {
-      console.error(`${config.name}|[createSwapTransaction]| ⛔ Transaction confirmation failed.`, processRunCounter, conf);
+      // Create a more detailed error report
+      let errorDetails: any = {
+        errorType: 'Transaction confirmation failed',
+        errorDetails: conf.value.err,
+        context: conf.context,
+        slot: conf.context?.slot,
+        txid,
+        txurl: `https://solscan.io/tx/${txid}`
+      };
+      
+      // Add detailed error examination for array-type errors (like InstructionError)
+      if (conf.value.err && Array.isArray(conf.value.err)) {
+        errorDetails.errorArray = conf.value.err;
+      } else if (typeof conf.value.err === 'object') {
+        // For other object types of errors
+        errorDetails.errorObject = conf.value.err;
+      }
+      
+      console.error(`${config.name}|[createSwapTransaction]| ⛔ Transaction confirmation failed.`, processRunCounter);
+      console.error(`${config.name}|[createSwapTransaction]| ⛔ Error Details:`, processRunCounter, JSON.stringify(errorDetails, null, 2));
+      
       return null;
     }
     console.log(`${config.name}|[createSwapTransaction]| ✅ Transaction confirmed.`, processRunCounter, {txid, tokenMint: tokenMint, amount: config.swap.amount, walletPublicKey}, TAGS.buy_tx_confirmed.name);

@@ -149,6 +149,7 @@ TODO API:
 [] fix sql errors
 [] fix tracker bot,
 [] make wallet dictionaries
+[] fix [object Object] in rug conditions
  
 
 

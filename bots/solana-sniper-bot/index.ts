@@ -100,7 +100,7 @@ async function processTransaction(signature: string, processRunCounter: number):
       // Create Swap transaction for this wallet
       const txResult = await createSwapTransaction(data.solMint, data.tokenMint, processRunCounter, privateKey);
       if (!txResult || !txResult.txid) {
-        console.error(`${config.name}|[processTransaction]|⛔ Transaction aborted for wallet ${txResult?.walletPublicKey || 'unknown'}.`, processRunCounter);
+        console.error(`${config.name}|[processTransaction]|⛔ Transaction aborted for wallet private key ${privateKey.slice(0, 4)}...`, processRunCounter);
         continue; // Try next wallet
       }
 

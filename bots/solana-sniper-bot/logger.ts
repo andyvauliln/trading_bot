@@ -372,7 +372,7 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
     }
   }
 
-  private async retryOperation<T>(operation: () => Promise<T>, maxRetries: number = 5): Promise<T> {
+  private async retryOperation<T>(operation: () => Promise<T>, maxRetries: number = 10): Promise<T> {
     let lastError;
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
@@ -395,8 +395,16 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
           this.originalConsoleLog(`${config.name}|[logger]|Database busy/locked, retrying operation (attempt ${attempt}/${maxRetries})`);
           
           // Wait with exponential backoff: longer delays
-          // 500ms, 1000ms, 2000ms, 4000ms, 8000ms
-          await new Promise(resolve => setTimeout(resolve, 500 * Math.pow(2, attempt - 1)));
+          // 1000ms, 2000ms, 4000ms, 8000ms, 16000ms, etc.
+          const delay = 1000 * Math.pow(2, attempt - 1);
+          const cappedDelay = Math.min(delay, 30000); // Cap at 30 seconds
+          await new Promise(resolve => setTimeout(resolve, cappedDelay));
+          
+          // Check database connection and reinitialize if needed
+          if (!this.dbConnection) {
+            this.originalConsoleLog(`${config.name}|[logger]|Attempting to reinitialize database connection...`);
+            await this.initializeDatabase();
+          }
           
           // Ensure we're not in a transaction before retrying
           await this.forceRollbackTransaction();
@@ -513,26 +521,37 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
     // Add to batch queue if a save is already in progress or mutex is locked
     if (this.saveInProgress || this.dbMutex.isLocked()) {
       this.logBatchQueue.push(logsToSave);
+      this.originalConsoleLog(`${config.name}|[logger]|Queued ${logsToSave.length} logs. Total queued batches: ${this.logBatchQueue.length + 1}`);
       return;
     }
     
     // Current time to enforce minimum delay between save attempts
     const now = Date.now();
-    if (now - this.lastSaveAttempt < 1000) { // 1 second minimum delay
+    if (now - this.lastSaveAttempt < 2000) { // 2 second minimum delay (increased from 1 second)
       this.logBatchQueue.push(logsToSave);
       
       // If we're not currently saving, schedule the next save
       if (!this.saveInProgress) {
-        setTimeout(() => this.processLogBatchQueue(), 1000);
+        setTimeout(() => this.processLogBatchQueue(), 2000);
       }
       return;
+    }
+    
+    // Check if database connection exists, if not try to initialize it
+    if (config.logger.db_logs && !this.dbConnection) {
+      try {
+        await this.initializeDatabase();
+      } catch (error) {
+        this.originalConsoleError(`${config.name}|[logger]|Failed to initialize database before saving logs:`, error);
+        this.logBatchQueue.push(logsToSave);
+        return;
+      }
     }
     
     // Mark save as in progress
     this.saveInProgress = true;
     this.lastSaveAttempt = now;
     const logsCount = logsToSave.length;
-    this.originalConsoleLog(`${config.name}|[logger]|Starting to save ${logsCount} logs to database`);
     
     // Save to file first (outside of mutex lock since file operations are separate)
     this.saveFileLogsSync();
@@ -550,6 +569,8 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
     try {
       // Acquire mutex lock for database operations
       await this.dbMutex.acquire();
+      
+      this.originalConsoleLog(`${config.name}|[logger]|Starting to save ${logsCount} logs to database`);
       
       await this.retryOperation(async () => {
         // Begin transaction
