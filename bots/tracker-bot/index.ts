@@ -128,20 +128,35 @@ async function main() {
             if (dexRaydiumPairs && dexRaydiumPairs?.length !== 0) {
               currentPriceSource = "Dexscreener Tokens API";
               const pair = dexRaydiumPairs.find((p: any) => p.baseToken.address === token);
-              tokenCurrentPrice = pair ? pair.priceUsd : tokenCurrentPrice;
+              tokenCurrentPrice = pair ? parseFloat(pair.priceUsd) : parseFloat(tokenCurrentPrice);
             } else {
               console.log(`${config.name}|[main]| 🚩 Latest prices from Dexscreener Tokens API not fetched. Falling back to Jupiter.`, processRunCounter);
             }
           }
+          
+          // Ensure tokenCurrentPrice is a number
+          tokenCurrentPrice = parseFloat(tokenCurrentPrice);
+          
           console.log(`${config.name}|[main]| 📈 Current price via ✅ ${currentPriceSource} | ${tokenCurrentPrice}`, processRunCounter);
 
-          if(!tokenCurrentPrice) {
-            console.warn(`${config.name}|[main]| 🚩 Latest prices for ${tokenName} not fetched.`, processRunCounter, {holding});
+          if(!tokenCurrentPrice || isNaN(tokenCurrentPrice)) {
+            console.warn(`${config.name}|[main]| 🚩 Latest prices for ${tokenName} not fetched or invalid.`, processRunCounter, {holding});
             return;
           }
+          
           // Calculate PnL and profit/loss
-          const unrealizedPnLUSDC = (tokenCurrentPrice - tokenPerTokenPaidUSDC) * tokenBalance - tokenSolFeePaidUSDC;
-          const unrealizedPnLPercentage = (unrealizedPnLUSDC / (tokenPerTokenPaidUSDC * tokenBalance)) * 100;
+          // Determine whether to include fees based on configuration
+          let unrealizedPnLUSDC, unrealizedPnLPercentage;
+          if (config.sell.include_fees_in_pnl) {
+            // Include fees in P&L calculation
+            unrealizedPnLUSDC = (tokenCurrentPrice - tokenPerTokenPaidUSDC) * tokenBalance - tokenSolFeePaidUSDC;
+            unrealizedPnLPercentage = (unrealizedPnLUSDC / (tokenPerTokenPaidUSDC * tokenBalance)) * 100;
+          } else {
+            // Exclude fees from P&L calculation - only consider price difference
+            unrealizedPnLUSDC = (tokenCurrentPrice - tokenPerTokenPaidUSDC) * tokenBalance;
+            unrealizedPnLPercentage = ((tokenCurrentPrice - tokenPerTokenPaidUSDC) / tokenPerTokenPaidUSDC) * 100;
+          }
+          
           const iconPnl = unrealizedPnLUSDC > 0 ? "🟢" : "🔴";
 
           // Check SL/TP
@@ -178,16 +193,16 @@ async function main() {
                       EntryTime: tokenTime,
                       Token: token,
                       TokenName: tokenName,
-                      EntryBalance: tokenBalance,
-                      ExitBalance: tokenBalance, // Use same format as EntryBalance, not converted
-                      EntrySolPaid: tokenSolPaid,
-                      ExitSolReceived: tokenCurrentPrice * tokenBalance, // Use consistent calculation
-                      TotalSolFees: tokenSolFeePaid,
-                      ProfitLossSOL: (tokenCurrentPrice * tokenBalance) - tokenSolPaid,
-                      ProfitLossUSDC: unrealizedPnLUSDC,
-                      ROIPercentage: unrealizedPnLPercentage,
-                      EntryPriceUSDC: tokenPerTokenPaidUSDC,
-                      ExitPriceUSDC: tokenCurrentPrice,
+                      EntryBalance: Number(tokenBalance),
+                      ExitBalance: Number(tokenBalance),
+                      EntrySolPaid: Number(tokenSolPaid),
+                      ExitSolReceived: Number(tokenCurrentPrice * tokenBalance),
+                      TotalSolFees: Number(tokenSolFeePaid),
+                      ProfitLossSOL: Number((tokenCurrentPrice * tokenBalance) - tokenSolPaid),
+                      ProfitLossUSDC: Number(unrealizedPnLUSDC),
+                      ROIPercentage: Number(unrealizedPnLPercentage),
+                      EntryPriceUSDC: Number(tokenPerTokenPaidUSDC),
+                      ExitPriceUSDC: Number(tokenCurrentPrice),
                       HoldingTimeSeconds: Math.floor(Date.now() / 1000) - Math.floor(tokenTime / 1000),
                       Slot: tokenSlot,
                       Program: tokenProgram,
@@ -199,8 +214,8 @@ async function main() {
                     await insertProfitLoss(profitLossRecord, processRunCounter);
                     console.log(`${config.name}|[main]| Profit/Loss Record Created for Take-Profit:`, processRunCounter, {
                       token: token,
-                      profitLossUSDC: unrealizedPnLUSDC,
-                      roiPercentage: unrealizedPnLPercentage,
+                      profitLossUSDC: Number(unrealizedPnLUSDC).toFixed(8),
+                      roiPercentage: Number(unrealizedPnLPercentage).toFixed(2),
                       IsTakeProfit: unrealizedPnLPercentage >= 0,
                       wallet: walletPublicKey
                     });
@@ -211,11 +226,11 @@ async function main() {
                       Token: token,
                       TokenName: tokenName,
                       TransactionType: 'SELL' as 'BUY' | 'SELL',
-                      TokenAmount: tokenBalance, // Use actual token balance without conversion
-                      SolAmount: tokenCurrentPrice * tokenBalance, // Calculate in original units
-                      SolFee: tokenSolFeePaid / 1e9, // Normalize to match sniper bot format (divide by 1e9)
-                      PricePerTokenUSDC: tokenCurrentPrice,
-                      TotalUSDC: tokenCurrentPrice * tokenBalance,
+                      TokenAmount: Number(tokenBalance),
+                      SolAmount: Number(tokenCurrentPrice * tokenBalance),
+                      SolFee: Number(tokenSolFeePaid / 1e9),
+                      PricePerTokenUSDC: Number(tokenCurrentPrice),
+                      TotalUSDC: Number(tokenCurrentPrice * tokenBalance),
                       Slot: tokenSlot,
                       Program: tokenProgram,
                       BotName: config.name,
@@ -276,16 +291,16 @@ async function main() {
                       EntryTime: tokenTime,
                       Token: token,
                       TokenName: tokenName,
-                      EntryBalance: tokenBalance,
-                      ExitBalance: tokenBalance, // Use same format as EntryBalance, not converted
-                      EntrySolPaid: tokenSolPaid,
-                      ExitSolReceived: tokenCurrentPrice * tokenBalance, // Use consistent calculation
-                      TotalSolFees: tokenSolFeePaid,
-                      ProfitLossSOL: (tokenCurrentPrice * tokenBalance) - tokenSolPaid,
-                      ProfitLossUSDC: unrealizedPnLUSDC,
-                      ROIPercentage: unrealizedPnLPercentage,
-                      EntryPriceUSDC: tokenPerTokenPaidUSDC,
-                      ExitPriceUSDC: tokenCurrentPrice,
+                      EntryBalance: Number(tokenBalance),
+                      ExitBalance: Number(tokenBalance),
+                      EntrySolPaid: Number(tokenSolPaid),
+                      ExitSolReceived: Number(tokenCurrentPrice * tokenBalance),
+                      TotalSolFees: Number(tokenSolFeePaid),
+                      ProfitLossSOL: Number((tokenCurrentPrice * tokenBalance) - tokenSolPaid),
+                      ProfitLossUSDC: Number(unrealizedPnLUSDC),
+                      ROIPercentage: Number(unrealizedPnLPercentage),
+                      EntryPriceUSDC: Number(tokenPerTokenPaidUSDC),
+                      ExitPriceUSDC: Number(tokenCurrentPrice),
                       HoldingTimeSeconds: Math.floor(Date.now() / 1000) - Math.floor(tokenTime / 1000),
                       Slot: tokenSlot,
                       Program: tokenProgram,
@@ -297,8 +312,8 @@ async function main() {
                     await insertProfitLoss(profitLossRecord, processRunCounter);
                     console.log(`${config.name}|[main]| Profit/Loss Record Created for Stop-Loss:`, processRunCounter, {
                       token: token,
-                      profitLossUSDC: unrealizedPnLUSDC,
-                      roiPercentage: unrealizedPnLPercentage,
+                      profitLossUSDC: Number(unrealizedPnLUSDC).toFixed(8),
+                      roiPercentage: Number(unrealizedPnLPercentage).toFixed(2),
                       IsTakeProfit: unrealizedPnLPercentage >= 0,
                       wallet: walletPublicKey
                     });
@@ -309,11 +324,11 @@ async function main() {
                       Token: token,
                       TokenName: tokenName,
                       TransactionType: 'SELL' as 'BUY' | 'SELL',
-                      TokenAmount: tokenBalance, // Use actual token balance without conversion
-                      SolAmount: tokenCurrentPrice * tokenBalance, // Calculate in original units
-                      SolFee: tokenSolFeePaid / 1e9, // Normalize to match sniper bot format (divide by 1e9)
-                      PricePerTokenUSDC: tokenCurrentPrice,
-                      TotalUSDC: tokenCurrentPrice * tokenBalance,
+                      TokenAmount: Number(tokenBalance),
+                      SolAmount: Number(tokenCurrentPrice * tokenBalance),
+                      SolFee: Number(tokenSolFeePaid / 1e9),
+                      PricePerTokenUSDC: Number(tokenCurrentPrice),
+                      TotalUSDC: Number(tokenCurrentPrice * tokenBalance),
                       Slot: tokenSlot,
                       Program: tokenProgram,
                       BotName: config.name,

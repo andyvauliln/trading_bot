@@ -102,6 +102,7 @@ class Logger {
     }
 
     try {
+      // Ensure the database directory exists
       const dbDir = path.dirname(config.logger.db_logs_path);
       if (!fs.existsSync(dbDir)) {
         fs.mkdirSync(dbDir, { recursive: true });
@@ -109,23 +110,52 @@ class Logger {
 
       // Close any existing connection
       if (this.dbConnection) {
-        await this.dbConnection.close();
+        try {
+          await this.dbConnection.close();
+        } catch (err) {
+          // Ignore errors during closing
+        }
       }
 
-      // Open the database with improved settings
-      this.dbConnection = await open({
-        filename: config.logger.db_logs_path,
-        driver: sqlite3.Database
-      });
+      // Attempt to open the database with retry logic
+      let attempts = 0;
+      const maxAttempts = 3;
+      
+      while (attempts < maxAttempts) {
+        try {
+          // Open the database with improved settings
+          this.dbConnection = await open({
+            filename: config.logger.db_logs_path,
+            driver: sqlite3.Database
+          });
+          
+          // Successfully opened
+          break;
+        } catch (err) {
+          attempts++;
+          
+          this.originalConsoleWarn(`${config.name}|[logger]|Database open attempt ${attempts} failed:`, err);
+          
+          if (attempts >= maxAttempts) {
+            throw err;
+          }
+          
+          // Wait before retrying
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+      }
 
       // Configure SQLite for better concurrency and performance
+      // Use a longer busy_timeout to allow other processes to complete their operations
       await this.dbConnection.exec('PRAGMA journal_mode = WAL');
-      await this.dbConnection.exec('PRAGMA busy_timeout = 30000');
+      await this.dbConnection.exec('PRAGMA busy_timeout = 60000'); // Increase to 60 seconds
       await this.dbConnection.exec('PRAGMA synchronous = NORMAL');
       await this.dbConnection.exec('PRAGMA temp_store = MEMORY');
-      await this.dbConnection.exec('PRAGMA cache_size = 5000');
+      await this.dbConnection.exec('PRAGMA cache_size = 10000'); // Increase cache size
       await this.dbConnection.exec('PRAGMA page_size = 4096');
       await this.dbConnection.exec('PRAGMA mmap_size = 30000000');
+      await this.dbConnection.exec('PRAGMA foreign_keys = ON');
+      await this.dbConnection.exec('PRAGMA auto_vacuum = INCREMENTAL');
 
       // Create logs table if it doesn't exist
       await this.dbConnection.exec(`
@@ -145,14 +175,25 @@ class Logger {
         )
       `);
 
-      // Create indexes for better query performance
+      // Optimize table structure
+      await this.dbConnection.exec(`PRAGMA optimize_table=${this.logsTableName}`);
+
+      // Create indexes for better query performance - add IF NOT EXISTS to prevent errors
       await this.dbConnection.exec(`CREATE INDEX IF NOT EXISTS idx_${this.logsTableName}_run_prefix ON ${this.logsTableName}(run_prefix)`);
       await this.dbConnection.exec(`CREATE INDEX IF NOT EXISTS idx_${this.logsTableName}_cycle ON ${this.logsTableName}(cycle)`);
       await this.dbConnection.exec(`CREATE INDEX IF NOT EXISTS idx_${this.logsTableName}_date ON ${this.logsTableName}(date)`);
+      await this.dbConnection.exec(`CREATE INDEX IF NOT EXISTS idx_${this.logsTableName}_type ON ${this.logsTableName}(type)`);
 
-      // VACUUM the database on startup to ensure it's optimized
-      await this.dbConnection.exec('VACUUM');
-      this.lastVacuumTime = Date.now();
+      // Checkpoint WAL file to ensure it doesn't grow too large
+      await this.dbConnection.exec('PRAGMA wal_checkpoint(TRUNCATE)');
+      
+      // Only VACUUM if it's been a while (vacuum is an expensive operation)
+      const now = Date.now();
+      if (now - this.lastVacuumTime > 86400000) { // 24 hours
+        this.originalConsoleLog(`${config.name}|[logger]|Running initial VACUUM on database`);
+        await this.dbConnection.exec('VACUUM');
+        this.lastVacuumTime = now;
+      }
 
       this.originalConsoleLog(`${config.name}|[logger]|Database initialized successfully`);
 
@@ -160,6 +201,7 @@ class Logger {
       this.originalConsoleError(`${config.name}|[logger]|Failed to initialize database:`, error);
       // Set dbConnection to null so we don't try to use it
       this.dbConnection = null;
+      // If we fail to initialize after retries, we'll fallback to file logging only
     }
   }
 
@@ -565,6 +607,8 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
     }
     
     let stmt: Statement | undefined;
+    let retryCount = 0;
+    const MAX_DB_LOCK_RETRIES = 3;
     
     try {
       // Acquire mutex lock for database operations
@@ -572,39 +616,79 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
       
       this.originalConsoleLog(`${config.name}|[logger]|Starting to save ${logsCount} logs to database`);
       
-      await this.retryOperation(async () => {
-        // Begin transaction
-        await this.beginTransaction();
-
-        // Insert logs
-        const preparedStmt = await this.dbConnection.prepare(`
-          INSERT INTO ${this.logsTableName} (date, time, run_prefix, full_message, message, module, function, type, data, cycle, tag)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `);
-        stmt = preparedStmt;
-
-        for (const log of logsToSave) {
-          await preparedStmt.run(
-            log.date,
-            log.time,
-            log.run_prefix,
-            log.full_message,
-            log.message,
-            log.module,
-            log.function,
-            log.type,
-            log.data,
-            log.cycle,
-            log.tag
-          );
+      // Retry loop for database lock errors
+      while (retryCount <= MAX_DB_LOCK_RETRIES) {
+        try {
+          await this.retryOperation(async () => {
+            // Begin transaction
+            await this.beginTransaction();
+  
+            // Insert logs
+            const preparedStmt = await this.dbConnection.prepare(`
+              INSERT INTO ${this.logsTableName} (date, time, run_prefix, full_message, message, module, function, type, data, cycle, tag)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `);
+            stmt = preparedStmt;
+  
+            for (const log of logsToSave) {
+              await preparedStmt.run(
+                log.date,
+                log.time,
+                log.run_prefix,
+                log.full_message,
+                log.message,
+                log.module,
+                log.function,
+                log.type,
+                log.data,
+                log.cycle,
+                log.tag
+              );
+            }
+  
+            // Commit transaction
+            await this.commitTransaction();
+            
+            // Log successful save
+            this.originalConsoleLog(`${config.name}|[logger]|Successfully saved ${logsToSave.length} logs to database`);
+          });
+          
+          // If we reach here, the operation was successful
+          break;
+        } catch (error: any) {
+          retryCount++;
+          
+          if (retryCount <= MAX_DB_LOCK_RETRIES && 
+              (error.code === 'SQLITE_BUSY' || error.code === 'SQLITE_LOCKED')) {
+            // Try recovery if we hit max retries
+            if (retryCount === MAX_DB_LOCK_RETRIES) {
+              this.originalConsoleLog(`${config.name}|[logger]|Persistent database lock detected, attempting recovery...`);
+              
+              // Release mutex before recovery
+              this.dbMutex.release();
+              
+              // Attempt database recovery
+              const recovered = await this.recoverFromDatabaseErrors();
+              
+              // Reacquire mutex
+              await this.dbMutex.acquire();
+              
+              if (!recovered) {
+                // If recovery failed, rethrow to handle in the catch block
+                throw error;
+              }
+            } else {
+              // Wait progressively longer between retries
+              const waitTime = 5000 * Math.pow(2, retryCount);
+              this.originalConsoleLog(`${config.name}|[logger]|Database locked, waiting ${waitTime/1000} seconds before retry ${retryCount}/${MAX_DB_LOCK_RETRIES}`);
+              await new Promise(resolve => setTimeout(resolve, waitTime));
+            }
+          } else {
+            // For non-lock errors or if we've exhausted retries, rethrow
+            throw error;
+          }
         }
-
-        // Commit transaction
-        await this.commitTransaction();
-        
-        // Log successful save
-        this.originalConsoleLog(`${config.name}|[logger]|Successfully saved ${logsToSave.length} logs to database`);
-      });
+      }
     } catch (error) {
       this.originalConsoleError(`${config.name}|[logger]|Failed to save logs to database: ${error}, ${this.logs.length}`);
       
@@ -641,7 +725,7 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
   /**
    * Process the next batch of logs in the queue
    */
-  private async processLogBatchQueue() {
+  private processLogBatchQueue() {
     // Skip if no logs or save is already in progress
     if (this.logBatchQueue.length === 0 || this.saveInProgress) {
       return;
@@ -654,7 +738,11 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
     this.logs = [...nextBatch, ...this.logs];
     
     // Kick off save
-    await this.saveLogs();
+    this.saveLogs().catch(error => {
+      this.originalConsoleError(`${config.name}|[logger]|Error processing log batch: ${error}`);
+      // Schedule next attempt
+      setTimeout(() => this.processLogBatchQueue(), 5000);
+    });
   }
 
   /** 
@@ -688,15 +776,15 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
   }
 
   /**
-   * Perform periodic maintenance on the database
-   * This should be called occasionally to keep the database optimized
+   * Perform database maintenance on a schedule or when needed
+   * Enhanced to try to fix database issues
    */
-  async performDatabaseMaintenance() {
+  async performDatabaseMaintenance(force: boolean = false) {
     if (!this.dbConnection) return;
     
     const now = Date.now();
-    // Only vacuum once per day (86400000 ms)
-    if (now - this.lastVacuumTime < 86400000) return;
+    // Only vacuum once per day (86400000 ms) unless forced
+    if (!force && now - this.lastVacuumTime < 86400000) return;
     
     try {
       await this.dbMutex.acquire();
@@ -709,7 +797,19 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
       
       this.originalConsoleLog(`${config.name}|[logger]|Performing database maintenance...`);
       
+      // Check database integrity
+      try {
+        const integrityCheck = await this.dbConnection.get('PRAGMA integrity_check');
+        if (integrityCheck && integrityCheck.integrity_check !== 'ok') {
+          this.originalConsoleWarn(`${config.name}|[logger]|Database integrity check failed:`, integrityCheck);
+        }
+      } catch (error) {
+        this.originalConsoleError(`${config.name}|[logger]|Error checking database integrity:`, error);
+      }
+      
+      // Run optimizations
       await this.dbConnection.exec('PRAGMA optimize');
+      await this.dbConnection.exec('PRAGMA wal_checkpoint(TRUNCATE)');
       await this.dbConnection.exec('VACUUM');
       
       this.lastVacuumTime = now;
@@ -717,8 +817,49 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
       
     } catch (error) {
       this.originalConsoleError(`${config.name}|[logger]|Error during database maintenance:`, error);
+      
+      // If we encounter an error during maintenance, try to reconnect to the database
+      try {
+        this.originalConsoleLog(`${config.name}|[logger]|Attempting to reinitialize database connection after maintenance error`);
+        await this.initializeDatabase();
+      } catch (reconnectError) {
+        this.originalConsoleError(`${config.name}|[logger]|Failed to reinitialize database after maintenance error:`, reconnectError);
+      }
     } finally {
       this.dbMutex.release();
+    }
+  }
+
+  /**
+   * Recover from repeated database errors
+   * This method attempts to recover from persistent database issues
+   */
+  private async recoverFromDatabaseErrors() {
+    this.originalConsoleLog(`${config.name}|[logger]|Attempting to recover from database errors...`);
+
+    try {
+      // Close existing connection if it exists
+      if (this.dbConnection) {
+        await this.dbConnection.close().catch(() => {
+          // Ignore errors during close
+        });
+        this.dbConnection = null;
+      }
+
+      // Wait a bit to ensure file system operations can complete
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      
+      // Try to reopen the database with fresh settings
+      await this.initializeDatabase();
+      
+      // Force maintenance to ensure clean state
+      await this.performDatabaseMaintenance(true);
+      
+      this.originalConsoleLog(`${config.name}|[logger]|Database recovery completed successfully`);
+      return true;
+    } catch (error) {
+      this.originalConsoleError(`${config.name}|[logger]|Database recovery failed:`, error);
+      return false;
     }
   }
 

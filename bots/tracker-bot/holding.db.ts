@@ -90,15 +90,27 @@ export async function insertHolding(holding: HoldingRecord, processRunCounter: n
   // Proceed with adding holding
   if (holdingsTableExist) {
     const { Time, Token, TokenName, Balance, SolPaid, SolFeePaid, SolPaidUSDC, SolFeePaidUSDC, PerTokenPaidUSDC, Slot, Program, BotName, WalletPublicKey } = holding;
+    
+    // Ensure all numeric values are numbers before storing
     await db.run(
       `
     INSERT INTO holdings (Time, Token, TokenName, Balance, SolPaid, SolFeePaid, SolPaidUSDC, SolFeePaidUSDC, PerTokenPaidUSDC, Slot, Program, BotName, WalletPublicKey)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
   `,
-      [Time, Token, TokenName, Balance, SolPaid, SolFeePaid, SolPaidUSDC, SolFeePaidUSDC, PerTokenPaidUSDC, Slot, Program, BotName, WalletPublicKey]
+      [
+        Number(Time), Token, TokenName, Number(Balance), Number(SolPaid), Number(SolFeePaid), 
+        Number(SolPaidUSDC), Number(SolFeePaidUSDC), Number(PerTokenPaidUSDC), Number(Slot), 
+        Program, BotName, WalletPublicKey
+      ]
     );
 
-    console.log(`${config.name}|[insertHolding]| Holding inserted successfully`, processRunCounter, holding);
+    console.log(`${config.name}|[insertHolding]| Holding inserted successfully`, processRunCounter, {
+      Token,
+      TokenName,
+      Balance: Number(Balance),
+      PerTokenPaidUSDC: Number(PerTokenPaidUSDC).toFixed(8),
+      SolPaidUSDC: Number(SolPaidUSDC).toFixed(8)
+    });
 
     await db.close();
   }
@@ -552,6 +564,7 @@ export async function insertProfitLoss(record: ProfitLossRecord, processRunCount
     WalletPublicKey
   } = record;
 
+  // Ensure all numeric values are numbers before storing
   await db.run(
     `
     INSERT INTO profit_loss (
@@ -563,14 +576,20 @@ export async function insertProfitLoss(record: ProfitLossRecord, processRunCount
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
   `,
     [
-      Time, EntryTime, Token, TokenName, EntryBalance, ExitBalance,
-      EntrySolPaid, ExitSolReceived, TotalSolFees, ProfitLossSOL,
-      ProfitLossUSDC, ROIPercentage, EntryPriceUSDC, ExitPriceUSDC,
-      HoldingTimeSeconds, Slot, Program, BotName, IsTakeProfit ? 1 : 0, WalletPublicKey
+      Number(Time), Number(EntryTime), Token, TokenName, Number(EntryBalance), Number(ExitBalance),
+      Number(EntrySolPaid), Number(ExitSolReceived), Number(TotalSolFees), Number(ProfitLossSOL),
+      Number(ProfitLossUSDC), Number(ROIPercentage), Number(EntryPriceUSDC), Number(ExitPriceUSDC),
+      Number(HoldingTimeSeconds), Number(Slot), Program, BotName, IsTakeProfit ? 1 : 0, WalletPublicKey
     ]
   );
 
-  console.log(`${config.name}|[insertProfitLoss]| Profit/loss record inserted successfully`, processRunCounter, record);
+  console.log(`${config.name}|[insertProfitLoss]| Profit/loss record inserted successfully`, processRunCounter, {
+    Token,
+    ProfitLossUSDC: Number(ProfitLossUSDC).toFixed(8),
+    ROIPercentage: Number(ROIPercentage).toFixed(2),
+    EntryPriceUSDC: Number(EntryPriceUSDC).toFixed(8),
+    ExitPriceUSDC: Number(ExitPriceUSDC).toFixed(8)
+  });
 
   await db.close();
 }
@@ -872,6 +891,7 @@ export async function insertTransaction(transaction: {
     WalletPublicKey
   } = transaction;
 
+  // Ensure all numeric values are numbers before storing
   await db.run(
     `
     INSERT INTO transactions (
@@ -881,12 +901,18 @@ export async function insertTransaction(transaction: {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
   `,
     [
-      Time, Token, TokenName, TransactionType, TokenAmount, SolAmount,
-      SolFee, PricePerTokenUSDC, TotalUSDC, Slot, Program, BotName, WalletPublicKey
+      Number(Time), Token, TokenName, TransactionType, Number(TokenAmount), Number(SolAmount),
+      Number(SolFee), Number(PricePerTokenUSDC), Number(TotalUSDC), Number(Slot), Program, BotName, WalletPublicKey
     ]
   );
 
-  console.log(`${config.name}|[insertTransaction]| Transaction inserted successfully`, processRunCounter, transaction);
+  console.log(`${config.name}|[insertTransaction]| Transaction inserted successfully`, processRunCounter, {
+    Token,
+    TransactionType,
+    TokenAmount: Number(TokenAmount),
+    PricePerTokenUSDC: Number(PricePerTokenUSDC).toFixed(8),
+    TotalUSDC: Number(TotalUSDC).toFixed(8)
+  });
 
   await db.close();
 }
