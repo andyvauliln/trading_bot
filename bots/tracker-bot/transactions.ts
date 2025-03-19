@@ -42,6 +42,12 @@ export async function createSellTransaction(solMint: string, tokenMint: string, 
       return sum + BigInt(tokenAmount);
     }, BigInt(0));
 
+    // Log the balance format for debugging
+    console.log(`${config.name}|[createSellTransaction]| Token balance format:`, processRunCounter, {
+      totalBalance: totalBalance.toString(),
+      requestedAmount: amount
+    });
+
     // Skip this wallet if it doesn't have the token balance
     if (totalBalance <= 0n) {
       console.log(`${config.name}|[createSellTransaction]| Wallet ${walletPublicKey} has no balance for token ${tokenMint}`, processRunCounter);
@@ -57,6 +63,17 @@ export async function createSellTransaction(solMint: string, tokenMint: string, 
     // Check if wallet has enough SOL to cover fees
     const solBalance = await connection.getBalance(myWallet.publicKey);
     const minRequiredBalance = config.sell.prio_fee_max_lamports + 5000 + 1000000; // prio fee + base fee + safety buffer
+    
+    // Log fee details for clarity
+    console.log(`${config.name}|[createSellTransaction]| Fee details:`, processRunCounter, {
+      solBalanceLamports: solBalance,
+      solBalanceSOL: solBalance / 1e9,
+      requiredBalanceLamports: minRequiredBalance,
+      requiredBalanceSOL: minRequiredBalance / 1e9,
+      priorityFeeLamports: config.sell.prio_fee_max_lamports,
+      priorityFeeSOL: config.sell.prio_fee_max_lamports / 1e9
+    });
+    
     if (solBalance < minRequiredBalance) {
       console.log(`${config.name}|[createSellTransaction]| Wallet ${walletPublicKey} has insufficient SOL for fees`, processRunCounter);
       return { success: false, msg: "Insufficient SOL for fees", tx: null, walletPublicKey };
@@ -150,6 +167,15 @@ export async function createSellTransaction(solMint: string, tokenMint: string, 
       blockhash: latestBlockHash.blockhash,
       lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
       signature: txid,
+    });
+
+    // Log confirmation details
+    console.log(`${config.name}|[createSellTransaction]| Transaction confirmation details:`, processRunCounter, {
+      confirmed: conf.value.err === null,
+      error: conf.value.err,
+      context: {
+        slot: conf.context?.slot
+      }
     });
 
     if (conf.value.err || conf.value.err !== null) {

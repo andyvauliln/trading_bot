@@ -37,6 +37,15 @@ async function main() {
 
     console.log(`${config.name}|[main]|Found Holdings: ${holdings.length}`, processRunCounter, holdings);
     if (holdings.length !== 0) {
+      // Log the format of the holdings for better debugging
+      const holdingFormatSample = holdings[0];
+      console.log(`${config.name}|[main]| Holdings format sample:`, processRunCounter, {
+        SolPaid: `${holdingFormatSample.SolPaid} (in SOL)`,
+        SolFeePaid: `${holdingFormatSample.SolFeePaid} (in SOL)`,
+        SolPaidUSDC: holdingFormatSample.SolPaidUSDC,
+        SolFeePaidUSDC: holdingFormatSample.SolFeePaidUSDC,
+      });
+      
       // Get all token ids
       const tokenValues = holdings.map((holding) => holding.Token).join(",");
 
@@ -144,17 +153,39 @@ async function main() {
             return;
           }
           
-          // Calculate PnL and profit/loss
-          // Determine whether to include fees based on configuration
+          // Log the raw holding values for debugging
+          console.log(`${config.name}|[main]| Raw holding values for ${tokenName}:`, processRunCounter, {
+            tokenBalance: `${tokenBalance} tokens`,
+            tokenSolPaid: `${tokenSolPaid} SOL`,
+            tokenSolFeePaid: `${tokenSolFeePaid} SOL`,
+            tokenSolPaidUSDC: `$${tokenSolPaidUSDC}`,
+            tokenSolFeePaidUSDC: `$${tokenSolFeePaidUSDC}`,
+            tokenPerTokenPaidUSDC: `$${tokenPerTokenPaidUSDC} per token`,
+            currentPrice: `$${tokenCurrentPrice} per token`,
+          });
+          
+          // Calculate and log P&L details before executing any actions
           let unrealizedPnLUSDC, unrealizedPnLPercentage;
           if (config.sell.include_fees_in_pnl) {
             // Include fees in P&L calculation
             unrealizedPnLUSDC = (tokenCurrentPrice - tokenPerTokenPaidUSDC) * tokenBalance - tokenSolFeePaidUSDC;
             unrealizedPnLPercentage = (unrealizedPnLUSDC / (tokenPerTokenPaidUSDC * tokenBalance)) * 100;
+            console.log(`${config.name}|[main]| P&L calculation (including fees):`, processRunCounter, {
+              priceDiff: `$${(tokenCurrentPrice - tokenPerTokenPaidUSDC).toFixed(8)} per token`,
+              grossPnL: `$${((tokenCurrentPrice - tokenPerTokenPaidUSDC) * tokenBalance).toFixed(8)}`,
+              fees: `$${tokenSolFeePaidUSDC}`,
+              netPnL: `$${unrealizedPnLUSDC.toFixed(8)}`,
+              roiPercent: `${unrealizedPnLPercentage.toFixed(2)}%`
+            });
           } else {
             // Exclude fees from P&L calculation - only consider price difference
             unrealizedPnLUSDC = (tokenCurrentPrice - tokenPerTokenPaidUSDC) * tokenBalance;
             unrealizedPnLPercentage = ((tokenCurrentPrice - tokenPerTokenPaidUSDC) / tokenPerTokenPaidUSDC) * 100;
+            console.log(`${config.name}|[main]| P&L calculation (excluding fees):`, processRunCounter, {
+              priceDiff: `$${(tokenCurrentPrice - tokenPerTokenPaidUSDC).toFixed(8)} per token`,
+              pnL: `$${unrealizedPnLUSDC.toFixed(8)}`,
+              roiPercent: `${unrealizedPnLPercentage.toFixed(2)}%`
+            });
           }
           
           const iconPnl = unrealizedPnLUSDC > 0 ? "🟢" : "🔴";
@@ -228,7 +259,7 @@ async function main() {
                       TransactionType: 'SELL' as 'BUY' | 'SELL',
                       TokenAmount: Number(tokenBalance),
                       SolAmount: Number(tokenCurrentPrice * tokenBalance),
-                      SolFee: Number(tokenSolFeePaid / 1e9),
+                      SolFee: Number(tokenSolFeePaid),
                       PricePerTokenUSDC: Number(tokenCurrentPrice),
                       TotalUSDC: Number(tokenCurrentPrice * tokenBalance),
                       Slot: tokenSlot,
@@ -326,7 +357,7 @@ async function main() {
                       TransactionType: 'SELL' as 'BUY' | 'SELL',
                       TokenAmount: Number(tokenBalance),
                       SolAmount: Number(tokenCurrentPrice * tokenBalance),
-                      SolFee: Number(tokenSolFeePaid / 1e9),
+                      SolFee: Number(tokenSolFeePaid),
                       PricePerTokenUSDC: Number(tokenCurrentPrice),
                       TotalUSDC: Number(tokenCurrentPrice * tokenBalance),
                       Slot: tokenSlot,

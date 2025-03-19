@@ -758,7 +758,7 @@ export async function fetchAndSaveSwapDetails(tx: string, processRunCounter: num
       TokenName: tokenName,
       Balance: swapTransactionData.tokenOutputs[0].tokenAmount,
       SolPaid: swapTransactionData.tokenInputs[0].tokenAmount,
-      SolFeePaid: swapTransactionData.fee,
+      SolFeePaid: swapTransactionData.fee / 1e9,
       SolPaidUSDC: solPaidUsdc,
       SolFeePaidUSDC: solFeePaidUsdc,
       PerTokenPaidUSDC: perTokenUsdcPrice,

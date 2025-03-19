@@ -150,7 +150,7 @@ TODO API:
 [] fix tracker bot,
 [] make wallet dictionaries
 [] fix [object Object] in rug conditions
- 
+[] add txid and link to data
 
 
 
