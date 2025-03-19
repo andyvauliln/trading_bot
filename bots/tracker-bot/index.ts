@@ -209,7 +209,7 @@ async function main() {
 
             // Sell via Take Profit unrealizedPnLPercentage >= config.sell.take_profit_percent
             if (unrealizedPnLPercentage >= config.sell.take_profit_percent) {
-              console.log(`${config.name}|[main]| 🟢🔴 ${hrTradeTime}: Trying to make profit for ${tokenName} with PnL: $${unrealizedPnLUSDC.toFixed(2)} (${unrealizedPnLPercentage.toFixed(2)}%), Config TP: ${config.sell.take_profit_percent}%`, processRunCounter, {
+              console.log(`${config.name}|[main]| 🟢🔴 ${hrTradeTime}: Trying to make sell token ${tokenName} with PnL: $${unrealizedPnLUSDC.toFixed(2)} (${unrealizedPnLPercentage.toFixed(2)}%), Config TP: ${config.sell.take_profit_percent}%`, processRunCounter, {
                 tokenName,
                 unrealizedPnLUSDC,
                 unrealizedPnLPercentage,
