@@ -179,7 +179,7 @@ export async function createSellTransaction(solMint: string, tokenMint: string, 
     });
 
     if (conf.value.err || conf.value.err !== null) {
-      console.warn(`${config.name}|[createSellTransaction]| ⛔ Transaction not confirmed: ${conf.value.err}`, processRunCounter);
+      console.warn(`${config.name}|[createSellTransaction]| ⛔ Transaction not confirmed: ${JSON.stringify(conf.value.err, null, 2)}`, processRunCounter, {txid, tokenMint, amount, type, walletPublicKey, conf});
       return { success: false, msg: `Transaction not confirmed: ${conf.value.err}`, tx: null, walletPublicKey };
     }
 
