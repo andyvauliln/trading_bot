@@ -30,13 +30,14 @@ export async function fetchTransactionDetails(signature: string, processRunCount
   // Add longer initial delay to allow transaction to be processed
   console.log(`${config.name}|[fetchTransactionDetails]| Waiting ${config.tx.fetch_tx_initial_delay / 1000} seconds for transaction to be confirmed...`, processRunCounter);
   await new Promise((resolve) => setTimeout(resolve, config.tx.fetch_tx_initial_delay));
-
+  let txLastError = "";
+  let response: any = null;
   while (retryCount < maxRetries) {
     try {
       // Output logs
       console.log(`${config.name}|[fetchTransactionDetails]| Attempt ${retryCount + 1} of ${maxRetries} to fetch transaction details...`, processRunCounter);
 
-      const response = await retryAxiosRequest(
+        response = await retryAxiosRequest(
         () => axios.post<any>(
           txUrl,
           {
@@ -125,7 +126,8 @@ export async function fetchTransactionDetails(signature: string, processRunCount
 
       return displayData;
     } catch (error: any) {
-      console.error(`${config.name}|[fetchTransactionDetails]| Attempt ${retryCount + 1} failed: ${error.message}`, processRunCounter);
+      txLastError = error.message;
+      console.log(`${config.name}|[fetchTransactionDetails]| Attempt ${retryCount + 1} failed: ${error.message}`, processRunCounter);
 
       retryCount++;
 
@@ -137,7 +139,7 @@ export async function fetchTransactionDetails(signature: string, processRunCount
     }
   }
 
-  console.log(`${config.name}|[fetchTransactionDetails]| All attempts to fetch transaction details failed`, processRunCounter);
+  console.error(`${config.name}|[fetchTransactionDetails]| All attempts to fetch transaction details failed: ${txLastError}`, processRunCounter, response);
   return null;
 }
 
