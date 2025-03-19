@@ -139,10 +139,17 @@ TODO API:
 [] make live updates
 [] fix hydration error on ui for livechat
 [] fix crons restarts every seonds issue
-[] make order in running processes to not get inter connection errors 
+[] make order in running processes to not get inter connection 
+[] make live updates ui
+[] make live updates api
+[] refactoring logs
+[] deploying
+[] setup pm2
+[] fix hydration error on ui for livechat
+[] fix sql errors
+[] fix tracker bot,
+[] make wallet dicerrors 
 
-git config --global user.name "Andrei Vaulin"
-git config --global user.email "andy.vaulin@gmail.com"
 
 ## Test server Api
 `http://35.204.20.112:9090/api/logs?module=tracker-bot`
