@@ -46,7 +46,7 @@ export const config = {
   name: module_name,
   verbose_log: true,
   environment: process.env.NODE_ENV || "development", // development, production, test
-  simulation_mode: true,
+  simulation_mode: false,
   logger: {
     keeping_days_in_db: 10,
     terminal_logs: process.env.IS_TERMINAL_LOG === 'true' || process.env.NODE_ENV === 'development',

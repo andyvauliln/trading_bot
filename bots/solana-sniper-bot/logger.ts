@@ -32,12 +32,18 @@ class Mutex {
       this.locked = false;
     }
   }
+
+  // Add method to check if mutex is locked
+  isLocked(): boolean {
+    return this.locked;
+  }
 }
 
 // Logger class to handle logging to console, file, and database
 class Logger {
   private dbConnection: any = null;
   private logs: any[] = [];
+  private logBatchQueue: any[][] = []; // Queue for batches of logs waiting to be saved
   private cycle: number = 0;
   private runPrefix: string = '';
   private moduleName: string = '';
@@ -50,6 +56,8 @@ class Logger {
   private dbMutex = new Mutex(); // Mutex to prevent concurrent database operations
   private saveInProgress: boolean = false; // Flag to prevent concurrent save operations
   private isInTransaction: boolean = false; // Flag to track transaction state
+  private lastSaveAttempt: number = 0; // Timestamp of last save attempt
+  private lastVacuumTime: number = 0; // Timestamp of last database vacuum
 
   constructor() {
     this.moduleName = config.name;
@@ -82,6 +90,76 @@ class Logger {
       console.log(`${config.name}|[logger]|✅ Discord logging is enabled`);
     } else {
       console.log(`${config.name}|[logger]|🚫 Discord logging is disabled - missing DISCORD_BOT_TOKEN or DISCORD_CT_TRACKER_CHANNEL`);
+    }
+  }
+
+  /**
+   * Initialize the database for better performance and reliability
+   */
+  private async initializeDatabase() {
+    if (!config.logger.db_logs) {
+      return;
+    }
+
+    try {
+      const dbDir = path.dirname(config.logger.db_logs_path);
+      if (!fs.existsSync(dbDir)) {
+        fs.mkdirSync(dbDir, { recursive: true });
+      }
+
+      // Close any existing connection
+      if (this.dbConnection) {
+        await this.dbConnection.close();
+      }
+
+      // Open the database with improved settings
+      this.dbConnection = await open({
+        filename: config.logger.db_logs_path,
+        driver: sqlite3.Database
+      });
+
+      // Configure SQLite for better concurrency and performance
+      await this.dbConnection.exec('PRAGMA journal_mode = WAL');
+      await this.dbConnection.exec('PRAGMA busy_timeout = 30000');
+      await this.dbConnection.exec('PRAGMA synchronous = NORMAL');
+      await this.dbConnection.exec('PRAGMA temp_store = MEMORY');
+      await this.dbConnection.exec('PRAGMA cache_size = 5000');
+      await this.dbConnection.exec('PRAGMA page_size = 4096');
+      await this.dbConnection.exec('PRAGMA mmap_size = 30000000');
+
+      // Create logs table if it doesn't exist
+      await this.dbConnection.exec(`
+        CREATE TABLE IF NOT EXISTS ${this.logsTableName} (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          date TEXT,
+          time TEXT,
+          run_prefix TEXT,
+          full_message TEXT,
+          message TEXT,
+          module TEXT,
+          function TEXT,
+          type TEXT,
+          data TEXT,
+          cycle INTEGER,
+          tag TEXT
+        )
+      `);
+
+      // Create indexes for better query performance
+      await this.dbConnection.exec(`CREATE INDEX IF NOT EXISTS idx_${this.logsTableName}_run_prefix ON ${this.logsTableName}(run_prefix)`);
+      await this.dbConnection.exec(`CREATE INDEX IF NOT EXISTS idx_${this.logsTableName}_cycle ON ${this.logsTableName}(cycle)`);
+      await this.dbConnection.exec(`CREATE INDEX IF NOT EXISTS idx_${this.logsTableName}_date ON ${this.logsTableName}(date)`);
+
+      // VACUUM the database on startup to ensure it's optimized
+      await this.dbConnection.exec('VACUUM');
+      this.lastVacuumTime = Date.now();
+
+      this.originalConsoleLog(`${config.name}|[logger]|Database initialized successfully`);
+
+    } catch (error) {
+      this.originalConsoleError(`${config.name}|[logger]|Failed to initialize database:`, error);
+      // Set dbConnection to null so we don't try to use it
+      this.dbConnection = null;
     }
   }
 
@@ -127,36 +205,7 @@ class Logger {
 
     // Initialize database if needed
     if (config.logger.db_logs) {
-      try {
-        this.dbConnection = await open({
-          filename: config.logger.db_logs_path,
-          driver: sqlite3.Database
-        });
-
-        // Configure SQLite for better concurrency
-        await this.dbConnection.exec('PRAGMA journal_mode = WAL');
-        await this.dbConnection.exec('PRAGMA busy_timeout = 10000');
-
-        // Create logs table if it doesn't exist
-        await this.dbConnection.exec(`
-          CREATE TABLE IF NOT EXISTS ${this.logsTableName} (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            date TEXT,
-            time TEXT,
-            run_prefix TEXT,
-            full_message TEXT,
-            message TEXT,
-            module TEXT,
-            function TEXT,
-            type TEXT,
-            data TEXT,
-            cycle INTEGER,
-            tag TEXT
-          )
-        `);
-      } catch (error) {
-        this.originalConsoleError(`${config.name}|[logger]|Failed to initialize logger database:`, error);
-      }
+      await this.initializeDatabase();
     }
   }
 
@@ -323,7 +372,7 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
     }
   }
 
-  private async retryOperation<T>(operation: () => Promise<T>, maxRetries: number = 3): Promise<T> {
+  private async retryOperation<T>(operation: () => Promise<T>, maxRetries: number = 5): Promise<T> {
     let lastError;
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
@@ -336,7 +385,6 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
           if (error.message?.includes('no transaction is active')) {
             this.isInTransaction = false;
           } else if (error.message?.includes('cannot start a transaction within a transaction')) {
-            // Just log a debug message rather than a warning
             await this.forceRollbackTransaction();
             continue; // Try again after rollback
           }
@@ -345,8 +393,11 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
         if (error.code === 'SQLITE_BUSY' || error.code === 'SQLITE_LOCKED') {
           // Log retry attempt
           this.originalConsoleLog(`${config.name}|[logger]|Database busy/locked, retrying operation (attempt ${attempt}/${maxRetries})`);
-          // Wait with exponential backoff: 100ms, 200ms, 400ms
-          await new Promise(resolve => setTimeout(resolve, 100 * Math.pow(2, attempt - 1)));
+          
+          // Wait with exponential backoff: longer delays
+          // 500ms, 1000ms, 2000ms, 4000ms, 8000ms
+          await new Promise(resolve => setTimeout(resolve, 500 * Math.pow(2, attempt - 1)));
+          
           // Ensure we're not in a transaction before retrying
           await this.forceRollbackTransaction();
           continue;
@@ -450,14 +501,37 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
    * Save logs to database with improved transaction handling and concurrency control
    */
   async saveLogs() {
-    // Early return if already in progress to prevent concurrent save operations
-    if (this.saveInProgress || this.logs.length === 0) {
+    // Skip if no logs to save
+    if (this.logs.length === 0) {
+      return;
+    }
+    
+    // Make a copy of the logs array and clear the original to allow new logs to be collected
+    const logsToSave = [...this.logs];
+    this.logs = [];
+    
+    // Add to batch queue if a save is already in progress or mutex is locked
+    if (this.saveInProgress || this.dbMutex.isLocked()) {
+      this.logBatchQueue.push(logsToSave);
+      return;
+    }
+    
+    // Current time to enforce minimum delay between save attempts
+    const now = Date.now();
+    if (now - this.lastSaveAttempt < 1000) { // 1 second minimum delay
+      this.logBatchQueue.push(logsToSave);
+      
+      // If we're not currently saving, schedule the next save
+      if (!this.saveInProgress) {
+        setTimeout(() => this.processLogBatchQueue(), 1000);
+      }
       return;
     }
     
     // Mark save as in progress
     this.saveInProgress = true;
-    const logsCount = this.logs.length;
+    this.lastSaveAttempt = now;
+    const logsCount = logsToSave.length;
     this.originalConsoleLog(`${config.name}|[logger]|Starting to save ${logsCount} logs to database`);
     
     // Save to file first (outside of mutex lock since file operations are separate)
@@ -466,12 +540,10 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
     // Then save to database
     if (!config.logger.db_logs || !this.dbConnection) {
       this.saveInProgress = false;
+      // Process next batch if available
+      this.processLogBatchQueue();
       return;
     }
-
-    // Make a copy of the logs array to allow new logs to be collected
-    const logsToSave = [...this.logs];
-    this.logs = [];
     
     let stmt: Statement | undefined;
     
@@ -513,10 +585,10 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
         this.originalConsoleLog(`${config.name}|[logger]|Successfully saved ${logsToSave.length} logs to database`);
       });
     } catch (error) {
-      this.originalConsoleError(`${config.name}|[logger]|Failed to save logs to database: ${error}`);
+      this.originalConsoleError(`${config.name}|[logger]|Failed to save logs to database: ${error}, ${this.logs.length}`);
       
-      // If we failed to save logs, put them back in the logs array
-      this.logs = [...logsToSave, ...this.logs];
+      // If we failed to save logs, put them back at the front of the queue
+      this.logBatchQueue.unshift(logsToSave);
       
       // Attempt rollback
       try {
@@ -539,7 +611,29 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
       
       // Mark save as no longer in progress
       this.saveInProgress = false;
+      
+      // Process next batch if available
+      this.processLogBatchQueue();
     }
+  }
+  
+  /**
+   * Process the next batch of logs in the queue
+   */
+  private async processLogBatchQueue() {
+    // Skip if no logs or save is already in progress
+    if (this.logBatchQueue.length === 0 || this.saveInProgress) {
+      return;
+    }
+    
+    // Take the next batch
+    const nextBatch = this.logBatchQueue.shift()!;
+    
+    // Put logs back in the main logs array
+    this.logs = [...nextBatch, ...this.logs];
+    
+    // Kick off save
+    await this.saveLogs();
   }
 
   /** 
@@ -573,6 +667,41 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
   }
 
   /**
+   * Perform periodic maintenance on the database
+   * This should be called occasionally to keep the database optimized
+   */
+  async performDatabaseMaintenance() {
+    if (!this.dbConnection) return;
+    
+    const now = Date.now();
+    // Only vacuum once per day (86400000 ms)
+    if (now - this.lastVacuumTime < 86400000) return;
+    
+    try {
+      await this.dbMutex.acquire();
+      
+      // Wait for any ongoing operations to complete
+      if (this.saveInProgress) {
+        this.dbMutex.release();
+        return;
+      }
+      
+      this.originalConsoleLog(`${config.name}|[logger]|Performing database maintenance...`);
+      
+      await this.dbConnection.exec('PRAGMA optimize');
+      await this.dbConnection.exec('VACUUM');
+      
+      this.lastVacuumTime = now;
+      this.originalConsoleLog(`${config.name}|[logger]|Database maintenance completed`);
+      
+    } catch (error) {
+      this.originalConsoleError(`${config.name}|[logger]|Error during database maintenance:`, error);
+    } finally {
+      this.dbMutex.release();
+    }
+  }
+
+  /**
    * Set the current cycle
    */
   async setCycle(cycle: number) {
@@ -587,6 +716,11 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
       // Save to database and wait for it to complete
       try {
         await this.saveLogs();
+        
+        // Perform database maintenance occasionally
+        if (cycle % 100 === 0) {
+          await this.performDatabaseMaintenance();
+        }
       } catch (error) {
         this.originalConsoleError(`${config.name}|[logger]|Failed to save logs on cycle change: ${error}`);
       }
