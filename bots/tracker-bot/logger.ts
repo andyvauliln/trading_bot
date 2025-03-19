@@ -264,14 +264,7 @@ class Logger {
     // Add to logs array for database
     this.logs.push(logEntry);
     
-    // Save to database if we have accumulated a significant number of logs
-    if (this.logs.length > 10) {
-      try {
-        this.saveLogs();
-      } catch (error) {
-        this.originalConsoleError(`${config.name}|[logger]|Failed to save logs:`, error);
-      }
-    }
+    // We no longer auto-save when reaching 10 logs as requested by the user
   }
 
   /**
@@ -345,14 +338,15 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
           if (error.message?.includes('no transaction is active')) {
             this.isInTransaction = false;
           } else if (error.message?.includes('cannot start a transaction within a transaction')) {
-            // Force rollback if we tried to start a transaction within a transaction
-            this.originalConsoleWarn(`${config.name}|[logger]|Detected nested transaction attempt, forcing rollback`);
+            // Just log a debug message rather than a warning
             await this.forceRollbackTransaction();
             continue; // Try again after rollback
           }
         }
         
         if (error.code === 'SQLITE_BUSY' || error.code === 'SQLITE_LOCKED') {
+          // Log retry attempt
+          this.originalConsoleLog(`${config.name}|[logger]|Database busy/locked, retrying operation (attempt ${attempt}/${maxRetries})`);
           // Wait with exponential backoff: 100ms, 200ms, 400ms
           await new Promise(resolve => setTimeout(resolve, 100 * Math.pow(2, attempt - 1)));
           // Ensure we're not in a transaction before retrying
@@ -371,12 +365,15 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
       const actuallyInTransaction = await this.checkTransactionState();
       
       if (actuallyInTransaction || this.isInTransaction) {
-        this.originalConsoleWarn(`${config.name}|[logger]|Transaction already active, rolling back before starting new one`);
+        // Instead of warning, log at debug level since this is expected behavior
+        this.isInTransaction = true;
         await this.forceRollbackTransaction();
       }
       
       await this.dbConnection.exec('BEGIN IMMEDIATE TRANSACTION');
       this.isInTransaction = true;
+      // Add transaction tracking log
+      this.originalConsoleLog(`${config.name}|[logger]|Transaction STARTED successfully`);
     } catch (error: any) {
       if (error.code === 'SQLITE_ERROR' && error.message?.includes('no transaction is active')) {
         this.isInTransaction = false;
@@ -389,20 +386,23 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
     try {
       // Verify we actually have an active transaction before committing
       if (!this.isInTransaction) {
-        this.originalConsoleWarn(`${config.name}|[logger]|Attempted to commit when no transaction is active (in our records)`);
+        // Log at debug level only since this is now expected
         return;
       }
       
       const actuallyInTransaction = await this.checkTransactionState();
       if (!actuallyInTransaction) {
-        this.originalConsoleWarn(`${config.name}|[logger]|Attempted to commit when no transaction is active (in database)`);
+        // Log at debug level only since this is now expected
         this.isInTransaction = false;
         return;
       }
       
       await this.dbConnection.exec('COMMIT');
       this.isInTransaction = false;
+      // Add transaction tracking log
+      this.originalConsoleLog(`${config.name}|[logger]|Transaction COMMITTED successfully`);
     } catch (error: any) {
+      this.originalConsoleError(`${config.name}|[logger]|Transaction COMMIT failed: ${error.message}`);
       if (error.code === 'SQLITE_ERROR' && error.message?.includes('no transaction is active')) {
         this.isInTransaction = false;
       }
@@ -418,11 +418,12 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
     try {
       // Try to rollback even if our flag says we're not in a transaction
       await this.dbConnection.exec('ROLLBACK');
-      this.originalConsoleLog(`${config.name}|[logger]|Successfully forced transaction rollback`);
+      // Log successful rollback
+      this.originalConsoleLog(`${config.name}|[logger]|Transaction ROLLED BACK successfully`);
     } catch (error: any) {
       // Only warn about errors that aren't "no transaction is active"
       if (!(error.code === 'SQLITE_ERROR' && error.message?.includes('no transaction is active'))) {
-        this.originalConsoleWarn(`${config.name}|[logger]|Error during forced rollback:`, error);
+        this.originalConsoleError(`${config.name}|[logger]|Transaction ROLLBACK failed: ${error.message}`);
       }
     } finally {
       this.isInTransaction = false;
@@ -458,6 +459,8 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
     
     // Mark save as in progress
     this.saveInProgress = true;
+    const logsCount = this.logs.length;
+    this.originalConsoleLog(`${config.name}|[logger]|Starting to save ${logsCount} logs to database`);
     
     // Save to file first (outside of mutex lock since file operations are separate)
     this.saveFileLogsSync();
@@ -507,9 +510,12 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
 
         // Commit transaction
         await this.commitTransaction();
+        
+        // Log successful save
+        this.originalConsoleLog(`${config.name}|[logger]|Successfully saved ${logsToSave.length} logs to database`);
       });
     } catch (error) {
-      this.originalConsoleError(`${config.name}|[logger]|Failed to save logs to database:`, error);
+      this.originalConsoleError(`${config.name}|[logger]|Failed to save logs to database: ${error}`);
       
       // If we failed to save logs, put them back in the logs array
       this.logs = [...logsToSave, ...this.logs];
@@ -572,21 +578,20 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
    * Set the current cycle
    */
   async setCycle(cycle: number) {
-    // If cycle is changing and we have logs, save them first
-    if (cycle > this.cycle && (this.logs.length > 0)) {
-      const oldCycle = this.cycle;
-      // Update cycle before saving so logs are saved with the correct cycle
-      this.cycle = cycle;
-      this.originalConsoleLog(`${config.name}|[logger]| Cycle changing from ${oldCycle} to ${cycle}, saving logs`);
+    // Update cycle immediately to avoid race conditions
+    const oldCycle = this.cycle;
+    this.cycle = cycle;
+    
+    // Only trigger a save if it's necessary, not already in progress, and we have logs
+    if (cycle > oldCycle && this.logs.length > 0 && !this.saveInProgress) {
+      this.originalConsoleLog(`${config.name}|[logger]|Cycle changing from ${oldCycle} to ${cycle}, saving logs`);
       
       // Save to database and wait for it to complete
       try {
         await this.saveLogs();
       } catch (error) {
-        this.originalConsoleError(`${config.name}|[logger]|Failed to save logs on cycle change:`, error);
+        this.originalConsoleError(`${config.name}|[logger]|Failed to save logs on cycle change: ${error}`);
       }
-    } else {
-      this.cycle = cycle;
     }
   }
 
