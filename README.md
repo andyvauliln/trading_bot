@@ -148,7 +148,9 @@ TODO API:
 [] fix hydration error on ui for livechat
 [] fix sql errors
 [] fix tracker bot,
-[] make wallet dicerrors 
+[] make wallet dictionaries
+ 
+
 
 
 ## Test server Api

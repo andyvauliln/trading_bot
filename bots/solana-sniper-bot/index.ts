@@ -49,11 +49,13 @@ async function processTransaction(signature: string, processRunCounter: number):
   }
 
   // Check rug check
-  const isRugCheckPassed = await getRugCheckConfirmed(data.tokenMint, processRunCounter);
-  if (!isRugCheckPassed) {
-    console.error(`${config.name}|[processTransaction]|🚫 Rug Check not passed! Transaction aborted.`, processRunCounter);
-    console.log(`${config.name}|[processTransaction]|🟢 Resuming looking for new tokens...`, processRunCounter);
-    return false;
+  if (config.rug_check.enabled) {
+    const isRugCheckPassed = await getRugCheckConfirmed(data.tokenMint, processRunCounter);
+    if (!isRugCheckPassed) {
+      console.error(`${config.name}|[processTransaction]|🚫 Rug Check not passed! Transaction aborted.`, processRunCounter);
+      console.log(`${config.name}|[processTransaction]|🟢 Resuming looking for new tokens...`, processRunCounter);
+      return false;
+    }
   }
 
   // Handle ignored tokens

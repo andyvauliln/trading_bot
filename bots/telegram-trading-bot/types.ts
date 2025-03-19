@@ -20,7 +20,7 @@ export interface AIConfig {
 
 export interface RugCheckConfig {
     verbose_log: boolean;
-   
+    enabled: boolean;
     allow_mint_authority: boolean;
     allow_not_initialized: boolean;
     allow_freeze_authority: boolean;

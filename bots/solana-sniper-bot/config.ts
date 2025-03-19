@@ -76,7 +76,7 @@ export const config = {
     token_not_tradable_400_error_delay: 2000, // How many seconds should the bot wait before retrying to get a quote again
   },
   rug_check: {
-   
+    enabled: false,
     // Dangerous
     allow_mint_authority: false, // The mint authority is the address that has permission to mint (create) new tokens. Strongly Advised to set to false.
     allow_not_initialized: false, // This indicates whether the token account is properly set up on the blockchain. Strongly Advised to set to false
@@ -96,7 +96,7 @@ export const config = {
     min_total_lp_providers: 999000,
     min_total_market_Liquidity: 1000000,
     // Misc
-    ignore_pump_fun: true,
+    ignore_pump_fun: false,
     max_score: 1, // Set to 0 to ignore
     legacy_not_allowed: [
       "Low Liquidity",

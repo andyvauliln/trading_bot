@@ -69,7 +69,7 @@ export const config: TelegramConfig = {
     },
     "rug_check": {
         "verbose_log": false,
-       
+        "enabled": false,
         // Dangerous
         "allow_mint_authority": false, // The mint authority is the address that has permission to mint (create) new tokens. Strongly Advised to set to false.
         "allow_not_initialized": false, // This indicates whether the token account is properly set up on the blockchain. Strongly Advised to set to false
@@ -87,7 +87,7 @@ export const config: TelegramConfig = {
         "min_total_lp_providers": 80, //999
         "min_total_market_Liquidity": 1000000,
         // Misc
-        "ignore_pump_fun": true,
+        "ignore_pump_fun": false,
         "max_score": 0, // Set to 0 to ignore
         "legacy_not_allowed": [
           "Low Liquidity",
