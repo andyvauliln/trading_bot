@@ -114,18 +114,41 @@ async function cleanDatabaseLogs() {
     
   } catch (error) {
     console.error('[clean-db-logs] Error during log cleanup:', error);
+    throw error;  // Re-throw to be caught by the main function
+  }
+}
+
+/**
+ * Main function that keeps the process alive for PM2 cron job
+ */
+async function main() {
+  try {
+    // Run the cleanup immediately on startup
+    await cleanDatabaseLogs();
+    console.log('[clean-db-logs] Cleanup completed, waiting for next scheduled run');
+    
+    // For a PM2 cron job, we need to keep the process alive
+    // PM2 will restart this process according to cron_restart setting
+    
+    // If this is NOT being run by PM2 cron (e.g., direct execution), exit
+    if (!process.env.PM2_HOME) {
+      process.exit(0);
+    }
+    
+    // Otherwise, keep the process alive
+    setInterval(() => {
+      // This interval keeps the Node.js event loop active
+      // PM2 will handle the cron schedule and restart when needed
+    }, 24 * 60 * 60 * 1000); // No need to do anything in this interval
+  } catch (error) {
+    console.error('[clean-db-logs] Unhandled error in main function:', error);
     process.exit(1);
   }
 }
 
-// Execute the cleanup function
+// Execute the main function
 if (require.main === module) {
-  cleanDatabaseLogs().then(() => {
-    process.exit(0);
-  }).catch((error) => {
-    console.error('[clean-db-logs] Unhandled error:', error);
-    process.exit(1);
-  });
+  main();
 }
 
 export { cleanDatabaseLogs };

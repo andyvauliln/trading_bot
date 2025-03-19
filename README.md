@@ -63,7 +63,8 @@ Will run all bots simultaneously in different processes
 `pm2 start   ecosystem.config.js --only api`
 `pm2 start   ecosystem.config.js --only telegram`
 `pm2 start   ecosystem.config.js --only sniper`
-`pm2 start   ecosystem.config.js --only cron`
+`pm2 start   ecosystem.config.js --only clean-db-logs-cron`
+`pm2 start   ecosystem.config.js --only pool-historic-data-cron`
 `pm2 start   ecosystem.config.js --only test`
 `pm2 restart ecosystem.config.js`
 `pm2 list`
@@ -137,6 +138,8 @@ TODO API:
 [] trading pool chart show only sol
 [] make live updates
 [] fix hydration error on ui for livechat
+[] fix crons restarts every seonds issue
+[] make order in running processes to not get inter connection errors 
 
 git config --global user.name "Andrei Vaulin"
 git config --global user.email "andy.vaulin@gmail.com"
