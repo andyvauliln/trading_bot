@@ -368,7 +368,7 @@ export async function createSwapTransaction(solMint: string, tokenMint: string, 
           await new Promise(resolve => setTimeout(resolve, delay));
         }
       } catch (confirmError: any) {
-        console.error(`${config.name}|[createSwapTransaction]| ⛔ Error during confirmation attempt ${confirmRetryCount + 1}: ${confirmError.message}`, processRunCounter);
+        console.log(`${config.name}|[createSwapTransaction]| ⛔ Error during confirmation attempt ${confirmRetryCount + 1}: ${confirmError.message}`, processRunCounter);
         
         // Increment retry counter
         confirmRetryCount++;
