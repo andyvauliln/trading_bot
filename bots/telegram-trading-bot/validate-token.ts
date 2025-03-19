@@ -193,15 +193,17 @@ export async function validateAndSwapToken(token: string, processRunCounter: num
     console.log(`${config.name}|[validateAndSwapToken]| Additional holding is disabled. Skipping validation and swapping.`, processRunCounter);
     return false;
   }
-  if(config.rug_check.enabled) {
+
     const isRugCheckPassed = await getRugCheckConfirmed(token, processRunCounter);
     if (!isRugCheckPassed) {
       console.warn(`${config.name}|[validateAndSwapToken]| Rug Check not passed! Transaction aborted.`, processRunCounter);
       console.log(`${config.name}|[validateAndSwapToken]| 🟢 Resuming looking for new tokens...`, processRunCounter);
-      return false;
+      if (config.rug_check.enabled) {
+        return false;
+      }
     }
     console.log(`${config.name}|[validateAndSwapToken]| 🚀 Rug Check passed! Swapping token: ${token}`, processRunCounter);
-  }
+  
 
   // Handle ignored tokens
   if (token.trim().toLowerCase().endsWith("pump") && config.rug_check.ignore_pump_fun) {

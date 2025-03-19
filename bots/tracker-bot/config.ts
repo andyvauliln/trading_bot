@@ -81,6 +81,6 @@ export const config = {
     auto_sell: true, // If set to true, stop loss and take profit triggers automatically when set.
     stop_loss_percent: 5,
     take_profit_percent: 50,
-    include_fees_in_pnl: true, // Whether to include fees in profit/loss calculations
+    include_fees_in_pnl: false, // Whether to include fees in profit/loss calculations
   },
 };
