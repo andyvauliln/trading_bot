@@ -1,7 +1,7 @@
 import { config } from "./config"; // Configuration parameters for our bot
 import axios from "axios";
 import dotenv from "dotenv";
-import { getAllHoldings, initializeDatabaseTables, insertProfitLoss, insertTransaction } from "./holding.db";
+import { getAllHoldings, initializeDatabaseTables, insertProfitLoss, insertTransaction, updateSellAttempts } from "./holding.db";
 import { HoldingRecord, LastPriceDexReponse, ProfitLossRecord } from "./types";
 import { DateTime } from "luxon";
 import { createSellTransaction } from "./transactions";
@@ -186,31 +186,31 @@ async function main() {
             unrealizedPnLPercentage = (unrealizedPnLUSDC / (tokenPerTokenPaidUSDC * tokenBalance)) * 100;
             const logData = {
               tokenName,
-              tokenBalance,
-              tokenPerTokenPaidUSDC,
-              tokenCurrentPrice,
-              tokenSolFeePaidUSDC,
+              tokenBalance: Number(tokenBalance).toFixed(8),
+              tokenPerTokenPaidUSDC: Number(tokenPerTokenPaidUSDC).toFixed(8),
+              tokenCurrentPrice: Number(tokenCurrentPrice).toFixed(8),
+              tokenSolFeePaidUSDC: Number(tokenSolFeePaidUSDC).toFixed(8),
               priceDiff: `$${(tokenCurrentPrice - tokenPerTokenPaidUSDC).toFixed(8)} per token`,
               grossPnL: `$${((tokenCurrentPrice - tokenPerTokenPaidUSDC) * tokenBalance).toFixed(8)}`,
-              fees: `$${tokenSolFeePaidUSDC}`,
-              netPnL: `$${unrealizedPnLUSDC.toFixed(8)}`,
-              roiPercent: `${unrealizedPnLPercentage.toFixed(2)}%`
+              fees: `$${Number(tokenSolFeePaidUSDC).toFixed(8)}`,
+              netPnL: `$${Number(unrealizedPnLUSDC).toFixed(8)}`,
+              roiPercent: `${Number(unrealizedPnLPercentage).toFixed(2)}%`
             }
-            console.log(`${config.name}|[main]| P&L calculation (including fees): /n${JSON.stringify(logData, null, 2)}`, processRunCounter, null, "discord-log");
+            console.log(`${config.name}|[main]| P&L calculation (including fees): \n${JSON.stringify(logData, null, 2)}`, processRunCounter, null, "discord-log");
           } else {
             // Exclude fees from P&L calculation - only consider price difference
             unrealizedPnLUSDC = (tokenCurrentPrice - tokenPerTokenPaidUSDC) * tokenBalance;
             unrealizedPnLPercentage = ((tokenCurrentPrice - tokenPerTokenPaidUSDC) / tokenPerTokenPaidUSDC) * 100;
             const logData = {
               tokenName,
-              tokenBalance,
-              tokenPerTokenPaidUSDC,
-              tokenCurrentPrice,
+              tokenBalance: Number(tokenBalance).toFixed(8),
+              tokenPerTokenPaidUSDC: Number(tokenPerTokenPaidUSDC).toFixed(8),
+              tokenCurrentPrice: Number(tokenCurrentPrice).toFixed(8),
               priceDiff: `$${(tokenCurrentPrice - tokenPerTokenPaidUSDC).toFixed(8)} per token`,
-              pnL: `$${unrealizedPnLUSDC.toFixed(8)}`,
-              roiPercent: `${unrealizedPnLPercentage.toFixed(2)}%`
+              pnL: `$${Number(unrealizedPnLUSDC).toFixed(8)}`,
+              roiPercent: `${Number(unrealizedPnLPercentage).toFixed(2)}%`
             };
-            console.log(`${config.name}|[main]| P&L calculation (excluding fees): /n${JSON.stringify(logData, null, 2)}`, processRunCounter, null, "discord-log");
+            console.log(`${config.name}|[main]| P&L calculation (excluding fees): \n${JSON.stringify(logData, null, 2)}`, processRunCounter, null, "discord-log");
           }
           
           // Log if PnL percentage is 5% or more in either direction
@@ -255,12 +255,25 @@ async function main() {
               });
 
               try {
+                // Check if holding is skipped
+                if (holding.IsSkipped) {
+                  console.log(`${config.name}|[main]| ⚠️ Skipping sell attempt for ${tokenName} - marked as unsellable after 5 failed attempts`, processRunCounter);
+                  return;
+                }
+
                 const result = await createSellTransaction(config.liquidity_pool.wsol_pc_mint, token, amountIn, processRunCounter, sellType, privateKey);
                 const txErrorMsg = result.msg;
                 const txSuccess = result.success;
                 const txTransaction = result.tx;
                 const walletPublicKey = result.walletPublicKey;
                 
+                // Update sell attempts on failure
+                if (!txSuccess) {
+                  await updateSellAttempts(token, walletPublicKey, txTransaction || 'None', processRunCounter);
+                  console.log(`${config.name}|[main]| ⚠️ Failed sell attempt for ${tokenName} with wallet ${walletPublicKey}: ${txErrorMsg}`, processRunCounter);
+                  return;
+                }
+
                 // Add success to log output
                 if (txSuccess && txTransaction) {
                   console.log(`${config.name}|[main]| ✅${icon} ${hrTradeTime}: ${shouldTakeProfit ? 'Took profit' : 'Triggered Stop Loss'} for ${tokenName} with wallet ${walletPublicKey}\nTx: ${txTransaction}`, processRunCounter);
@@ -271,17 +284,17 @@ async function main() {
                     EntryTime: tokenTime,
                     Token: token,
                     TokenName: tokenName,
-                    EntryBalance: Number(tokenBalance),
-                    ExitBalance: Number(tokenBalance),
-                    EntrySolPaid: Number(tokenSolPaid),
-                    ExitSolReceived: Number(tokenCurrentPrice * tokenBalance),
-                    TotalSolFees: Number(tokenSolFeePaid),
-                    ProfitLossSOL: Number((tokenCurrentPrice * tokenBalance) - tokenSolPaid),
-                    ProfitLossUSDC: Number(unrealizedPnLUSDC),
-                    ROIPercentage: Number(unrealizedPnLPercentage),
-                    EntryPriceUSDC: Number(tokenPerTokenPaidUSDC),
-                    ExitPriceUSDC: Number(tokenCurrentPrice),
-                    HoldingTimeSeconds: Math.floor(Date.now() / 1000) - Math.floor(tokenTime / 1000),
+                    EntryBalance: Number(Number(tokenBalance).toFixed(8)),
+                    ExitBalance: Number(Number(tokenBalance).toFixed(8)),
+                    EntrySolPaid: Number(Number(tokenSolPaid).toFixed(8)),
+                    ExitSolReceived: Number(Number(tokenCurrentPrice * tokenBalance).toFixed(8)),
+                    TotalSolFees: Number(Number(tokenSolFeePaid).toFixed(8)),
+                    ProfitLossSOL: Number(Number((tokenCurrentPrice * tokenBalance) - tokenSolPaid).toFixed(8)),
+                    ProfitLossUSDC: Number(Number(unrealizedPnLUSDC).toFixed(8)),
+                    ROIPercentage: Number(Number(unrealizedPnLPercentage).toFixed(2)),
+                    EntryPriceUSDC: Number(Number(tokenPerTokenPaidUSDC).toFixed(8)),
+                    ExitPriceUSDC: Number(Number(tokenCurrentPrice).toFixed(8)),
+                    HoldingTimeSeconds: Math.floor((Date.now() - tokenTime) / 1000),
                     Slot: tokenSlot,
                     Program: tokenProgram,
                     BotName: config.name,
@@ -321,7 +334,7 @@ async function main() {
                     console.log(`${config.name}|[main]| ⛔ Insert Transaction Database Error: ${err}`, processRunCounter);
                   });
                 } else {
-                  console.error(`${config.name}|[main]| ⚠️ ERROR when ${actionText} for ${tokenName} with wallet ${walletPublicKey}: ${txErrorMsg}`, processRunCounter);
+                  console.log(`${config.name}|[main]| ⚠️ ERROR when ${actionText} for ${tokenName} with wallet ${walletPublicKey}: ${JSON.stringify({txErrorMsg}, null, 2)}`, processRunCounter);
                 }
               } catch (error: any) {
                 console.error(`${config.name}|[main]| ⚠️ ERROR when ${actionText} for ${tokenName}: ${error.message}`, processRunCounter);

@@ -207,8 +207,8 @@ export async function createSellTransaction(solMint: string, tokenMint: string, 
     }
 
     if (!conf || conf.value.err) {
-      console.warn(`${config.name}|[createSellTransaction]| ⛔ Transaction not confirmed after ${maxRetries} attempts: ${JSON.stringify(conf?.value.err, null, 2)}`, processRunCounter, {txid, tokenMint, amount, type, walletPublicKey, conf});
-      return { success: false, msg: `Transaction not confirmed after ${maxRetries} attempts: ${conf?.value.err}`, tx: null, walletPublicKey };
+      console.warn(`${config.name}|[createSellTransaction]| ⛔ Transaction not confirmed after ${maxRetries} attempts when selling ${tokenMint}: ${JSON.stringify(conf?.value.err, null, 2)} /n https://solscan.io/tx/${txid}`, processRunCounter, {txid, tokenMint, amount, type, walletPublicKey, conf});
+      return { success: false, msg: `Transaction not confirmed after ${maxRetries} attempts: ${JSON.stringify(conf?.value.err, null, 2)}`, tx: null, walletPublicKey };
     }
 
     console.log(`${config.name}|[createSellTransaction]| Sell Transaction Confirmed https://solscan.io/tx/${txid} ${type === 'sell' ? '✅' : '⛔'}`, processRunCounter, {txid, tokenMint, amount, type}, TAGS.sell_tx_confirmed.name);

@@ -152,7 +152,8 @@ TODO API:
 [] fix [object Object] in rug conditions
 [] add txid and link to holding, proffit loss and transaction
 [] Make better discord notificaitons system.
-
+[] add dates
+[] Insert ScreenShoot in Discord
 
 
 ## Test server Api

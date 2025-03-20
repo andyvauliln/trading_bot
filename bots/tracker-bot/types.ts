@@ -12,7 +12,9 @@ export interface QuoteResponse {
   data: unknown;
 }
 export interface TransactionRecord {
+  id?: number;
   Time: number;
+  TimeDate?: string;
   Token: string;
   TokenName: string;
   TransactionType: string;
@@ -22,8 +24,8 @@ export interface TransactionRecord {
   PricePerTokenUSDC: number;
   TotalUSDC: number;
   Slot: number;
-  Program?: string;
-  BotName?: string;
+  Program: string;
+  BotName: string;
   WalletPublicKey: string;
   TxId: string;
 }
@@ -282,6 +284,7 @@ export interface SwapEventDetailsResponse {
 export interface HoldingRecord {
   id?: number; // Optional because it's added by the database
   Time: number;
+  TimeDate?: string;
   Token: string;
   TokenName: string;
   Balance: number;
@@ -295,11 +298,16 @@ export interface HoldingRecord {
   BotName: string;
   WalletPublicKey: string;
   TxId: string;
+  SellAttempts?: number;
+  IsSkipped?: number;
+  LastAttemptTime?: number;
+  LastAttemptTimeDate?: string;
 }
 
 export interface NewTokenRecord {
-  id?: number; // Optional because it's added by the database
+  id?: number;
   time: number;
+  timeDate?: string;
   name: string;
   mint: string;
   creator: string;
@@ -377,7 +385,9 @@ export type TransactionDetailsResponseArray = TransactionDetailsResponse[];
 export interface ProfitLossRecord {
   id?: number;                    // Optional because it's added by the database
   Time: number;                   // Timestamp of the trade exit
+  TimeDate?: string;             // ISO UTC date string of trade exit
   EntryTime: number;             // When we entered the position
+  EntryTimeDate?: string;        // ISO UTC date string of entry time
   Token: string;                 // Token mint address
   TokenName: string;             // Token name for readability
   EntryBalance: number;          // Initial token amount

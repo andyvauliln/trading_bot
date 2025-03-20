@@ -2,6 +2,7 @@ import * as sqlite3 from "sqlite3";
 import { open } from "sqlite";
 import { config } from "./config";
 import { HoldingRecord, NewTokenRecord, ProfitLossRecord, TransactionRecord } from "./types";
+import { makeTokenScreenshotAndSendToDiscord } from "../../gmgn_api/make_token_screen-shot";
 
 // Function to initialize all database tables
 export async function initializeDatabaseTables(): Promise<boolean> {
@@ -36,6 +37,7 @@ export async function createTableHoldings(database: any): Promise<boolean> {
     CREATE TABLE IF NOT EXISTS holdings (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       Time INTEGER NOT NULL,
+      TimeDate TEXT NOT NULL,
       Token TEXT NOT NULL,
       TokenName TEXT NOT NULL,
       Balance REAL NOT NULL,
@@ -48,7 +50,11 @@ export async function createTableHoldings(database: any): Promise<boolean> {
       Program TEXT NOT NULL,
       BotName TEXT NOT NULL,
       WalletPublicKey TEXT NOT NULL,
-      TxId TEXT
+      TxId TEXT,
+      SellAttempts INTEGER DEFAULT 0,
+      IsSkipped INTEGER DEFAULT 0,
+      LastAttemptTime INTEGER,
+      LastAttemptTimeDate TEXT
     );
   `);
     return true;
@@ -93,22 +99,38 @@ export async function insertHolding(holding: HoldingRecord, processRunCounter: n
   if (holdingsTableExist) {
     const { Time, Token, TokenName, Balance, SolPaid, SolFeePaid, SolPaidUSDC, SolFeePaidUSDC, PerTokenPaidUSDC, Slot, Program, BotName, WalletPublicKey, TxId } = holding;
     
+    // Create ISO UTC date strings
+    const timeDate = new Date(Number(Time)).toISOString();
+    
     // Ensure all numeric values are numbers before storing
     await db.run(
       `
-    INSERT INTO holdings (Time, Token, TokenName, Balance, SolPaid, SolFeePaid, SolPaidUSDC, SolFeePaidUSDC, PerTokenPaidUSDC, Slot, Program, BotName, WalletPublicKey, TxId)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    INSERT INTO holdings (Time, TimeDate, Token, TokenName, Balance, SolPaid, SolFeePaid, SolPaidUSDC, SolFeePaidUSDC, PerTokenPaidUSDC, Slot, Program, BotName, WalletPublicKey, TxId)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
   `,
       [
-        Number(Time), Token, TokenName, Number(Balance), Number(SolPaid), Number(SolFeePaid), 
+        Number(Time), timeDate, Token, TokenName, Number(Balance), Number(SolPaid), Number(SolFeePaid), 
         Number(SolPaidUSDC), Number(SolFeePaidUSDC), Number(PerTokenPaidUSDC), Number(Slot), 
         Program, BotName, WalletPublicKey, TxId
       ]
     );
 
-    console.log(`${config.name}|[insertHolding]| Added New Holding For Monitoring\n${JSON.stringify(holding, null, 2)}`, processRunCounter, null, "send-to-discord"); //TODO:move to tags
+    console.log(`${config.name}|[insertHolding]| Added New Holding For Monitoring\n${JSON.stringify(holding, null, 2)}\n https://gmgn.ai/sol/token/${Token}`, processRunCounter, null, "send-to-discord"); //TODO:move to tags
 
     await db.close();
+    
+    // Take a screenshot of the token page and send it to Discord after inserting the record
+    try {
+      console.log(`${config.name}|[insertHolding]| Taking screenshot of token: ${Token}`);
+      const discordChannelId = process.env.DISCORD_CT_TRACKER_CHANNEL || '';
+      if (discordChannelId) {
+        await makeTokenScreenshotAndSendToDiscord(Token, discordChannelId);
+      } else {
+        console.warn(`${config.name}|[insertHolding]| Could not take screenshot: Missing Discord channel ID`);
+      }
+    } catch (error) {
+      console.error(`${config.name}|[insertHolding]| Error taking screenshot: ${error}`);
+    }
   }
 }
 // ***************************GET HOLDING RECORD**************************
@@ -342,6 +364,7 @@ export async function createTableNewTokens(database: any): Promise<boolean> {
     CREATE TABLE IF NOT EXISTS tokens (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       time INTEGER NOT NULL,
+      timeDate TEXT NOT NULL,
       name TEXT NOT NULL,
       mint TEXT NOT NULL,
       creator TEXT NOT NULL,
@@ -382,13 +405,16 @@ export async function insertNewToken(newToken: NewTokenRecord, processRunCounter
     return;
   }
 
+  // Create ISO UTC date string
+  const timeDate = new Date(Number(time)).toISOString();
+
   // Proceed with adding new token if it doesn't exist
   await db.run(
     `
-    INSERT INTO tokens (time, name, mint, creator, rug_conditions)
-    VALUES (?, ?, ?, ?, ?);
+    INSERT INTO tokens (time, timeDate, name, mint, creator, rug_conditions)
+    VALUES (?, ?, ?, ?, ?, ?);
     `,
-    [time, name, mint, creator, rug_conditions]
+    [time, timeDate, name, mint, creator, rug_conditions]
   );
   console.log(`${config.name}|[insertNewToken]| New token inserted successfully`, processRunCounter);
 
@@ -494,7 +520,9 @@ export async function createTableProfitLoss(database: any): Promise<boolean> {
     CREATE TABLE IF NOT EXISTS profit_loss (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       Time INTEGER NOT NULL,
+      TimeDate TEXT NOT NULL,
       EntryTime INTEGER NOT NULL,
+      EntryTimeDate TEXT NOT NULL,
       Token TEXT NOT NULL,
       TokenName TEXT NOT NULL,
       EntryBalance REAL NOT NULL,
@@ -562,26 +590,70 @@ export async function insertProfitLoss(record: ProfitLossRecord, processRunCount
     TxId
   } = record;
 
+  // Create ISO UTC date strings
+  const timeDate = new Date(Number(Time)).toISOString();
+  const entryTimeDate = new Date(Number(EntryTime)).toISOString();
+
+  // Format numeric values to avoid scientific notation
+  const formattedRecord = {
+    ...record,
+    Time: Number(Time),
+    TimeDate: timeDate,
+    EntryTime: Number(EntryTime),
+    EntryTimeDate: entryTimeDate,
+    EntryBalance: Number(Number(EntryBalance).toFixed(8)),
+    ExitBalance: Number(Number(ExitBalance).toFixed(8)),
+    EntrySolPaid: Number(Number(EntrySolPaid).toFixed(8)),
+    ExitSolReceived: Number(Number(ExitSolReceived).toFixed(8)),
+    TotalSolFees: Number(Number(TotalSolFees).toFixed(8)),
+    ProfitLossSOL: Number(Number(ProfitLossSOL).toFixed(8)),
+    ProfitLossUSDC: Number(Number(ProfitLossUSDC).toFixed(8)),
+    ROIPercentage: Number(Number(ROIPercentage).toFixed(2)),
+    EntryPriceUSDC: Number(Number(EntryPriceUSDC).toFixed(8)),
+    ExitPriceUSDC: Number(Number(ExitPriceUSDC).toFixed(8)),
+    HoldingTimeSeconds: Number(HoldingTimeSeconds),
+    Slot: Number(Slot)
+  };
+
   // Ensure all numeric values are numbers before storing
   await db.run(
     `
     INSERT INTO profit_loss (
-      Time, EntryTime, Token, TokenName, EntryBalance, ExitBalance, 
+      Time, TimeDate, EntryTime, EntryTimeDate, Token, TokenName, EntryBalance, ExitBalance, 
       EntrySolPaid, ExitSolReceived, TotalSolFees, ProfitLossSOL, 
       ProfitLossUSDC, ROIPercentage, EntryPriceUSDC, ExitPriceUSDC, 
       HoldingTimeSeconds, Slot, Program, BotName, IsTakeProfit, WalletPublicKey, TxId
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
   `,
     [
-      Number(Time), Number(EntryTime), Token, TokenName, Number(EntryBalance), Number(ExitBalance),
-      Number(EntrySolPaid), Number(ExitSolReceived), Number(TotalSolFees), Number(ProfitLossSOL),
-      Number(ProfitLossUSDC), Number(ROIPercentage), Number(EntryPriceUSDC), Number(ExitPriceUSDC),
-      Number(HoldingTimeSeconds), Number(Slot), Program, BotName, IsTakeProfit ? 1 : 0, WalletPublicKey, TxId
+      formattedRecord.Time, formattedRecord.TimeDate, formattedRecord.EntryTime, formattedRecord.EntryTimeDate,
+      Token, TokenName, formattedRecord.EntryBalance, formattedRecord.ExitBalance,
+      formattedRecord.EntrySolPaid, formattedRecord.ExitSolReceived, 
+      formattedRecord.TotalSolFees, formattedRecord.ProfitLossSOL,
+      formattedRecord.ProfitLossUSDC, formattedRecord.ROIPercentage, 
+      formattedRecord.EntryPriceUSDC, formattedRecord.ExitPriceUSDC,
+      formattedRecord.HoldingTimeSeconds, formattedRecord.Slot, 
+      Program, BotName, IsTakeProfit ? 1 : 0, WalletPublicKey, TxId
     ]
   );
 
-  console.log(`${config.name}|[insertProfitLoss]| Profit/loss record inserted successfully ${JSON.stringify(record, null, 2)}`, processRunCounter, null, "discord-log");
+  // Format the log output to avoid scientific notation
+  const logRecord = {
+    ...formattedRecord,
+    EntryBalance: formattedRecord.EntryBalance.toFixed(8),
+    ExitBalance: formattedRecord.ExitBalance.toFixed(8),
+    EntrySolPaid: formattedRecord.EntrySolPaid.toFixed(8),
+    ExitSolReceived: formattedRecord.ExitSolReceived.toFixed(8),
+    TotalSolFees: formattedRecord.TotalSolFees.toFixed(8),
+    ProfitLossSOL: formattedRecord.ProfitLossSOL.toFixed(8),
+    ProfitLossUSDC: formattedRecord.ProfitLossUSDC.toFixed(8),
+    ROIPercentage: formattedRecord.ROIPercentage.toFixed(2),
+    EntryPriceUSDC: formattedRecord.EntryPriceUSDC.toFixed(8),
+    ExitPriceUSDC: formattedRecord.ExitPriceUSDC.toFixed(8)
+  };
+
+  console.log(`${config.name}|[insertProfitLoss]| Profit/loss record inserted successfully \n${JSON.stringify(logRecord, null, 2)}`, processRunCounter, null, "discord-log");
 
   await db.close();
 }
@@ -818,6 +890,7 @@ export async function createTableTransactions(database: any): Promise<boolean> {
     CREATE TABLE IF NOT EXISTS transactions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       Time INTEGER NOT NULL,
+      TimeDate TEXT NOT NULL,
       Token TEXT NOT NULL,
       TokenName TEXT NOT NULL,
       TransactionType TEXT NOT NULL,
@@ -871,17 +944,20 @@ export async function insertTransaction(transaction:TransactionRecord, processRu
     TxId
   } = transaction;
 
+  // Create ISO UTC date string
+  const timeDate = new Date(Number(Time)).toISOString();
+
   // Ensure all numeric values are numbers before storing
   await db.run(
     `
     INSERT INTO transactions (
-      Time, Token, TokenName, TransactionType, TokenAmount, SolAmount,
+      Time, TimeDate, Token, TokenName, TransactionType, TokenAmount, SolAmount,
       SolFee, PricePerTokenUSDC, TotalUSDC, Slot, Program, BotName, WalletPublicKey, TxId
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
   `,
     [
-      Number(Time), Token, TokenName, TransactionType, Number(TokenAmount), Number(SolAmount),
+      Number(Time), timeDate, Token, TokenName, TransactionType, Number(TokenAmount), Number(SolAmount),
       Number(SolFee), Number(PricePerTokenUSDC), Number(TotalUSDC), Number(Slot), Program, BotName, WalletPublicKey, TxId
     ]
   );
@@ -1072,5 +1148,101 @@ export async function getWalletTransactionStats(walletPublicKey: string, options
     totalSolFees: result?.totalSolFees || 0,
     totalUSDCValue: result?.totalUSDCValue || 0
   };
+}
+
+// ***************************UPDATE SELL ATTEMPTS**************************
+export async function updateSellAttempts(token: string, walletPublicKey: string, txId: string, processRunCounter: number): Promise<boolean> {
+  const db = await open({
+    filename: config.db_name_tracker_holdings,
+    driver: sqlite3.Database,
+  });
+
+  try {
+    const currentTime = Date.now();
+    const currentTimeDate = new Date(currentTime).toISOString();
+
+    // Update sell attempts and last attempt time
+    await db.run(`
+      UPDATE holdings 
+      SET SellAttempts = SellAttempts + 1,
+          LastAttemptTime = ?,
+          LastAttemptTimeDate = ?
+      WHERE Token = ? AND WalletPublicKey = ?;
+    `, [currentTime, currentTimeDate, token, walletPublicKey]);
+
+    // Check if we've reached max attempts
+    const holding = await db.get(`
+      SELECT SellAttempts 
+      FROM holdings 
+      WHERE Token = ? AND WalletPublicKey = ?;
+    `, [token, walletPublicKey]);
+
+    if (holding && holding.SellAttempts >= 5) {
+      // Mark as skipped if max attempts reached
+      await db.run(`
+        UPDATE holdings 
+        SET IsSkipped = 1 
+        WHERE Token = ? AND WalletPublicKey = ?;
+      `, [token, walletPublicKey]);
+
+      console.warn(`${config.name}|[updateSellAttempts]| ⚠️ Token ${token} marked as skipped after 5 failed sell attempts for wallet ${walletPublicKey}.\n Process Manualy https://solscan.io/tx/${txId}`, 
+        processRunCounter, null, "send-to-discord");
+    }
+
+    await db.close();
+    return true;
+  } catch (error: any) {
+    console.error(`${config.name}|[updateSellAttempts]| Error updating sell attempts: ${error.message}`, processRunCounter);
+    await db.close();
+    return false;
+  }
+}
+
+// ***************************GET SKIPPED HOLDINGS**************************
+export async function getSkippedHoldings(): Promise<HoldingRecord[]> {
+  const db = await open({
+    filename: config.db_name_tracker_holdings,
+    driver: sqlite3.Database,
+  });
+
+  try {
+    const skippedHoldings = await db.all(`
+      SELECT * FROM holdings 
+      WHERE IsSkipped = 1 
+      ORDER BY LastAttemptTime DESC;
+    `);
+    await db.close();
+    return skippedHoldings;
+  } catch (error: any) {
+    await db.close();
+    return [];
+  }
+}
+
+// ***************************RESET SELL ATTEMPTS**************************
+export async function resetSellAttempts(token: string, walletPublicKey: string, processRunCounter: number): Promise<boolean> {
+  const db = await open({
+    filename: config.db_name_tracker_holdings,
+    driver: sqlite3.Database,
+  });
+
+  try {
+    await db.run(`
+      UPDATE holdings 
+      SET SellAttempts = 0,
+          IsSkipped = 0,
+          LastAttemptTime = NULL
+      WHERE Token = ? AND WalletPublicKey = ?;
+    `, [token, walletPublicKey]);
+
+    console.log(`${config.name}|[resetSellAttempts]| Reset sell attempts for token ${token} and wallet ${walletPublicKey}`, processRunCounter);
+    
+    await db.close();
+    return true;
+  } catch (error: any) {
+    console.error(`${config.name}|[resetSellAttempts]| Error resetting sell attempts: ${error.message}`, processRunCounter);
+    await db.close();
+    return false;
+  }
 }
 
