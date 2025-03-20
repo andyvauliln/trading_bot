@@ -560,10 +560,13 @@ export async function makeAccountHistoricalData(dateToUse: DateTime): Promise<{ 
     for (const address of addresses) {
         try {
             const tokens = await getWalletData(address);
-            let message = 'Current Wallet State';
+            const myWallet = new Wallet(Keypair.fromSecretKey(bs58.decode(address || "")));
+            const publicAddress = myWallet.publicKey.toBase58();
+            const message = `Current Wallet State amount of tokens ${tokens.length}. With total value ${tokens.reduce((sum, token) => sum + token.tokenValueUSDC, 0)} USDC`;
+            console.log(`${config.name}|[makeAccountHistoricalData]| ${message}`, 0, message, 'send-to-discord');
             for (const token of tokens) {
                 const insertHistoricalDataDetails: InsertHistoricalDataDetails = {
-                    account: address,
+                    account: publicAddress,
                     token: token.tokenMint,
                     symbol: token.tokenSymbol,
                     tokenName: token.tokenName,
@@ -574,13 +577,11 @@ export async function makeAccountHistoricalData(dateToUse: DateTime): Promise<{ 
                 
                 const success = await insertHistoricalData(insertHistoricalDataDetails);
                 if (success) {
-                    message += `${token.tokenName} (${token.tokenSymbol}) (${address}) ${token.balance} ${token.tokenValueUSDC}\n`;
                     results.success.push(`${token.tokenSymbol} (${address})`);
                 } else {
                     console.warn(`${config.name}|[makeAccountHistoricalData]|Failed to insert`, 0, `${token.tokenSymbol} (${address})`);
                     results.errors.push(`Failed to insert ${token.tokenSymbol} (${address})`);
                 }
-                console.log(`${config.name}|[makeAccountHistoricalData]| ${message}`, 0, message, 'send-to-discord');
             }
         } catch (error) {
             console.error(`${config.name}|[makeAccountHistoricalData]|Error processing wallet`, 0, `${address}:`, error);
