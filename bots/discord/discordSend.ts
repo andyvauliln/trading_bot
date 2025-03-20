@@ -147,11 +147,10 @@ export async function sendMessageOnDiscord(
       (channel as TextChannel)
         .send(message)
         .then(() => {
-          console.log(`✅ Successfully sent: "${message}"`);
           return true;
         })
         .catch((error: Error) => {
-          console.error(`🚫 Failed to send: "${message}". Error:`, error);
+          console.error(`🚫DISCORD| Failed to send: "${message}". Error:`, error);
           return false;
         })
     )
