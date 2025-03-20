@@ -62,7 +62,7 @@ async function testAIProcessor() {
                     
                     // Print buy recommendations
                     results.forEach(result => {
-                        console.log(`Buy recommendation for ${result.solana_token_address}: ${result.is_potential_to_buy_token ? 'YES' : 'NO'}`);
+                        console.log(`Buy recommendation for ${result.token_address}: ${result.is_potential_to_buy_token ? 'YES' : 'NO'}`);
                     });
                 }
             } catch (error) {
