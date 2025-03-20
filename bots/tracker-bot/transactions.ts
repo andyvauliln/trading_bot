@@ -161,26 +161,54 @@ export async function createSellTransaction(solMint: string, tokenMint: string, 
     const latestBlockHash = await connection.getLatestBlockhash();
     console.log(`${config.name}|[createSellTransaction]| Latest Block Hash`, processRunCounter, latestBlockHash);
 
-    // Confirm the transaction
-    console.log(`${config.name}|[createSellTransaction]| Confirming Transaction`, processRunCounter);
-    const conf = await connection.confirmTransaction({
-      blockhash: latestBlockHash.blockhash,
-      lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
-      signature: txid,
-    });
+    // Confirm the transaction with retries
+    console.log(`${config.name}|[createSellTransaction]| Confirming Transaction with retries`, processRunCounter);
+    
+    let conf;
+    let retryCount = 0;
+    const maxRetries = 3;
+    
+    while (retryCount < maxRetries) {
+      try {
+        conf = await connection.confirmTransaction({
+          blockhash: latestBlockHash.blockhash,
+          lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
+          signature: txid,
+        });
 
-    // Log confirmation details
-    console.log(`${config.name}|[createSellTransaction]| Transaction confirmation details:`, processRunCounter, {
-      confirmed: conf.value.err === null,
-      error: conf.value.err,
-      context: {
-        slot: conf.context?.slot
+        // Log confirmation details
+        console.log(`${config.name}|[createSellTransaction]| Transaction confirmation details (attempt ${retryCount + 1}/${maxRetries}):`, processRunCounter, {
+          confirmed: conf.value.err === null,
+          error: conf.value.err,
+          context: {
+            slot: conf.context?.slot
+          }
+        });
+
+        if (conf.value.err === null) {
+          // Transaction confirmed successfully, break the retry loop
+          break;
+        }
+
+        // If we get here, there was an error but we might retry
+        retryCount++;
+        if (retryCount < maxRetries) {
+          console.log(`${config.name}|[createSellTransaction]| Retrying confirmation (attempt ${retryCount + 1}/${maxRetries})`, processRunCounter);
+          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+        }
+      } catch (error) {
+        console.log(`${config.name}|[createSellTransaction]| Error confirming transaction (attempt ${retryCount + 1}/${maxRetries}):`, error);
+        retryCount++;
+        if (retryCount < maxRetries) {
+          console.log(`${config.name}|[createSellTransaction]| Retrying confirmation after error (attempt ${retryCount + 1}/${maxRetries})`, processRunCounter);
+          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+        }
       }
-    });
+    }
 
-    if (conf.value.err || conf.value.err !== null) {
-      console.warn(`${config.name}|[createSellTransaction]| ⛔ Transaction not confirmed: ${JSON.stringify(conf.value.err, null, 2)}`, processRunCounter, {txid, tokenMint, amount, type, walletPublicKey, conf});
-      return { success: false, msg: `Transaction not confirmed: ${conf.value.err}`, tx: null, walletPublicKey };
+    if (!conf || conf.value.err) {
+      console.warn(`${config.name}|[createSellTransaction]| ⛔ Transaction not confirmed after ${maxRetries} attempts: ${JSON.stringify(conf?.value.err, null, 2)}`, processRunCounter, {txid, tokenMint, amount, type, walletPublicKey, conf});
+      return { success: false, msg: `Transaction not confirmed after ${maxRetries} attempts: ${conf?.value.err}`, tx: null, walletPublicKey };
     }
 
     console.log(`${config.name}|[createSellTransaction]| Sell Transaction Confirmed https://solscan.io/tx/${txid} ${type === 'sell' ? '✅' : '⛔'}`, processRunCounter, {txid, tokenMint, amount, type}, TAGS.sell_tx_confirmed.name);

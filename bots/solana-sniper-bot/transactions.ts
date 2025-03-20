@@ -388,7 +388,7 @@ export async function createSwapTransaction(solMint: string, tokenMint: string, 
       return null;
     }
 
-    console.log(`${config.name}|[createSwapTransaction]| ✅ Transaction confirmed. Bought ${tokenMint} for ${config.swap.amount} SOL\n https://solscan.io/tx/${txid}`, processRunCounter, {txid, tokenMint: tokenMint, amount: config.swap.amount, walletPublicKey}, TAGS.buy_tx_confirmed.name);
+    console.log(`${config.name}|[createSwapTransaction]| ✅ Transaction confirmed. Bought ${tokenMint} for ${Number(config.swap.amount) / 1e9} SOL\n https://solscan.io/tx/${txid}`, processRunCounter, {txid, tokenMint: tokenMint, amount: config.swap.amount, walletPublicKey}, TAGS.buy_tx_confirmed.name);
 
     return txid ? { txid, walletPublicKey } : null;
   } catch (error: any) {
@@ -553,8 +553,8 @@ export async function getRugCheckConfirmed(token: string, processRunCounter: num
       },
     ];
 
-    console.log(`${config.name}|[getRugCheckConfirmed]| Rug Check Result ${conditions.every((condition) => !condition.check) ? "✅" : "⛔"}:`, processRunCounter, conditions, TAGS.rug_validation.name);
-    console.log(`${config.name}|[getRugCheckConfirmed]| \n${conditions.filter((condition) => !condition.check).map((condition) => condition.message).join("\n")}\n`, processRunCounter, null, TAGS.rug_validation.name);
+    console.log(`${config.name}|[getRugCheckConfirmed]| Rug Check Result ${conditions.every((condition) => !condition.check) ? "✅" : "⛔"}: For token ${tokenName} (${tokenSymbol}) ${token}`, processRunCounter, conditions, TAGS.rug_validation.name);
+    console.log(`${config.name}|[getRugCheckConfirmed]| \n${conditions.filter((condition) => condition.check).map((condition) => condition.message).join("\n")}\n`, processRunCounter, null, TAGS.rug_validation.name);
     
   
     // Create new token record

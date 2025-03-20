@@ -102,7 +102,7 @@ async function processTransaction(signature: string, processRunCounter: number):
       // Create Swap transaction for this wallet
       const txResult = await createSwapTransaction(data.solMint, data.tokenMint, processRunCounter, privateKey);
       if (!txResult || !txResult.txid) {
-        console.error(`${config.name}|[processTransaction]|⛔ Transaction aborted for wallet private key ${privateKey.slice(0, 4)}...`, processRunCounter);
+        console.log(`${config.name}|[processTransaction]|⛔ Transaction aborted for wallet private key ${privateKey.slice(0, 4)}...`, processRunCounter);
         continue; // Try next wallet
       }
 
@@ -125,7 +125,7 @@ async function processTransaction(signature: string, processRunCounter: number):
     console.log(`${config.name}|[processTransaction]|✅ Successfully processed ${successfulTransactions} out of ${walletPrivateKeys.length} transactions`, processRunCounter);
     return true;
   } else {
-    console.warn(`${config.name}|[processTransaction]|⛔ All transactions failed.`, processRunCounter);
+    console.log(`${config.name}|[processTransaction]|⛔ All transactions failed.`, processRunCounter);
     console.log(`${config.name}|[processTransaction]|🟢 Resuming looking for new tokens...`, processRunCounter);
     return false;
   }

@@ -445,8 +445,9 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
       
       // Create a formatted message with timestamp and details
       const formattedMessage = [
-        `${emoji} **${logEntry.type.toUpperCase()}** ${logEntry.date} ${logEntry.time}\n`,
-        `${modulePart}${functionPart}${tagPart} ${logEntry.message}\n\n`
+        `${emoji} **${logEntry.type.toUpperCase()}** ${logEntry.date} ${logEntry.time}`,
+        `${modulePart}${functionPart}${tagPart} ${logEntry.message}`,
+        "\n"
       ];
 
       // Send the message to Discord
