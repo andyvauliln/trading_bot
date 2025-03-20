@@ -129,7 +129,12 @@ router.get('/live-logs', (req: Request, res: Response) => {
   (async () => {
     try {
       const { limit } = req.query;
-
+      const { module } = req.query;
+      if (!module) {
+        return res.status(400).json({
+          error: 'Module parameter is required'
+        });
+      }
       // Validate limit if provided
       let parsedLimit: number | undefined;
       if (limit) {
@@ -138,12 +143,22 @@ router.get('/live-logs', (req: Request, res: Response) => {
           parsedLimit = 3;
         }
       }
-      const db = await initDb();
+      if (typeof module !== 'string' || !/^[a-zA-Z0-9_-]+$/.test(module)) {
+        return res.status(400).json({
+          error: 'Invalid module name format'
+        });
+      }
+
+      //TODO: DO SOMETHING WITH THIS, not need hardcore
+      const modules = ['solana-sniper-bot', 'telegram-trading-bot', 'tracker-bot'];
+     
 
       const targetLogs = [];
-      const tableNames = ['logger', 'tracker', 'discord', 'telegram', 'database', 'api', 'helpers', 'trades-monitoring'];
-      for (const tableName of tableNames) {
+     
+      for (const module of modules) {
+        const db = await initDb(module);
         // Initialize DB and ensure table exists
+        const tableName = module.replace(/-/g, '_');
         const tableExists = await checkTableExists(db, tableName);
         if (!tableExists) {
           return res.status(500).json({ error: 'Table does not exist' });
@@ -169,13 +184,13 @@ router.get('/live-logs', (req: Request, res: Response) => {
         }));
         
         targetLogs.push(...parsedLogs);
-
+        await db.close();
       }
       res.json({
         data: {logs: targetLogs, tags: [TAGS.sell_tx_confirmed, TAGS.buy_tx_confirmed, TAGS.rug_validation, TAGS.telegram_ai_token_analysis]},
         success: true
       });
-      await db.close();
+     
     } catch (error) {
       console.error(`${config.name}|[logs-api]|Error fetching logs:`, 0, error);
       res.status(500).json({ error: 'Failed to fetch logs', success: false });
