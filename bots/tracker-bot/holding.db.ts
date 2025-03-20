@@ -106,14 +106,7 @@ export async function insertHolding(holding: HoldingRecord, processRunCounter: n
       ]
     );
 
-    console.log(`${config.name}|[insertHolding]| Holding inserted successfully`, processRunCounter, {
-      Token,
-      TokenName,
-      Balance: Number(Balance),
-      PerTokenPaidUSDC: Number(PerTokenPaidUSDC).toFixed(8),
-      SolPaidUSDC: Number(SolPaidUSDC).toFixed(8),
-      TxId: TxId
-    });
+    console.log(`${config.name}|[insertHolding]| Added New Holding For Monitoring\n${JSON.stringify(holding, null, 2)}`, processRunCounter, null, "send-to-discord"); //TODO:move to tags
 
     await db.close();
   }
@@ -588,14 +581,7 @@ export async function insertProfitLoss(record: ProfitLossRecord, processRunCount
     ]
   );
 
-  console.log(`${config.name}|[insertProfitLoss]| Profit/loss record inserted successfully`, processRunCounter, {
-    Token,
-    ProfitLossUSDC: Number(ProfitLossUSDC).toFixed(8),
-    ROIPercentage: Number(ROIPercentage).toFixed(2),
-    EntryPriceUSDC: Number(EntryPriceUSDC).toFixed(8),
-    ExitPriceUSDC: Number(ExitPriceUSDC).toFixed(8),
-    TxId: TxId
-  });
+  console.log(`${config.name}|[insertProfitLoss]| Profit/loss record inserted successfully ${record}`, processRunCounter, record, "discord-log");
 
   await db.close();
 }

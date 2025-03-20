@@ -184,22 +184,33 @@ async function main() {
             // Include fees in P&L calculation
             unrealizedPnLUSDC = (tokenCurrentPrice - tokenPerTokenPaidUSDC) * tokenBalance - tokenSolFeePaidUSDC;
             unrealizedPnLPercentage = (unrealizedPnLUSDC / (tokenPerTokenPaidUSDC * tokenBalance)) * 100;
-            console.log(`${config.name}|[main]| P&L calculation (including fees):`, processRunCounter, {
+            const logData = {
+              tokenName,
+              tokenBalance,
+              tokenPerTokenPaidUSDC,
+              tokenCurrentPrice,
+              tokenSolFeePaidUSDC,
               priceDiff: `$${(tokenCurrentPrice - tokenPerTokenPaidUSDC).toFixed(8)} per token`,
               grossPnL: `$${((tokenCurrentPrice - tokenPerTokenPaidUSDC) * tokenBalance).toFixed(8)}`,
               fees: `$${tokenSolFeePaidUSDC}`,
               netPnL: `$${unrealizedPnLUSDC.toFixed(8)}`,
               roiPercent: `${unrealizedPnLPercentage.toFixed(2)}%`
-            });
+            }
+            console.log(`${config.name}|[main]| P&L calculation (including fees): /n${JSON.stringify(logData, null, 2)}`, processRunCounter, null, "discord-log");
           } else {
             // Exclude fees from P&L calculation - only consider price difference
             unrealizedPnLUSDC = (tokenCurrentPrice - tokenPerTokenPaidUSDC) * tokenBalance;
             unrealizedPnLPercentage = ((tokenCurrentPrice - tokenPerTokenPaidUSDC) / tokenPerTokenPaidUSDC) * 100;
-            console.log(`${config.name}|[main]| P&L calculation (excluding fees):`, processRunCounter, {
+            const logData = {
+              tokenName,
+              tokenBalance,
+              tokenPerTokenPaidUSDC,
+              tokenCurrentPrice,
               priceDiff: `$${(tokenCurrentPrice - tokenPerTokenPaidUSDC).toFixed(8)} per token`,
               pnL: `$${unrealizedPnLUSDC.toFixed(8)}`,
               roiPercent: `${unrealizedPnLPercentage.toFixed(2)}%`
-            });
+            };
+            console.log(`${config.name}|[main]| P&L calculation (excluding fees): /n${JSON.stringify(logData, null, 2)}`, processRunCounter, null, "discord-log");
           }
           
           // Log if PnL percentage is 5% or more in either direction
@@ -241,7 +252,7 @@ async function main() {
                 unrealizedPnLUSDC,
                 unrealizedPnLPercentage,
                 config: config.sell
-              }, TAGS.pnl_change_alert.name);
+              });
 
               try {
                 const result = await createSellTransaction(config.liquidity_pool.wsol_pc_mint, token, amountIn, processRunCounter, sellType, privateKey);

@@ -183,7 +183,7 @@ export async function createSellTransaction(solMint: string, tokenMint: string, 
       return { success: false, msg: `Transaction not confirmed: ${conf.value.err}`, tx: null, walletPublicKey };
     }
 
-    console.log(`${config.name}|[createSellTransaction]| Transaction Confirmed`, processRunCounter, {txid, tokenMint, amount, type}, TAGS.sell_tx_confirmed.name);
+    console.log(`${config.name}|[createSellTransaction]| Sell Transaction Confirmed https://solscan.io/tx/${txid} ${type === 'sell' ? '✅' : '⛔'}`, processRunCounter, {txid, tokenMint, amount, type}, TAGS.sell_tx_confirmed.name);
 
     // After successful transaction confirmation
     if (conf.value.err === null) {

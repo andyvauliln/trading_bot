@@ -368,7 +368,7 @@ export async function createSwapTransaction(solMint: string, tokenMint: string, 
           await new Promise(resolve => setTimeout(resolve, delay));
         }
       } catch (confirmError: any) {
-        console.error(`${config.name}|[createSwapTransaction]| ⛔ Error getting transaction confirmation ${confirmRetryCount + 1}/${maxConfirmRetries}: ${confirmError.message}`, processRunCounter);
+        console.log(`${config.name}|[createSwapTransaction]| ⛔ Error getting transaction confirmation ${confirmRetryCount + 1}/${maxConfirmRetries}: ${confirmError.message}`, processRunCounter);
         
         // Increment retry counter
         confirmRetryCount++;
@@ -384,11 +384,11 @@ export async function createSwapTransaction(solMint: string, tokenMint: string, 
     
     // If we have no confirmation result after all retries, return null
     if (conf && (conf.value.err || conf.value.err !== null)) {
-      console.error(`${config.name}|[createSwapTransaction]| ⛔ All confirmation attempts failed ${confirmRetryCount}/${maxConfirmRetries}.\n${conf.value.err} \nYou can check transaction manually https://solscan.io/tx/${txid}.`, processRunCounter);
+      console.error(`${config.name}|[createSwapTransaction]| ⛔ All confirmation attempts failed ${confirmRetryCount}/${maxConfirmRetries}.\n${JSON.stringify(conf)} \nYou can check transaction manually https://solscan.io/tx/${txid}.`, processRunCounter);
       return null;
     }
 
-    console.log(`${config.name}|[createSwapTransaction]| ✅ Transaction confirmed.`, processRunCounter, {txid, tokenMint: tokenMint, amount: config.swap.amount, walletPublicKey}, TAGS.buy_tx_confirmed.name);
+    console.log(`${config.name}|[createSwapTransaction]| ✅ Transaction confirmed. Bought ${tokenMint} for ${config.swap.amount} SOL\n https://solscan.io/tx/${txid}`, processRunCounter, {txid, tokenMint: tokenMint, amount: config.swap.amount, walletPublicKey}, TAGS.buy_tx_confirmed.name);
 
     return txid ? { txid, walletPublicKey } : null;
   } catch (error: any) {
@@ -554,7 +554,7 @@ export async function getRugCheckConfirmed(token: string, processRunCounter: num
     ];
 
     console.log(`${config.name}|[getRugCheckConfirmed]| Rug Check Result ${conditions.every((condition) => !condition.check) ? "✅" : "⛔"}:`, processRunCounter, conditions, TAGS.rug_validation.name);
-    console.log(`${config.name}|[getRugCheckConfirmed]| \n${JSON.stringify(conditions)}\n`, processRunCounter, TAGS.rug_validation.name);
+    console.log(`${config.name}|[getRugCheckConfirmed]| \n${JSON.stringify(conditions)}\n`, processRunCounter, null, TAGS.rug_validation.name);
     
   
     // Create new token record
@@ -779,7 +779,7 @@ export async function fetchAndSaveSwapDetails(tx: string, processRunCounter: num
       console.log(`${config.name}|[fetchAndSaveSwapDetails]| ⛔ Insert Transaction Database Error: ${err}`, processRunCounter);
     });
 
-    console.log(`${config.name}|[fetchAndSaveSwapDetails]| ✅ Swap transaction details fetched and saved successfully`, processRunCounter, newHolding, TAGS.saved_in_holding.name);
+    console.log(`${config.name}|[fetchAndSaveSwapDetails]| ✅ Swap transaction details fetched and saved successfully. Going to Search Another Opportunities!`, processRunCounter, newHolding, TAGS.saved_in_holding.name);
 
     return true;
   } catch (error: any) {
