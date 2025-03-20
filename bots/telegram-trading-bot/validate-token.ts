@@ -46,6 +46,7 @@ export async function getRugCheckConfirmed(token: string, processRunCounter: num
     const totalMarketLiquidity = tokenReport.totalMarketLiquidity;
     const isRugged = tokenReport.rugged;
     const rugScore = tokenReport.score;
+    const tokenProgram = tokenReport.tokenProgram;
     const rugRisks = tokenReport.risks
       ? tokenReport.risks
       : [
@@ -155,6 +156,11 @@ export async function getRugCheckConfirmed(token: string, processRunCounter: num
       mint: token,
       name: tokenName,
       creator: tokenCreator,
+      program: tokenProgram,
+      supply: supply,
+      decimals: decimals,
+      rug_conditions: JSON.stringify(conditions),
+      tokenReport: JSON.stringify(tokenReport),
     };
     await insertNewToken(newToken, processRunCounter, conditions).catch((err) => {
         console.log(`${config.name}|[getRugCheckConfirmed]| ⛔ Unable to store new token for tracking duplicate tokens: ${err}`, processRunCounter);
