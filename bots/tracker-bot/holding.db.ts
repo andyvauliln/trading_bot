@@ -581,7 +581,7 @@ export async function insertProfitLoss(record: ProfitLossRecord, processRunCount
     ]
   );
 
-  console.log(`${config.name}|[insertProfitLoss]| Profit/loss record inserted successfully ${record}`, processRunCounter, record, "discord-log");
+  console.log(`${config.name}|[insertProfitLoss]| Profit/loss record inserted successfully ${JSON.stringify(record, null, 2)}`, processRunCounter, null, "discord-log");
 
   await db.close();
 }
