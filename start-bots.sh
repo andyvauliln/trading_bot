@@ -45,9 +45,38 @@ echo "Use 'pm2 stop all' to stop all bots."
 
 #!/bin/bash
 # Setup minimal Chromium for Puppeteer
-
-# Set up directory
 CHROME_DIR="$HOME/chrome-headless"
+CHROME_EXECUTABLE="$CHROME_DIR/chromium"
+
+# Check if Chrome or Chromium is installed system-wide
+if command -v google-chrome &> /dev/null || command -v chromium-browser &> /dev/null; then
+    echo "System Chrome/Chromium is installed."
+    exit 0
+fi
+
+# Check if local Chromium binary exists and is executable
+if [ -f "$CHROME_EXECUTABLE" ] && [ -x "$CHROME_EXECUTABLE" ]; then
+    echo "Local Chromium is already installed at $CHROME_EXECUTABLE"
+    
+    # Verify that environment variables are set
+    if grep -q "CHROME_EXECUTABLE_PATH" ~/.bashrc && grep -q "PUPPETEER_SKIP_CHROMIUM_DOWNLOAD" ~/.bashrc; then
+        echo "Environment variables are properly set."
+    else
+        echo "Setting environment variables..."
+        # Only add if not already present
+        grep -q "export CHROME_EXECUTABLE_PATH" ~/.bashrc || echo "export CHROME_EXECUTABLE_PATH=\"$CHROME_EXECUTABLE\"" >> ~/.bashrc
+        grep -q "export PUPPETEER_SKIP_CHROMIUM_DOWNLOAD" ~/.bashrc || echo "export PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true" >> ~/.bashrc
+        echo "Environment variables have been set. Please run: source ~/.bashrc"
+    fi
+    
+    echo "Chrome setup is complete."
+    exit 0
+fi
+
+# If we get here, we need to install Chromium
+echo "Chrome/Chromium not found. Installing headless Chromium..."
+
+# Create directory if it doesn't exist
 mkdir -p $CHROME_DIR
 
 echo "Downloading Chromium (this might take a while)..."
@@ -59,9 +88,17 @@ echo "Extracting Chromium..."
 tar -xzf $CHROME_DIR/chromium.tar.gz -C $CHROME_DIR
 rm $CHROME_DIR/chromium.tar.gz
 
-# Set environment variable
-echo "export CHROME_EXECUTABLE_PATH=\"$CHROME_DIR/chromium\"" >> ~/.bashrc
-echo "export PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true" >> ~/.bashrc
+# Make it executable
+chmod +x $CHROME_EXECUTABLE
 
-echo "Chrome setup complete. Path: $CHROME_DIR/chromium"
+# Set environment variables if not already set
+if ! grep -q "export CHROME_EXECUTABLE_PATH" ~/.bashrc; then
+    echo "export CHROME_EXECUTABLE_PATH=\"$CHROME_EXECUTABLE\"" >> ~/.bashrc
+fi
+
+if ! grep -q "export PUPPETEER_SKIP_CHROMIUM_DOWNLOAD" ~/.bashrc; then
+    echo "export PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true" >> ~/.bashrc
+fi
+
+echo "Chrome setup complete. Path: $CHROME_EXECUTABLE"
 echo "Please run: source ~/.bashrc" 

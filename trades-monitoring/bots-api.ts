@@ -231,12 +231,40 @@ router.get('/get-pool-data', (req: Request, res: Response) => {
         return acc;
       }, []);
       
+      // Calculate total value of all tokens
       const calculateTotalValueUSDC = mergedTokens.reduce((acc, token) => acc + token.tokenValueUSDC, 0);
+      
+      // Sort tokens by value, descending
+      const sortedTokens = [...mergedTokens].sort((a, b) => b.tokenValueUSDC - a.tokenValueUSDC);
+      
+      // Take top 9 tokens
+      const topTokens = sortedTokens.slice(0, 9);
+      
+      // Calculate value of remaining tokens for "Other" category
+      let otherTokens = sortedTokens.slice(9);
+      let otherValue = 0;
+      
+      if (otherTokens.length > 0) {
+        otherValue = otherTokens.reduce((acc, token) => acc + token.tokenValueUSDC, 0);
+        
+        // Create an "Other" token if there are more than 9 tokens
+        if (otherValue > 0) {
+          topTokens.push({
+            tokenMint: 'other',
+            tokenSymbol: 'Other',
+            tokenName: 'Other Tokens',
+            balance: 0,
+            tokenValueUSDC: otherValue,
+            percentage: (otherValue / calculateTotalValueUSDC) * 100
+          });
+        }
+      }
+      
       res.json({
         success: true,
         data: {
           poolSizeTotalValueUSDC: calculateTotalValueUSDC,
-          tokens: mergedTokens
+          tokens: topTokens
         }
       });
 
