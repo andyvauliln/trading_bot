@@ -646,7 +646,7 @@ export async function fetchAndSaveSwapDetails(tx: string, processRunCounter: num
         }
       } catch (error: any) {
         retryCount++;
-        console.error(`${config.name}|[fetchAndSaveSwapDetails]| ⛔ Transaction details API request failed (Attempt ${retryCount}/${maxRetries}): ${error.message}`, processRunCounter);
+        console.log(`${config.name}|[fetchAndSaveSwapDetails]| ⛔ Transaction details API request failed (Attempt ${retryCount}/${maxRetries}): ${error.message}`, processRunCounter);
         
         // If we haven't exhausted all retries, wait and try again
         if (retryCount < maxRetries) {
@@ -655,7 +655,7 @@ export async function fetchAndSaveSwapDetails(tx: string, processRunCounter: num
           await new Promise((resolve) => setTimeout(resolve, delay));
         } else {
           // All retries failed
-          console.error(`${config.name}|[fetchAndSaveSwapDetails]| ⛔ All transaction details API request attempts failed`, processRunCounter);
+          console.error(`${config.name}|[fetchAndSaveSwapDetails]| ⛔ All transaction details API request attempts failed. \n${error.message} \ntx: https://solscan.io/tx/${tx}`, processRunCounter);
           return false;
         }
       }
