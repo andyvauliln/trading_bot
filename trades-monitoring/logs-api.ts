@@ -8,9 +8,9 @@ import { TAGS } from "../bots/utils/log-tags";
 const router = express.Router();
 
 // Initialize database connection and create table if not exists
-const initDb = async () => {
+const initDb = async (db_path: string) => {
   const db = await open({
-    filename: config.logger.db_logs_path,
+    filename: db_path,
     driver: sqlite3.Database
   });
   return db;
@@ -83,7 +83,7 @@ router.get('/logs', (req: Request, res: Response) => {
       const tableName = module.replace(/-/g, '_');
       
       // Initialize DB and ensure table exists
-      const db = await initDb();
+      const db = await initDb(module);
       const tableExists = await checkTableExists(db, tableName);
       if (!tableExists) {
         return res.status(500).json({ error: 'Table does not exist' });
