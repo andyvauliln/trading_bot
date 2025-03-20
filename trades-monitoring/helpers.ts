@@ -562,9 +562,10 @@ export async function makeAccountHistoricalData(dateToUse: DateTime): Promise<{ 
             const tokens = await getWalletData(address);
             const myWallet = new Wallet(Keypair.fromSecretKey(bs58.decode(address || "")));
             const publicAddress = myWallet.publicKey.toBase58();
-            const message = `Current Wallet State amount of tokens ${tokens.length}. With total value ${tokens.reduce((sum, token) => sum + token.tokenValueUSDC, 0)} USDC`;
-            console.log(`${config.name}|[makeAccountHistoricalData]| ${message}`, 0, message, 'send-to-discord');
-            for (const token of tokens) {
+            let message = `Current Wallet State amount of tokens ${tokens.length}. With total value ${tokens.reduce((sum, token) => sum + token.tokenValueUSDC, 0)} USDC\n`;
+            const sortedTokens = tokens.sort((a, b) => b.tokenValueUSDC - a.tokenValueUSDC);
+            for (const token of sortedTokens) {
+              message += `${token.tokenSymbol} $${token.tokenValueUSDC}|`;
                 const insertHistoricalDataDetails: InsertHistoricalDataDetails = {
                     account: publicAddress,
                     token: token.tokenMint,

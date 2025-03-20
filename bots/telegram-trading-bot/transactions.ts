@@ -240,154 +240,200 @@ export async function createSwapTransaction(solMint: string, tokenMint: string, 
 export async function fetchAndSaveSwapDetails(tx: string, processRunCounter: number, walletPublicKey: string): Promise<boolean> {
   const txUrl = process.env.HELIUS_HTTPS_URI_TX || "";
   const priceUrl = process.env.JUP_HTTPS_PRICE_URI || "";
-  const maxRetries = 10;
-  const retryDelay = config.tx.retry_delay;
-  let retryCount = 0;
-
   console.log(`${config.name}|[fetchAndSaveSwapDetails]| Fetching swap details for tx: ${tx}, wallet: ${walletPublicKey}`, processRunCounter);
   
-  while (retryCount < maxRetries) {
-    try {
-      const response = await retryAxiosRequest(
-        () => axios.post<any>(
-          txUrl,
-          { transactions: [tx] },
-          {
-            headers: {
-              "Content-Type": "application/json",
-            },
-            timeout: config.tx.get_timeout,
-          }
-        ),
-        maxRetries,
-        3000, // initialDelay
-        processRunCounter
-      );
-
-      // Verify if we received tx response data
-      if (!response.data || response.data.length === 0) {
-        console.log(`${config.name}|[fetchAndSaveSwapDetails]| ⚠️ Empty response received. Retry ${retryCount + 1}/${maxRetries}`, processRunCounter);
-        retryCount++;
-        if (retryCount < maxRetries) {
-          await new Promise(resolve => setTimeout(resolve, retryDelay));
-          continue;
+  try {
+    // Set retry parameters for API requests
+    const maxRetries = 10;
+    
+    // First API call - Get transaction details
+    let txResponse = null;
+    let retryCount = 0;
+    
+    // Retry loop for transaction details API
+    while (retryCount < maxRetries) {
+      try {
+        console.log(`${config.name}|[fetchAndSaveSwapDetails]| Transaction details API request attempt ${retryCount + 1}/${maxRetries}`, processRunCounter);
+        txResponse = await retryAxiosRequest(
+          () => axios.post<any>(
+            txUrl,
+            { transactions: [tx] },
+            {
+              headers: {
+                "Content-Type": "application/json",
+              },
+              timeout: 10000, // Timeout for each request
+            }
+          ),
+          5, // maxRetries
+          1000, // initialDelay
+          processRunCounter
+        );
+        
+        // If we got a valid response, break out of the retry loop
+        if (txResponse && txResponse.data && txResponse.data.length > 0) {
+          break;
+        } else {
+          throw new Error("Empty response received");
         }
-        return false;
-      }
-
-      // Safely access the event information
-      const transactions: TransactionDetailsResponseArray = response.data;
-      const swapTransactionData: SwapEventDetailsResponse = {
-        programInfo: transactions[0]?.events.swap.innerSwaps[0].programInfo,
-        tokenInputs: transactions[0]?.events.swap.innerSwaps[0].tokenInputs,
-        tokenOutputs: transactions[0]?.events.swap.innerSwaps[transactions[0]?.events.swap.innerSwaps.length - 1].tokenOutputs,
-        fee: transactions[0]?.fee,
-        slot: transactions[0]?.slot,
-        timestamp: transactions[0]?.timestamp,
-        description: transactions[0]?.description,
-      };
-      console.log(`${config.name}|[fetchAndSaveSwapDetails]| Swap transaction data:`, processRunCounter, swapTransactionData);
-
-      // Get latest Sol Price
-      console.log(`${config.name}|[fetchAndSaveSwapDetails]| Getting latest Sol Price`, processRunCounter);
-      const priceResponse = await retryAxiosRequest(
-        () => axios.get<any>(priceUrl, {
-          params: {
-            ids: config.sol_mint,
-          },
-          timeout: config.tx.get_timeout,
-        }),
-        5, // maxRetries
-        1000, // initialDelay
-        processRunCounter
-      );
-
-      // Verify if we received the price response data
-      if (!priceResponse.data.data[config.sol_mint]?.price) {
-        console.log(`${config.name}|[fetchAndSaveSwapDetails]| ⚠️ Could not fetch latest Sol Price. Retry ${retryCount + 1}/${maxRetries}`, processRunCounter);
+      } catch (error: any) {
         retryCount++;
+        console.log(`${config.name}|[fetchAndSaveSwapDetails]| ⛔ Transaction details API request failed (Attempt ${retryCount}/${maxRetries}): ${error.message}`, processRunCounter);
+        
+        // If we haven't exhausted all retries, wait and try again
         if (retryCount < maxRetries) {
-          await new Promise(resolve => setTimeout(resolve, retryDelay));
-          continue;
+          const delay = Math.min(2000 * Math.pow(1.5, retryCount), 15000); // Exponential backoff with max delay of 15 seconds
+          console.log(`${config.name}|[fetchAndSaveSwapDetails]| Waiting ${delay / 1000} seconds before next transaction details API request attempt...`, processRunCounter);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        } else {
+          // All retries failed
+          console.error(`${config.name}|[fetchAndSaveSwapDetails]| ⛔ All transaction details API request attempts failed. \n${error.message} \ntx: https://solscan.io/tx/${tx}`, processRunCounter);
+          return false;
         }
-        return false;
       }
-
-      console.log(`${config.name}|[fetchAndSaveSwapDetails]| Latest Sol Price:`, processRunCounter, priceResponse.data.data[config.sol_mint]?.price);
-      // Calculate estimated price paid in sol
-      console.log(`${config.name}|[fetchAndSaveSwapDetails]| Calculating estimated price paid in sol`, processRunCounter);
-      const solUsdcPrice = priceResponse.data.data[config.sol_mint]?.price;
-      const solPaidUsdc = swapTransactionData.tokenInputs[0].tokenAmount * solUsdcPrice;
-      const solFeePaidUsdc = (swapTransactionData.fee / 1_000_000_000) * solUsdcPrice;
-      const perTokenUsdcPrice = solPaidUsdc / swapTransactionData.tokenOutputs[0].tokenAmount;
-
-      // Get token meta data
-      console.log(`${config.name}|[fetchAndSaveSwapDetails]| Caclulated Prices`, processRunCounter, {solPaidUsdc, solFeePaidUsdc, perTokenUsdcPrice});
-      let tokenName = "N/A";
-      const tokenData: NewTokenRecord[] = await selectTokenByMint(swapTransactionData.tokenOutputs[0].mint, processRunCounter);
-      if (tokenData && tokenData.length > 0) {
-        tokenName = tokenData[0].name;
-      }
-
-      // Add holding to db
-      const newHolding: HoldingRecord = {
-        Time: swapTransactionData.timestamp,
-        Token: swapTransactionData.tokenOutputs[0].mint,
-        TokenName: tokenName,
-        Balance: swapTransactionData.tokenOutputs[0].tokenAmount,
-        SolPaid: swapTransactionData.tokenInputs[0].tokenAmount,
-        SolFeePaid: swapTransactionData.fee,
-        SolPaidUSDC: solPaidUsdc,
-        SolFeePaidUSDC: solFeePaidUsdc,
-        PerTokenPaidUSDC: perTokenUsdcPrice,
-        Slot: swapTransactionData.slot,
-        Program: swapTransactionData.programInfo ? swapTransactionData.programInfo.source : "N/A",
-        BotName: config.name,
-        WalletPublicKey: walletPublicKey,
-        TxId: tx
-      };
-
-      await insertHolding(newHolding, processRunCounter).catch((err: any) => {
-        console.log(`${config.name}|[fetchAndSaveSwapDetails]| ⛔ Insert Holding Database Error: ${err}`, processRunCounter);
-        return false;
-      });
-
-      // Insert transaction record
-      const transactionData = {
-        Time: swapTransactionData.timestamp,
-        Token: swapTransactionData.tokenOutputs[0].mint,
-        TokenName: tokenName,
-        TransactionType: 'BUY' as 'BUY' | 'SELL',
-        TokenAmount: swapTransactionData.tokenOutputs[0].tokenAmount,
-        SolAmount: swapTransactionData.tokenInputs[0].tokenAmount,
-        SolFee: swapTransactionData.fee / 1e9,
-        PricePerTokenUSDC: perTokenUsdcPrice,
-        TotalUSDC: solPaidUsdc,
-        Slot: swapTransactionData.slot,
-        Program: swapTransactionData.programInfo ? swapTransactionData.programInfo.source : "N/A",
-        BotName: config.name,
-        WalletPublicKey: walletPublicKey,
-        TxId: tx
-      };
-      
-      // Insert transaction into database
-      await insertTransaction(transactionData, processRunCounter).catch((err: any) => {
-        console.log(`${config.name}|[fetchAndSaveSwapDetails]| ⛔ Insert Transaction Database Error: ${err}`, processRunCounter);
-      });
-      console.log(`${config.name}|[fetchAndSaveSwapDetails]| ✅ Swap transaction details fetched and saved successfully`, processRunCounter, newHolding, TAGS.saved_in_holding.name);
-
-      return true;
-
-    } catch (error: any) {
-      console.error(`${config.name}|[fetchAndSaveSwapDetails]| ⚠️ Error on attempt ${retryCount + 1}/${maxRetries}: ${error.message}`, processRunCounter);
-      retryCount++;
-      if (retryCount < maxRetries) {
-        await new Promise(resolve => setTimeout(resolve, retryDelay));
-        continue;
-      }
+    }
+    
+    // Check if we have a valid response after all retries
+    if (!txResponse || !txResponse.data || txResponse.data.length === 0) {
+      console.log(`${config.name}|[fetchAndSaveSwapDetails]| ⛔ Could not fetch swap details: No response received from API after ${maxRetries} attempts.`, processRunCounter);
       return false;
     }
+
+    // Safely access the event information
+    const transactions: TransactionDetailsResponseArray = txResponse.data;
+    const swapTransactionData: SwapEventDetailsResponse = {
+      programInfo: transactions[0]?.events.swap.innerSwaps[0].programInfo,
+      tokenInputs: transactions[0]?.events.swap.innerSwaps[0].tokenInputs,
+      tokenOutputs: transactions[0]?.events.swap.innerSwaps[transactions[0]?.events.swap.innerSwaps.length - 1].tokenOutputs,
+      fee: transactions[0]?.fee,
+      slot: transactions[0]?.slot,
+      timestamp: transactions[0]?.timestamp,
+      description: transactions[0]?.description,
+    };
+    console.log(`${config.name}|[fetchAndSaveSwapDetails]| Swap transaction data:`, processRunCounter, swapTransactionData);
+
+    // Second API call - Get latest Sol Price
+    console.log(`${config.name}|[fetchAndSaveSwapDetails]| Getting latest Sol Price`, processRunCounter);
+    
+    // Reset retry counter for price API
+    let priceResponse = null;
+    retryCount = 0;
+    
+    // Retry loop for price API
+    while (retryCount < maxRetries) {
+      try {
+        console.log(`${config.name}|[fetchAndSaveSwapDetails]| Price API request attempt ${retryCount + 1}/${maxRetries}`, processRunCounter);
+        priceResponse = await retryAxiosRequest(
+          () => axios.get<any>(priceUrl, {
+            params: {
+              ids: config.sol_mint,
+            },
+            timeout: config.tx.get_timeout,
+          }),
+          5, // maxRetries
+          1000, // initialDelay
+          processRunCounter
+        );
+        
+        // If we got a valid response with price data, break out of the retry loop
+        if (priceResponse && priceResponse.data && priceResponse.data.data && 
+            priceResponse.data.data[config.sol_mint]?.price) {
+          break;
+        } else {
+          throw new Error("Invalid price data received");
+        }
+      } catch (error: any) {
+        retryCount++;
+        console.error(`${config.name}|[fetchAndSaveSwapDetails]| ⛔ Price API request failed (Attempt ${retryCount}/${maxRetries}): ${error.message}`, processRunCounter);
+        
+        // If we haven't exhausted all retries, wait and try again
+        if (retryCount < maxRetries) {
+          const delay = Math.min(2000 * Math.pow(1.5, retryCount), 15000); // Exponential backoff with max delay of 15 seconds
+          console.log(`${config.name}|[fetchAndSaveSwapDetails]| Waiting ${delay / 1000} seconds before next price API request attempt...`, processRunCounter);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        } else {
+          // All retries failed
+          console.error(`${config.name}|[fetchAndSaveSwapDetails]| ⛔ All price API request attempts failed`, processRunCounter);
+          return false;
+        }
+      }
+    }
+    
+    // Check if we have a valid price response after all retries
+    if (!priceResponse || !priceResponse.data || !priceResponse.data.data || 
+        !priceResponse.data.data[config.sol_mint]?.price) {
+      console.log(`${config.name}|[fetchAndSaveSwapDetails]| ⛔ Could not fetch latest Sol Price: No valid data received from API after ${maxRetries} attempts.`, processRunCounter);
+      return false;
+    }
+    
+    console.log(`${config.name}|[fetchAndSaveSwapDetails]| Latest Sol Price:`, processRunCounter, priceResponse.data.data[config.sol_mint]?.price);
+    
+    // Calculate estimated price paid in sol
+    console.log(`${config.name}|[fetchAndSaveSwapDetails]| Calculating estimated price paid in sol`, processRunCounter);
+    const solUsdcPrice = priceResponse.data.data[config.sol_mint]?.price;
+    const solPaidUsdc = swapTransactionData.tokenInputs[0].tokenAmount * solUsdcPrice;
+    const solFeePaidUsdc = (swapTransactionData.fee / 1_000_000_000) * solUsdcPrice;
+    const perTokenUsdcPrice = solPaidUsdc / swapTransactionData.tokenOutputs[0].tokenAmount;
+
+    // Get token meta data
+    console.log(`${config.name}|[fetchAndSaveSwapDetails]| Caclulated Prices`, processRunCounter, {solPaidUsdc, solFeePaidUsdc, perTokenUsdcPrice});
+    let tokenName = "N/A";
+    const tokenData: NewTokenRecord[] = await selectTokenByMint(swapTransactionData.tokenOutputs[0].mint, processRunCounter);
+    if (tokenData && tokenData.length > 0) {
+      tokenName = tokenData[0].name;
+    }
+
+    // Add holding to db
+    const newHolding: HoldingRecord = {
+      Time: swapTransactionData.timestamp,
+      Token: swapTransactionData.tokenOutputs[0].mint,
+      TokenName: tokenName,
+      Balance: swapTransactionData.tokenOutputs[0].tokenAmount,
+      SolPaid: swapTransactionData.tokenInputs[0].tokenAmount,
+      SolFeePaid: swapTransactionData.fee / 1e9,
+      SolPaidUSDC: solPaidUsdc,
+      SolFeePaidUSDC: solFeePaidUsdc,
+      PerTokenPaidUSDC: perTokenUsdcPrice,
+      Slot: swapTransactionData.slot,
+      Program: swapTransactionData.programInfo ? swapTransactionData.programInfo.source : "N/A",
+      BotName: config.name,
+      WalletPublicKey: walletPublicKey,
+      TxId: tx
+    };
+
+    await insertHolding(newHolding, processRunCounter).catch((err: any) => {
+      console.log(`${config.name}|[fetchAndSaveSwapDetails]| ⛔ Insert Holding Database Error: ${err}`, processRunCounter);
+      return false;
+    });
+
+    // Insert transaction record
+    const transactionData = {
+      Time: swapTransactionData.timestamp,
+      Token: swapTransactionData.tokenOutputs[0].mint,
+      TokenName: tokenName,
+      TransactionType: 'BUY' as 'BUY',
+      TokenAmount: swapTransactionData.tokenOutputs[0].tokenAmount,
+      SolAmount: swapTransactionData.tokenInputs[0].tokenAmount,
+      SolFee: swapTransactionData.fee / 1e9,
+      PricePerTokenUSDC: perTokenUsdcPrice,
+      TotalUSDC: solPaidUsdc,
+      Slot: swapTransactionData.slot,
+      Program: swapTransactionData.programInfo ? swapTransactionData.programInfo.source : "N/A",
+      BotName: config.name,
+      WalletPublicKey: walletPublicKey,
+      TxId: tx
+    };
+    
+    // Insert transaction into database
+    await insertTransaction(transactionData, processRunCounter).catch((err: any) => {
+      console.log(`${config.name}|[fetchAndSaveSwapDetails]| ⛔ Insert Transaction Database Error: ${err}`, processRunCounter);
+    });
+
+    console.log(`${config.name}|[fetchAndSaveSwapDetails]| ✅ Swap transaction details fetched and saved successfully. Going to Search Another Opportunities!`, processRunCounter, newHolding, TAGS.saved_in_holding.name);
+
+    return true;
+  } catch (error: any) {
+    console.error(`${config.name}|[fetchAndSaveSwapDetails]| ⛔ Fetch and Save Swap Details Error: ${error.message}`, processRunCounter);
+    return false;
   }
-  
-  return false; // Return false if all retries are exhausted
 }
