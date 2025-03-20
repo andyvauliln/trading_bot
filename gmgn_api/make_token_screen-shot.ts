@@ -4,6 +4,8 @@ import fs from 'fs';
 import path from 'path';
 import { Browser } from 'puppeteer';
 import { TextChannel, DMChannel, NewsChannel } from 'discord.js';
+import dotenv from 'dotenv';
+dotenv.config();
 
 /**
  * Takes a screenshot of a token page and sends it to Discord
@@ -16,9 +18,10 @@ export async function makeTokenScreenshotAndSendToDiscord(
   discordChannelId: string = ''
 ): Promise<boolean> {
   let browser: Browser | null = null;
-  
+  if(process.env.DO_GMGN_SCREENSHOT === 'false') {
+    return false
+  }
   try {
-    console.log(`📸 Taking screenshot of token: ${tokenAddress}`);
     if(!discordChannelId) {
      discordChannelId = process.env.DISCORD_CT_TRACKER_CHANNEL || '';
     }

@@ -17,6 +17,7 @@ import { insertHolding, insertNewToken, selectTokenByMint, insertTransaction } f
 import { HoldingRecord } from "../tracker-bot/types";
 import { TAGS } from "../utils/log-tags";
 import { retryAxiosRequest } from "../utils/help-functions";
+import { makeTokenScreenshotAndSendToDiscord } from "../../gmgn_api/make_token_screen-shot";
 
 dotenv.config();
 
@@ -384,7 +385,8 @@ export async function createSwapTransaction(solMint: string, tokenMint: string, 
     
     // If we have no confirmation result after all retries, return null
     if (conf && (conf.value.err || conf.value.err !== null)) {
-      console.error(`${config.name}|[createSwapTransaction]| ⛔ All confirmation attempts failed ${confirmRetryCount}/${maxConfirmRetries}.\n${JSON.stringify(conf)} \nYou can check transaction manually https://solscan.io/tx/${txid}.`, processRunCounter);
+      console.error(`${config.name}|[createSwapTransaction]| ⛔ All confirmation attempts failed ${confirmRetryCount}/${maxConfirmRetries}.\n${JSON.stringify(conf)} \nYou can check transaction manually https://solscan.io/tx/${txid}. https://gmgn.ai/sol/token/${tokenMint}`, processRunCounter);
+      makeTokenScreenshotAndSendToDiscord(tokenMint);
       return null;
     }
 

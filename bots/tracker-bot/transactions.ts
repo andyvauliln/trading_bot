@@ -11,6 +11,7 @@ import {
 import { removeHolding } from "./holding.db";
 import { TAGS } from "../utils/log-tags";
 import { retryAxiosRequest } from "../utils/help-functions";
+import { makeTokenScreenshotAndSendToDiscord } from "../../gmgn_api/make_token_screen-shot";
 // Load environment variables from the .env file
 dotenv.config();
 
@@ -207,7 +208,8 @@ export async function createSellTransaction(solMint: string, tokenMint: string, 
     }
 
     if (!conf || conf.value.err) {
-      console.warn(`${config.name}|[createSellTransaction]| ⛔ Transaction not confirmed after ${maxRetries} attempts when selling ${tokenMint}: ${JSON.stringify(conf?.value.err, null, 2)} /n https://solscan.io/tx/${txid}`, processRunCounter, {txid, tokenMint, amount, type, walletPublicKey, conf});
+      console.warn(`${config.name}|[createSellTransaction]| ⛔ Transaction not confirmed after ${maxRetries} attempts when selling ${tokenMint}: ${JSON.stringify(conf?.value.err, null, 2)} /n https://solscan.io/tx/${txid} https://gmgn.ai/sol/token/${tokenMint}`, processRunCounter, {txid, tokenMint, amount, type, walletPublicKey, conf});
+      makeTokenScreenshotAndSendToDiscord(tokenMint);
       return { success: false, msg: `Transaction not confirmed after ${maxRetries} attempts: ${JSON.stringify(conf?.value.err, null, 2)}`, tx: null, walletPublicKey };
     }
 
