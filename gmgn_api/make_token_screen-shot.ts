@@ -109,6 +109,23 @@ export async function makeTokenScreenshotAndSendToDiscord(
       throw new Error(`Timeout waiting for page content: ${waitError instanceof Error ? waitError.message : String(waitError)}`);
     }
     
+    // Remove all elements with the class "chakra-portal" before taking the screenshot
+    try {
+      await page.evaluate(() => {
+        const portalElements = document.querySelectorAll('.chakra-portal');
+        portalElements.forEach(element => {
+          if (element.parentNode) {
+            element.parentNode.removeChild(element);
+          }
+        });
+        console.log(`Removed ${portalElements.length} chakra-portal elements from the DOM`);
+      });
+      console.log('Removed chakra-portal elements before taking screenshot');
+    } catch (removeError) {
+      console.error('Error removing chakra-portal elements:', removeError);
+      // Continue with the screenshot even if removal fails
+    }
+    
     // Create screenshots directory if it doesn't exist
     const screenshotsDir = path.join(process.cwd(), 'data/screenshots');
     if (!fs.existsSync(screenshotsDir)) {
