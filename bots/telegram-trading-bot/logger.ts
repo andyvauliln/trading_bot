@@ -385,7 +385,7 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
    * Sends error and warning logs to a dedicated Discord channel for monitoring
    */
   private async sendLogsToDiscord(logEntry: any): Promise<boolean> {
-    if (!this.discordEnabled || !this.discordChannel) {
+    if (!this.discordEnabled || !this.discordChannel || logEntry.message.includes('Server responded with 429 Too Many Requests.')) {
       return false;
     }
 
@@ -399,7 +399,7 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
       // Create a formatted message with timestamp and details
       const formattedMessage = [
         `${emoji} **${logEntry.type.toUpperCase()}** ${logEntry.date} ${logEntry.time}\n`,
-        `${modulePart}${functionPart}${tagPart} ${logEntry.message}\n`
+        `${modulePart}${functionPart}${tagPart} ${logEntry.message}\n\n`
       ];
 
       // Send the message to Discord

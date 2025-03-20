@@ -554,6 +554,8 @@ export async function getRugCheckConfirmed(token: string, processRunCounter: num
     ];
 
     console.log(`${config.name}|[getRugCheckConfirmed]| Rug Check Result ${conditions.every((condition) => !condition.check) ? "✅" : "⛔"}:`, processRunCounter, conditions, TAGS.rug_validation.name);
+    console.log(`${config.name}|[getRugCheckConfirmed]| \n${JSON.stringify(conditions)}\n`, processRunCounter, TAGS.rug_validation.name);
+    
   
     // Create new token record
     const newToken: NewTokenRecord = {

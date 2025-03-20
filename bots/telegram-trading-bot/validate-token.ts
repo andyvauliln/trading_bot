@@ -8,8 +8,9 @@ import { TAGS } from "../utils/log-tags";
 
 
 export async function getRugCheckConfirmed(token: string, processRunCounter: number): Promise<boolean> {
-  console.log(`${config.name}|[getRugCheckConfirmed]| Getting Rug Check for token: ${token}`, processRunCounter);
   try {
+    console.log(`${config.name}|[getRugCheckConfirmed]| Getting Rug Check for token: ${token}`, processRunCounter);
+    
     const rugResponse = await retryAxiosRequest(
       () => axios.get<RugResponseExtended>("https://api.rugcheck.xyz/v1/tokens/" + token + "/report", {
         timeout: 100000,
@@ -18,9 +19,10 @@ export async function getRugCheckConfirmed(token: string, processRunCounter: num
       1000, // initialDelay
       processRunCounter
     );
-  
-    if (!rugResponse.data) {
-      console.error(`${config.name}|[getRugCheckConfirmed]| ⛔ Could not fetch Rug Check: No response received from API.`, processRunCounter, rugResponse);
+    
+    // Check if we have a valid response
+    if (!rugResponse || !rugResponse.data) {
+      console.log(`${config.name}|[getRugCheckConfirmed]| ⛔ Could not fetch Rug Check: No response received from API.`, processRunCounter);
       return false;
     }
   
@@ -32,6 +34,7 @@ export async function getRugCheckConfirmed(token: string, processRunCounter: num
     console.log(`${config.name}|[getRugCheckConfirmed]| Extracting information from Rug Check Response`, processRunCounter);
     const tokenReport: RugResponseExtended = rugResponse.data;
     const tokenCreator = tokenReport.creator ? tokenReport.creator : token;
+    const tokenProgram = tokenReport.tokenProgram;
     const mintAuthority = tokenReport.token.mintAuthority;
     const freezeAuthority = tokenReport.token.freezeAuthority;
     const isInitialized = tokenReport.token.isInitialized;
@@ -46,7 +49,6 @@ export async function getRugCheckConfirmed(token: string, processRunCounter: num
     const totalMarketLiquidity = tokenReport.totalMarketLiquidity;
     const isRugged = tokenReport.rugged;
     const rugScore = tokenReport.score;
-    const tokenProgram = tokenReport.tokenProgram;
     const rugRisks = tokenReport.risks
       ? tokenReport.risks
       : [
@@ -70,7 +72,7 @@ export async function getRugCheckConfirmed(token: string, processRunCounter: num
   
       const markets: Market[] | undefined = tokenReport.markets;
       if (markets) {
-        console.log(`${config.name}|[getRugCheckConfirmed]| Extracting liquidity addresses from markets`, processRunCounter, markets);
+        console.log(`${config.name}|[getRugCheckConfirmed]| Extracting liquidity addresses from markets`, processRunCounter);
         // Safely extract liquidity addresses from markets
         const liquidityAddresses: string[] = (markets ?? [])
           .flatMap((market) => [market.liquidityA, market.liquidityB])
@@ -149,6 +151,8 @@ export async function getRugCheckConfirmed(token: string, processRunCounter: num
     ];
 
     console.log(`${config.name}|[getRugCheckConfirmed]| Rug Check Result ${conditions.every((condition) => !condition.check) ? "✅" : "⛔"}:`, processRunCounter, conditions, TAGS.rug_validation.name);
+    console.log(`${config.name}|[getRugCheckConfirmed]| \n${JSON.stringify(conditions)}\n`, processRunCounter, TAGS.rug_validation.name);
+    
   
     // Create new token record
     const newToken: NewTokenRecord = {
@@ -172,12 +176,10 @@ export async function getRugCheckConfirmed(token: string, processRunCounter: num
         console.log(`${config.name}|[getRugCheckConfirmed]| ⛔ Condition failed: ${condition.message}`, processRunCounter);
       }
     }
-
   
     return conditions.every((condition) => !condition.check);
-
   } catch (error: any) {
-    console.error(`${config.name}|[getRugCheckConfirmed]| ⛔ Error during rug check: ${error.message}`, processRunCounter);
+    console.error(`${config.name}|[getRugCheckConfirmed]| ⛔ Error during rug check processing: ${error.message}`, processRunCounter);
     return false;
   }
 }
