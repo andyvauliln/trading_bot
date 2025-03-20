@@ -356,7 +356,7 @@ export async function createSwapTransaction(solMint: string, tokenMint: string, 
         }
         
         // If there's an error, log it but continue with retries
-        console.warn(`${config.name}|[createSwapTransaction]| ⚠️ Confirmation attempt ${confirmRetryCount + 1} failed, retrying...`, processRunCounter);
+        console.log(`${config.name}|[createSwapTransaction]| ⚠️ Confirmation attempt ${confirmRetryCount + 1}/${maxConfirmRetries} failed, retrying...`, processRunCounter);
         
         // Increment retry counter
         confirmRetryCount++;
@@ -368,7 +368,7 @@ export async function createSwapTransaction(solMint: string, tokenMint: string, 
           await new Promise(resolve => setTimeout(resolve, delay));
         }
       } catch (confirmError: any) {
-        console.log(`${config.name}|[createSwapTransaction]| ⛔ Error during confirmation attempt ${confirmRetryCount + 1}: ${confirmError.message}`, processRunCounter);
+        console.error(`${config.name}|[createSwapTransaction]| ⛔ Error getting transaction confirmation ${confirmRetryCount + 1}/${maxConfirmRetries}: ${confirmError.message}`, processRunCounter);
         
         // Increment retry counter
         confirmRetryCount++;
@@ -383,37 +383,11 @@ export async function createSwapTransaction(solMint: string, tokenMint: string, 
     }
     
     // If we have no confirmation result after all retries, return null
-    if (!conf) {
-      console.error(`${config.name}|[createSwapTransaction]| ⛔ All confirmation attempts failed.`, processRunCounter);
+    if (conf && (conf.value.err || conf.value.err !== null)) {
+      console.error(`${config.name}|[createSwapTransaction]| ⛔ All confirmation attempts failed ${confirmRetryCount}/${maxConfirmRetries}.\n${conf.value.err} \nYou can check transaction manually https://solscan.io/tx/${txid}.`, processRunCounter);
       return null;
     }
 
-    // Return null when an error occurred when confirming the transaction
-    console.log(`${config.name}|[createSwapTransaction]| Confirmation status:`, processRunCounter, conf);
-    if (conf.value.err || conf.value.err !== null) {
-      // Create a more detailed error report
-      let errorDetails: any = {
-        errorType: 'Transaction confirmation failed',
-        errorDetails: conf.value.err,
-        context: conf.context,
-        slot: conf.context?.slot,
-        txid,
-        txurl: `https://solscan.io/tx/${txid}`
-      };
-      
-      // Add detailed error examination for array-type errors (like InstructionError)
-      if (conf.value.err && Array.isArray(conf.value.err)) {
-        errorDetails.errorArray = conf.value.err;
-      } else if (typeof conf.value.err === 'object') {
-        // For other object types of errors
-        errorDetails.errorObject = conf.value.err;
-      }
-      
-      console.error(`${config.name}|[createSwapTransaction]| ⛔ Transaction confirmation failed.`, processRunCounter);
-      console.error(`${config.name}|[createSwapTransaction]| ⛔ Error Details:`, processRunCounter, JSON.stringify(errorDetails, null, 2));
-      
-      return null;
-    }
     console.log(`${config.name}|[createSwapTransaction]| ✅ Transaction confirmed.`, processRunCounter, {txid, tokenMint: tokenMint, amount: config.swap.amount, walletPublicKey}, TAGS.buy_tx_confirmed.name);
 
     return txid ? { txid, walletPublicKey } : null;
@@ -463,6 +437,7 @@ export async function getRugCheckConfirmed(token: string, processRunCounter: num
     console.log(`${config.name}|[getRugCheckConfirmed]| Extracting information from Rug Check Response`, processRunCounter);
     const tokenReport: RugResponseExtended = rugResponse.data;
     const tokenCreator = tokenReport.creator ? tokenReport.creator : token;
+    const tokenProgram = tokenReport.tokenProgram;
     const mintAuthority = tokenReport.token.mintAuthority;
     const freezeAuthority = tokenReport.token.freezeAuthority;
     const isInitialized = tokenReport.token.isInitialized;
@@ -586,6 +561,11 @@ export async function getRugCheckConfirmed(token: string, processRunCounter: num
       mint: token,
       name: tokenName,
       creator: tokenCreator,
+      program: tokenProgram,
+      supply: supply,
+      decimals: decimals,
+      rug_conditions: JSON.stringify(conditions),
+      tokenReport: JSON.stringify(tokenReport),
     };
     await insertNewToken(newToken, processRunCounter, conditions).catch((err) => {
         console.log(`${config.name}|[getRugCheckConfirmed]| ⛔ Unable to store new token for tracking duplicate tokens: ${err}`, processRunCounter);

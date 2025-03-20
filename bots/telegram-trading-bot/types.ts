@@ -160,6 +160,11 @@ export interface RugResponseExtended {
     name: string;
     mint: string;
     creator: string;
+    program: string;
+    supply: number;
+    decimals: number;
+    rug_conditions: string;
+    tokenReport: string;
   }
   
   export interface MintsDataReponse {

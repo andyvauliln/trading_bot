@@ -196,7 +196,7 @@ export async function validateAndSwapToken(token: string, processRunCounter: num
 
     const isRugCheckPassed = await getRugCheckConfirmed(token, processRunCounter);
     if (!isRugCheckPassed) {
-      console.warn(`${config.name}|[validateAndSwapToken]| Rug Check not passed! Transaction aborted.`, processRunCounter);
+      console.log(`${config.name}|[validateAndSwapToken]|🚫 Rug Check not passed ${config.rug_check.enabled ? '! Transaction aborted.' : 'But Rug Check is disabled. Going to swap anyway.'}`, processRunCounter);
       console.log(`${config.name}|[validateAndSwapToken]| 🟢 Resuming looking for new tokens...`, processRunCounter);
       if (config.rug_check.enabled) {
         return false;
