@@ -9,7 +9,6 @@ export const config = {
   name: module_name,
   environment: process.env.NODE_ENV || "development", // development, production, test
   port: 9090,
-  db_logs_path: path.resolve(process.cwd(), 'data', 'app-logs.db'),
   db_historical_data_path: path.resolve(process.cwd(), 'data', 'historical-data.db'),
   bots:['tracker-bot', 'telegram-trading-bot', "solana-sniper-bot"],
   db_holdings_path: path.resolve(process.cwd(), 'data', 'holdings.db'),
@@ -18,7 +17,7 @@ export const config = {
     terminal_logs: process.env.IS_TERMINAL_LOG === 'true' || process.env.NODE_ENV === 'development',
     db_logs: true,
     file_logs: process.env.FILE_LOGS === 'true',
-    db_logs_path: path.resolve(process.cwd(), 'data', 'app-logs.db'),
+    db_logs_path: path.resolve(process.cwd(), 'data', `${module_name}-logs.db`),
     file_logs_path: path.resolve(process.cwd(), 'logs', `${module_name}.log`),
   },
 };

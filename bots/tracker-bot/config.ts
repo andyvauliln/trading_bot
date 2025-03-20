@@ -62,7 +62,7 @@ export const config = {
     terminal_logs: process.env.IS_TERMINAL_LOG === 'true' || process.env.NODE_ENV === 'development',
     db_logs: true,
     file_logs: process.env.FILE_LOGS === 'true',
-    db_logs_path: path.resolve(process.cwd(), 'data', 'app-logs.db'),
+    db_logs_path: path.resolve(process.cwd(), 'data', `${module_name}-logs.db`),
     file_logs_path: path.resolve(process.cwd(), 'logs', `${module_name}.log`),
   },
   tx: {
