@@ -391,29 +391,16 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
 
     try {
       // Format the message for Discord
-      const emoji = logEntry.type === 'error' ? '🚨' : logEntry.type === 'warn' ? '⚠️' : 'ℹ️';
+      const emoji = logEntry.type === 'error' ? '🚨' : logEntry.type === 'warn' ? '⚠️' : '🟢';
       const modulePart = logEntry.module ? `[${logEntry.module}]` : '';
       const functionPart = logEntry.function ? `[${logEntry.function}]` : '';
       const tagPart = logEntry.tag ? `[${logEntry.tag}]` : '';
       
       // Create a formatted message with timestamp and details
       const formattedMessage = [
-        `${emoji} **${logEntry.type.toUpperCase()}** ${emoji} - ${logEntry.date} ${logEntry.time}`,
-        `${modulePart}${functionPart}${tagPart} ${logEntry.message}`
+        `${emoji} **${logEntry.type.toUpperCase()}** ${logEntry.date} ${logEntry.time}\n`,
+        `${modulePart}${functionPart}${tagPart} ${logEntry.message}\n`
       ];
-
-      // Add data if available
-      if (logEntry.data) {
-        try {
-          const data = JSON.parse(logEntry.data);
-          if (data && typeof data === 'object') {
-            formattedMessage.push('```json\n' + JSON.stringify(data, null, 2) + '\n```');
-          }
-        } catch (e) {
-          // If data isn't valid JSON, add it as plain text
-          formattedMessage.push('```\n' + logEntry.data + '\n```');
-        }
-      }
 
       // Send the message to Discord
       return await sendMessageOnDiscord(this.discordChannel, [formattedMessage.join('\n')]);

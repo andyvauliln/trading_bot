@@ -555,15 +555,15 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
 
     try {
       // Format the message for Discord
-      const emoji = logEntry.type === 'error' ? '🚨' : '⚠️';
+      const emoji = logEntry.type === 'error' ? '🚨' : logEntry.type === 'warn' ? '⚠️' : '🟢';
       const modulePart = logEntry.module ? `[${logEntry.module}]` : '';
       const functionPart = logEntry.function ? `[${logEntry.function}]` : '';
       const tagPart = logEntry.tag ? `[${logEntry.tag}]` : '';
       
       // Create a formatted message with timestamp and details
       const formattedMessage = [
-        `${emoji} **${logEntry.type.toUpperCase()}** ${emoji} - ${logEntry.date} ${logEntry.time}`,
-        `${modulePart}${functionPart}${tagPart} ${logEntry.message}`
+        `${emoji} **${logEntry.type.toUpperCase()}** ${logEntry.date} ${logEntry.time}\n`,
+        `${modulePart}${functionPart}${tagPart} ${logEntry.message}\n`
       ];
 
       // Send the message to Discord
