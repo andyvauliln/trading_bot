@@ -145,7 +145,7 @@ export async function sendMessageOnDiscord(
   const results = await Promise.all(
     messages.map((message) => 
       (channel as TextChannel)
-        .send(message)
+        .send(message.slice(0, 1990))
         .then(() => {
           return true;
         })
