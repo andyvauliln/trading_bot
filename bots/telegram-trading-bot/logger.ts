@@ -1,10 +1,43 @@
 import fs from 'fs';
 import path from 'path';
 import sqlite3 from 'sqlite3';
-import { open, Statement } from 'sqlite';
+import { open } from 'sqlite';
 import { config } from './config';
 import { v4 as uuidv4 } from 'uuid';
 import { initializeDiscordClient, getDiscordChannel, sendMessageOnDiscord } from "../discord/discordSend";
+
+/**
+ * Simple mutex implementation to prevent concurrent database operations
+ */
+class Mutex {
+  private locked: boolean = false;
+  private waitingQueue: Array<() => void> = [];
+
+  async acquire(): Promise<void> {
+    return new Promise<void>(resolve => {
+      if (!this.locked) {
+        this.locked = true;
+        resolve();
+      } else {
+        this.waitingQueue.push(resolve);
+      }
+    });
+  }
+
+  release(): void {
+    if (this.waitingQueue.length > 0) {
+      const nextResolve = this.waitingQueue.shift();
+      if (nextResolve) nextResolve();
+    } else {
+      this.locked = false;
+    }
+  }
+
+  // Add method to check if mutex is locked
+  isLocked(): boolean {
+    return this.locked;
+  }
+}
 
 // Logger class to handle logging to console, file, and database
 class Logger {
@@ -19,6 +52,7 @@ class Logger {
   private originalConsoleWarn: any;
   private discordChannel: string = '';
   private discordEnabled: boolean = false;
+  private dbMutex = new Mutex(); // Mutex to prevent concurrent database operations
 
   constructor() {
     this.moduleName = config.name;
@@ -27,9 +61,9 @@ class Logger {
     this.originalConsoleLog = console.log;
     this.originalConsoleError = console.error;
     this.originalConsoleWarn = console.warn;
-    
+
     // Initialize Discord settings
-    this.discordChannel = process.env.DISCORD_TELEGRAM_BOT_CHANNEL || '';
+    this.discordChannel = process.env.DISCORD_CT_TRACKER_CHANNEL || '';
     
     // Check if Discord logging is explicitly enabled/disabled via SEND_TO_DISCORD flag
     const sendToDiscord = process.env.SEND_TO_DISCORD?.toLowerCase();
@@ -50,7 +84,59 @@ class Logger {
     } else if (this.discordEnabled) {
       console.log(`${config.name}|[logger]|✅ Discord logging is enabled`);
     } else {
-      console.log(`${config.name}|[logger]|🚫 Discord logging is disabled - missing DISCORD_BOT_TOKEN or DISCORD_TELEGRAM_BOT_CHANNEL`);
+      console.log(`${config.name}|[logger]|🚫 Discord logging is disabled - missing DISCORD_BOT_TOKEN or DISCORD_CT_TRACKER_CHANNEL`);
+    }
+  }
+
+  /**
+   * Initialize the database for better performance and reliability
+   */
+  private async initializeDatabase() {
+    if (!config.logger.db_logs) {
+      return;
+    }
+
+    try {
+      const dbDir = path.dirname(config.logger.db_logs_path);
+      if (!fs.existsSync(dbDir)) {
+        fs.mkdirSync(dbDir, { recursive: true });
+      }
+
+      if (this.dbConnection) {
+        try {
+          await this.dbConnection.close();
+        } catch (err) {
+          // Ignore errors during closing
+        }
+      }
+
+      this.dbConnection = await open({
+        filename: config.logger.db_logs_path,
+        driver: sqlite3.Database
+      });
+
+      await this.dbConnection.exec(`
+        CREATE TABLE IF NOT EXISTS ${this.logsTableName} (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          date TEXT,
+          time TEXT,
+          run_prefix TEXT,
+          full_message TEXT,
+          message TEXT,
+          module TEXT,
+          function TEXT,
+          type TEXT,
+          data TEXT,
+          cycle INTEGER,
+          tag TEXT
+        )
+      `);
+
+      this.originalConsoleLog(`${config.name}|[logger]|Database initialized successfully`);
+
+    } catch (error) {
+      this.originalConsoleError(`${config.name}|[logger]|Failed to initialize database:`, error);
+      this.dbConnection = null;
     }
   }
 
@@ -96,36 +182,7 @@ class Logger {
 
     // Initialize database if needed
     if (config.logger.db_logs) {
-      try {
-        this.dbConnection = await open({
-          filename: config.logger.db_logs_path,
-          driver: sqlite3.Database
-        });
-
-        // Configure SQLite for better concurrency
-        await this.dbConnection.exec('PRAGMA journal_mode = WAL');
-        await this.dbConnection.exec('PRAGMA busy_timeout = 10000');
-
-        // Create logs table if it doesn't exist
-        await this.dbConnection.exec(`
-          CREATE TABLE IF NOT EXISTS ${this.logsTableName} (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            date TEXT,
-            time TEXT,
-            run_prefix TEXT,
-            full_message TEXT,
-            message TEXT,
-            module TEXT,
-            function TEXT,
-            type TEXT,
-            data TEXT,
-            cycle INTEGER,
-            tag TEXT
-          )
-        `);
-      } catch (error) {
-        this.originalConsoleError('Failed to initialize logger database:', error);
-      }
+      await this.initializeDatabase();
     }
   }
 
@@ -262,7 +319,7 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
       
       fs.appendFileSync(config.logger.file_logs_path, logContent);
     } catch (error) {
-      this.originalConsoleError('Failed to write logs to file:', error);
+      this.originalConsoleError(`${config.name}|[logger]|Failed to write logs to file:`, error);
     }
   }
   /**
@@ -277,110 +334,99 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
     }
   }
 
-  private async retryOperation<T>(operation: () => Promise<T>, maxRetries: number = 3): Promise<T> {
-    let lastError;
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        return await operation();
-      } catch (error: any) {
-        lastError = error;
-        if (error.code === 'SQLITE_BUSY' || error.code === 'SQLITE_LOCKED') {
-          // Wait with exponential backoff: 100ms, 200ms, 400ms
-          await new Promise(resolve => setTimeout(resolve, 100 * Math.pow(2, attempt - 1)));
-          continue;
-        }
-        throw error;
-      }
-    }
-    throw lastError;
-  }
-
   /**
-   * Save logs to database
+   * Save logs to database with improved transaction handling and concurrency control
    */
   async saveLogs() {
-    // Save to file first
+    // Skip if no logs to save
+    if (this.logs.length === 0) {
+      return;
+    }
+    
+    // Make a copy of the logs array and clear the original to allow new logs to be collected
+    const logsToSave = [...this.logs];
+    
+    // Add to batch queue if a save is already in progress or mutex is locked
+    if (this.dbMutex.isLocked()) {
+      this.originalConsoleLog(`${config.name}|[logger]|Queued ${logsToSave.length} logs. Total queued batches: ${this.logs.length + 1}`);
+      return;
+    }
+    
+    // Current time to enforce minimum delay between save attempts
+    const now = Date.now();
+    
+    // Check if database connection exists, if not try to initialize it
+    if (config.logger.db_logs && !this.dbConnection) {
+      try {
+        await this.initializeDatabase();
+      } catch (error) {
+        this.originalConsoleError(`${config.name}|[logger]|Failed to initialize database before saving logs:`, error);
+        return;
+      }
+    }
+    
+    // Mark save as in progress
+    await this.dbMutex.acquire();
+    
+    // Save to file first (outside of mutex lock since file operations are separate)
     this.saveFileLogsSync();
     
     // Then save to database
-    if (!config.logger.db_logs || !this.dbConnection || this.logs.length === 0) {
+    if (!config.logger.db_logs || !this.dbConnection) {
+      await this.dbMutex.release();
       return;
     }
-
-    let stmt: Statement | undefined;
+    
+    let retryCount = 0;
+    const MAX_RETRIES = 3;
+    
     try {
-      await this.retryOperation(async () => {
-        // Begin transaction
-        await this.dbConnection.exec('BEGIN IMMEDIATE TRANSACTION');
+      while (retryCount < MAX_RETRIES) {
+        try {
+          const stmt = await this.dbConnection.prepare(`
+            INSERT INTO ${this.logsTableName} (date, time, run_prefix, full_message, message, module, function, type, data, cycle, tag)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `);
 
-        // Insert logs
-        const preparedStmt = await this.dbConnection.prepare(`
-          INSERT INTO ${this.logsTableName} (date, time, run_prefix, full_message, message, module, function, type, data, cycle, tag)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `);
-        stmt = preparedStmt;
+          for (const log of logsToSave) {
+            await stmt.run(
+              log.date,
+              log.time,
+              log.run_prefix,
+              log.full_message,
+              log.message,
+              log.module,
+              log.function,
+              log.type,
+              log.data,
+              log.cycle,
+              log.tag
+            );
+          }
 
-        for (const log of this.logs) {
-          await preparedStmt.run(
-            log.date,
-            log.time,
-            log.run_prefix,
-            log.full_message,
-            log.message,
-            log.module,
-            log.function,
-            log.type,
-            log.data,
-            log.cycle,
-            log.tag
-          );
+          await stmt.finalize();
+          this.originalConsoleLog(`${config.name}|[logger]|Successfully saved ${logsToSave.length} logs to database`);
+          this.logs = [];
+          break;
+        } catch (error) {
+          retryCount++;
+          if (retryCount === MAX_RETRIES) {
+            this.originalConsoleError(`${config.name}|[logger]|Failed to save logs to database after ${MAX_RETRIES} attempts:`, error);
+          } else {
+            this.originalConsoleLog(`${config.name}|[logger]|Retry ${retryCount}/${MAX_RETRIES} saving logs to database`);
+            await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+          }
         }
-
-        // Commit transaction
-        await this.dbConnection.exec('COMMIT');
-      });
-
-      // Clear logs array
-      this.logs = [];
+      }
     } catch (error) {
-      try {
-        // Only try to rollback if we successfully began the transaction
-        await this.dbConnection.exec('ROLLBACK');
-      } catch (rollbackError) {
-        // Ignore rollback errors as the transaction might have already been rolled back
-      }
-      this.originalConsoleError('Failed to save logs to database:', error);
+      this.originalConsoleError(`${config.name}|[logger]|Failed to save logs to database: ${error}, ${this.logs.length}`);
     } finally {
-      // Ensure statement is finalized
-      if (stmt?.finalize) {
-        await stmt.finalize();
-      }
+      // Release the mutex
+      await this.dbMutex.release();
     }
   }
 
-  /**
-   * Set the current cycle
-   */
-  async setCycle(cycle: number) {
-    // If cycle is changing and we have logs, save them first
-    if (cycle > this.cycle && (this.logs.length > 0)) {
-      const oldCycle = this.cycle;
-      // Update cycle before saving so logs are saved with the correct cycle
-      this.cycle = cycle;
-      this.originalConsoleLog(`${config.name}|[logger]| Cycle changing from ${oldCycle} to ${cycle}, saving logs`);
-      
-      // Save to database and wait for it to complete
-      try {
-        await this.saveLogs();
-      } catch (error) {
-        this.originalConsoleError('Failed to save logs on cycle change:', error);
-      }
-    } else {
-      this.cycle = cycle;
-    }
-  }
-
-  /**
+  /** 
    * Send logs to Discord 
    * Sends error and warning logs to a dedicated Discord channel for monitoring
    */
@@ -412,11 +458,31 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
   }
 
   /**
+   * Set the current cycle
+   */
+  async setCycle(cycle: number) {
+    // Update cycle immediately to avoid race conditions
+    const oldCycle = this.cycle;
+    this.cycle = cycle;
+    
+    // Only trigger a save if it's necessary, not already in progress, and we have logs
+    if (cycle > oldCycle && this.logs.length > 0) {
+      this.originalConsoleLog(`${config.name}|[logger]|Cycle changing from ${oldCycle} to ${cycle}, saving logs`);
+      
+      // Save to database and wait for it to complete
+      try {
+        await this.saveLogs();
+      } catch (error) {
+        this.originalConsoleError(`${config.name}|[logger]|Failed to save logs on cycle change: ${error}`);
+      }
+    }
+  }
+
+  /**
    * Close the logger and save any pending logs
    */
   async close() {
     await this.saveLogs();
-    
     if (this.dbConnection) {
       await this.dbConnection.close();
     }
