@@ -287,7 +287,7 @@ class TelegramReader {
 
     private async processMessagesWithAI(messages: Message[]): Promise<void> {
         console.log(`${config.name}|[processMessagesWithAI]| PROCESSING MESSAGES WITH AI`, this.processRunCounter);
-        const allMessageText = messages.map(message => message.message).join('\n');
+        const allMessageText = "Messages:" + messages.map(message => message.message).join('\nMessage:');
         
         try {
             // Process the message with AI
@@ -298,14 +298,14 @@ class TelegramReader {
                 console.log(`${config.name}|[processMessagesWithAI]| No Solana tokens found in last messages`, this.processRunCounter);
                 return;
             } else {
-                console.log(`${config.name}|[processMessagesWithAI]| Found ${analysisResults.length} token(s) in last messages`, this.processRunCounter, analysisResults, TAGS.telegram_ai_token_analysis.name);
                 for (const result of analysisResults) {
-                    console.log(`${config.name}|[processMessagesWithAI]| TOKEN ANALYSIS ${result.solana_token_address}:`, this.processRunCounter, result);
-                    if (result.is_potential_to_buy_token) {
-                        await validateAndSwapToken(result.solana_token_address, this.processRunCounter);
+                    
+                    if (result.is_potential_to_buy_token && result.token_address) {
+                        console.log(`${config.name}|[processMessagesWithAI]| Detect potential to buy token ${result.token_address} ${JSON.stringify(result, null, 2)} `, this.processRunCounter, result, TAGS.telegram_ai_token_analysis.name);
+                        await validateAndSwapToken(result.token_address, this.processRunCounter);
                     }
                     else {
-                        console.warn(`${config.name}|[processMessagesWithAI]| TOKEN DOES NOT HAVE POTENTIAL TO BUY`, this.processRunCounter);
+                        console.log(`${config.name}|[processMessagesWithAI]| TOKEN DOES NOT HAVE POTENTIAL TO BUY or empty token address`, this.processRunCounter);
                     }
                 }
                 await this.markMessageAsProcessed(messages);

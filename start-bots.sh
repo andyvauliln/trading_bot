@@ -41,3 +41,27 @@ pm2 save
 echo "All bots have been started. Use 'pm2 status' to check their status."
 echo "Use 'pm2 logs' to view all logs or 'pm2 logs <bot-name>' for specific bot logs."
 echo "Use 'pm2 stop all' to stop all bots." 
+
+
+#!/bin/bash
+# Setup minimal Chromium for Puppeteer
+
+# Set up directory
+CHROME_DIR="$HOME/chrome-headless"
+mkdir -p $CHROME_DIR
+
+echo "Downloading Chromium (this might take a while)..."
+# Download a smaller headless Chrome binary for x86_64 architecture
+curl -L https://github.com/Sparticuz/chromium/releases/download/v122.0.0/chromium-v122.0.0-linux-x64.tar.gz -o $CHROME_DIR/chromium.tar.gz
+
+# Extract it
+echo "Extracting Chromium..."
+tar -xzf $CHROME_DIR/chromium.tar.gz -C $CHROME_DIR
+rm $CHROME_DIR/chromium.tar.gz
+
+# Set environment variable
+echo "export CHROME_EXECUTABLE_PATH=\"$CHROME_DIR/chromium\"" >> ~/.bashrc
+echo "export PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true" >> ~/.bashrc
+
+echo "Chrome setup complete. Path: $CHROME_DIR/chromium"
+echo "Please run: source ~/.bashrc" 

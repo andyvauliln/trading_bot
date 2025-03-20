@@ -196,7 +196,7 @@ async function main() {
               netPnL: `$${Number(unrealizedPnLUSDC).toFixed(8)}`,
               roiPercent: `${Number(unrealizedPnLPercentage).toFixed(2)}%`
             }
-            console.log(`${config.name}|[main]| P&L calculation (including fees): \n${JSON.stringify(logData, null, 2)}`, processRunCounter, null, "discord-log");
+            console.log(`${config.name}|[main]| P&L calculation (including fees) TP: ${config.sell.take_profit_percent}% SL: ${config.sell.stop_loss_percent}%\n${JSON.stringify(logData, null, 2)}`, processRunCounter, null, "discord-log");
           } else {
             // Exclude fees from P&L calculation - only consider price difference
             unrealizedPnLUSDC = (tokenCurrentPrice - tokenPerTokenPaidUSDC) * tokenBalance;
@@ -210,7 +210,7 @@ async function main() {
               pnL: `$${Number(unrealizedPnLUSDC).toFixed(8)}`,
               roiPercent: `${Number(unrealizedPnLPercentage).toFixed(2)}%`
             };
-            console.log(`${config.name}|[main]| P&L calculation (excluding fees): \n${JSON.stringify(logData, null, 2)}`, processRunCounter, null, "discord-log");
+            console.log(`${config.name}|[main]| P&L calculation (excluding fees) TP: ${config.sell.take_profit_percent}% SL: ${config.sell.stop_loss_percent}%\n${JSON.stringify(logData, null, 2)}`, processRunCounter, null, "discord-log");
           }
           
           // Log if PnL percentage is 5% or more in either direction

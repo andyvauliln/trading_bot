@@ -22,25 +22,92 @@ export async function makeTokenScreenshotAndSendToDiscord(
     if(!discordChannelId) {
      discordChannelId = process.env.DISCORD_CT_TRACKER_CHANNEL || '';
     }
-    // Create browser instance
-    browser = await createBrowser();
     
-    // Create a new page
+    // Add browser environment checks
+    const debugMode = process.env.PUPPETEER_DEBUG === 'true';
+    const execPath = process.env.CHROME_EXECUTABLE_PATH;
+
+    if (debugMode) {
+      console.log(`Browser config - Chrome path: ${execPath || 'default'}`);
+    }
+    
+    // Create browser instance with more detailed logging and retry logic
+    try {
+      console.log('Initializing browser...');
+      
+      // Try up to 3 times to initialize the browser
+      let maxRetries = 3;
+      let retryCount = 0;
+      let lastError: any = null;
+      
+      while (retryCount < maxRetries) {
+        try {
+          browser = await createBrowser();
+          console.log('Browser initialized successfully on attempt', retryCount + 1);
+          break; // Success, exit the retry loop
+        } catch (err) {
+          lastError = err;
+          retryCount++;
+          console.error(`Browser initialization attempt ${retryCount} failed:`, err);
+          
+          if (retryCount < maxRetries) {
+            console.log(`Waiting before retry ${retryCount + 1}...`);
+            await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds before retrying
+          }
+        }
+      }
+      
+      // If we've exhausted all retries and still don't have a browser
+      if (!browser) {
+        throw lastError || new Error('Failed to initialize browser after multiple attempts');
+      }
+    } catch (browserError) {
+      console.error('All browser initialization attempts failed:', browserError);
+      
+      // Still send a message to Discord about the failure
+      const errorMessage = `⚠️ Failed to take screenshot of token ${tokenAddress} due to browser initialization error. Please check server logs.`;
+      await initializeDiscordClient().then(client => {
+        if (client) {
+          return sendMessageOnDiscord(discordChannelId, [errorMessage]);
+        }
+        return false;
+      });
+      
+      throw new Error(`Browser initialization failed: ${browserError instanceof Error ? browserError.message : String(browserError)}`);
+    }
+    
+    // Create a new page with timeout protection
     const page = await browser.newPage();
     await page.setDefaultNavigationTimeout(60000);
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+    
+    // Set better error handling for page load errors
+    page.on('error', err => {
+      console.error('Page error:', err);
+    });
 
     // Navigate to the token page (modify the URL according to your needs)
     const tokenUrl = `https://gmgn.ai/sol/token/${tokenAddress}`;
     console.log(`Navigating to: ${tokenUrl}`);
     
-    await page.goto(tokenUrl, { 
-      waitUntil: 'networkidle0',
-      timeout: 60000 
-    });
+    try {
+      await page.goto(tokenUrl, { 
+        waitUntil: 'networkidle0',
+        timeout: 60000 
+      });
+    } catch (navigationError) {
+      console.error(`Navigation error for ${tokenUrl}:`, navigationError);
+      throw new Error(`Failed to navigate to token page: ${navigationError instanceof Error ? navigationError.message : String(navigationError)}`);
+    }
 
     // Wait for the page to fully load
-    await page.waitForSelector('body', { timeout: 90000 });
+    try {
+      await page.waitForSelector('body', { timeout: 90000 });
+      console.log('Page loaded successfully');
+    } catch (waitError) {
+      console.error('Error waiting for page content:', waitError);
+      throw new Error(`Timeout waiting for page content: ${waitError instanceof Error ? waitError.message : String(waitError)}`);
+    }
     
     // Create screenshots directory if it doesn't exist
     const screenshotsDir = path.join(process.cwd(), 'data/screenshots');
@@ -50,8 +117,13 @@ export async function makeTokenScreenshotAndSendToDiscord(
     
     // Take a screenshot
     const screenshotPath = path.join(screenshotsDir, `${tokenAddress}_${Date.now()}.png`);
-    await page.screenshot({ path: screenshotPath, fullPage: true });
-    console.log(`Screenshot saved to: ${screenshotPath}`);
+    try {
+      await page.screenshot({ path: screenshotPath, fullPage: true });
+      console.log(`Screenshot saved to: ${screenshotPath}`);
+    } catch (screenshotError) {
+      console.error('Error taking screenshot:', screenshotError);
+      throw new Error(`Failed to take screenshot: ${screenshotError instanceof Error ? screenshotError.message : String(screenshotError)}`);
+    }
     
     // Initialize Discord client
     const discordClient = await initializeDiscordClient();
@@ -95,12 +167,28 @@ export async function makeTokenScreenshotAndSendToDiscord(
     
   } catch (error) {
     console.error(`🚫 Error taking screenshot of token ${tokenAddress}:`, error);
+    
+    // Try to send error notification to Discord
+    try {
+      const errorMessage = `❌ Failed to process token ${tokenAddress}: ${error instanceof Error ? error.message : String(error)}`;
+      const discordClient = await initializeDiscordClient();
+      if (discordClient) {
+        await sendMessageOnDiscord(discordChannelId, [errorMessage]);
+      }
+    } catch (discordError) {
+      console.error('Failed to send error notification to Discord:', discordError);
+    }
+    
     return false;
   } finally {
     // Close the browser
     if (browser) {
-      await browser.close();
-      console.log('Browser closed');
+      try {
+        await browser.close();
+        console.log('Browser closed successfully');
+      } catch (closeError) {
+        console.error('Error closing browser:', closeError);
+      }
     }
   }
 }

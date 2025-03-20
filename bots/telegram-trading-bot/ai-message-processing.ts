@@ -9,7 +9,7 @@ import { retryAxiosRequest } from "../utils/help-functions";
 dotenv.config();
 
 const tokenAnalysisResult = z.array(z.object({
-  solana_token_address: z.string().describe("The Solana token address"),
+  token_address: z.string().describe("The token address on Solana Blockchain"),
   is_message_has_any_mentioned_token: z.boolean().describe("Whether the message has any mentioned token"),
   analysis: z.string().describe("Analysis of signal from the message and reasoning why to buy or not"),
   is_potential_to_buy_token: z.boolean().describe("Whether the token is potential to buy"),
@@ -17,7 +17,7 @@ const tokenAnalysisResult = z.array(z.object({
 }));
 
 export interface TokenAnalysisResult {
-  solana_token_address: string;
+  token_address: string;
   is_message_has_any_mentioned_token: boolean;
   analysis: string;
   is_potential_to_buy_token: boolean;
@@ -56,11 +56,11 @@ export class AIMessageProcessor {
     try {
       const systemPrompt = `You are a trading bot that analyzes messages from a telegram channel.
       You need to analyze the message and return a JSON object with the following fields:
-      - solana_token_address: token on solana blockchain
+      - solana_token_address: token on solana blockchain, null if no token address or not solana address
       - is_message_has_any_mentioned_token: whether the message has any mentioned token
       - analysis: analysis of signal from the message and reasoning why to buy or not
       - is_potential_to_buy_token: whether the token is potential to buy, false only if message specifically says not to buy
-      - message_text: the text of the message
+      - message_text: the text of the message, exact text of the message where was mentioned the token
       If you are not sure about the token or if message contains no tokens, return an empty array.`;
 
       console.log(`${configData.name}|[AIMessageProcessor]| Making request to: ${this.baseUrl}`);
@@ -108,7 +108,7 @@ export class AIMessageProcessor {
       
       return [];
     } catch (error) {
-      console.error(`${configData.name}|[AIMessageProcessor]|[processMessage]| Error parsing initial model output: ${error}`);
+      console.error(`${configData.name}|[AIMessageProcessor]|[processMessage]| Error when getting response from AI: ${error}`);
       if (axios.isAxiosError(error)) {
         console.error(`${configData.name}|[AIMessageProcessor]|[processMessage]| API Response:`, processRunCounter, error.response?.data);
       }
