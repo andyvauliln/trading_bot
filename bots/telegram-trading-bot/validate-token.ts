@@ -256,7 +256,7 @@ export async function validateAndSwapToken(token: string, processRunCounter: num
   }
 
   if (successfulTransactions === 0) {
-    console.log(`${config.name}|[validateAndSwapToken]| ⛔ All transactions failed.`, processRunCounter);
+    console.warn(`${config.name}|[validateAndSwapToken]| ⛔ All transactions failed. `, processRunCounter);
     return false;
   }
 

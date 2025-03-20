@@ -112,7 +112,7 @@ async function processTransaction(signature: string, processRunCounter: number):
       // Fetch and store the transaction for tracking purposes
       const saveConfirmation = await fetchAndSaveSwapDetails(txResult.txid, processRunCounter, txResult.walletPublicKey);
       if (!saveConfirmation) {
-        console.error(`${config.name}|[processTransaction]|❌ Warning: Transaction not saved for tracking for wallet ${txResult.walletPublicKey}! Track Manually!`, processRunCounter);
+        console.warn(`${config.name}|[processTransaction]|❌ Warning: Transaction not saved for tracking for wallet ${txResult.walletPublicKey}! Track Manually!`, processRunCounter);
       } else {
         successfulTransactions++;
       }
@@ -125,7 +125,7 @@ async function processTransaction(signature: string, processRunCounter: number):
     console.log(`${config.name}|[processTransaction]|✅ Successfully processed ${successfulTransactions} out of ${walletPrivateKeys.length} transactions`, processRunCounter);
     return true;
   } else {
-    console.error(`${config.name}|[processTransaction]|⛔ All transactions failed.`, processRunCounter);
+    console.warn(`${config.name}|[processTransaction]|⛔ All transactions failed.`, processRunCounter);
     console.log(`${config.name}|[processTransaction]|🟢 Resuming looking for new tokens...`, processRunCounter);
     return false;
   }
