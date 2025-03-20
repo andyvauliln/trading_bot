@@ -186,6 +186,7 @@ async function main() {
             unrealizedPnLPercentage = (unrealizedPnLUSDC / (tokenPerTokenPaidUSDC * tokenBalance)) * 100;
             const logData = {
               tokenName,
+              address: token,
               tokenBalance: Number(tokenBalance).toFixed(8),
               tokenPerTokenPaidUSDC: Number(tokenPerTokenPaidUSDC).toFixed(8),
               tokenCurrentPrice: Number(tokenCurrentPrice).toFixed(8),
@@ -203,6 +204,7 @@ async function main() {
             unrealizedPnLPercentage = ((tokenCurrentPrice - tokenPerTokenPaidUSDC) / tokenPerTokenPaidUSDC) * 100;
             const logData = {
               tokenName,
+              address: token,
               tokenBalance: Number(tokenBalance).toFixed(8),
               tokenPerTokenPaidUSDC: Number(tokenPerTokenPaidUSDC).toFixed(8),
               tokenCurrentPrice: Number(tokenCurrentPrice).toFixed(8),

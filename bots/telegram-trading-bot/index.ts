@@ -18,6 +18,7 @@ class TelegramReader {
     private aiProcessor: AIMessageProcessor;
     private processRunCounter: number;
     private isShuttingDown: boolean;
+    private channelRateLimitRetries: Map<string, number>; // Track retry attempts per channel
 
     constructor(param_config: TelegramConfig) {
         this.config = param_config || config;
@@ -26,6 +27,7 @@ class TelegramReader {
         this.knownMessages = new Set<string>();
         this.processRunCounter = 1;
         this.isShuttingDown = false;
+        this.channelRateLimitRetries = new Map<string, number>();
         // Initialize AI message processor with config
         this.aiProcessor = new AIMessageProcessor(this.config?.ai_config);
     }
@@ -352,9 +354,17 @@ class TelegramReader {
         }
     }
 
-    async fetchMessages(channelName: string, limit?: number): Promise<any[]> {
+    async fetchMessages(channelName: string, limit?: number, retryCount: number = 0): Promise<any[]> {
         try {
             console.log(`${config.name}|[fetchMessages]|Fetching messages from ${channelName}`, this.processRunCounter);
+            
+            // Check if we've hit the maximum retry attempts
+            const maxRetries = this.config.max_retries || 3;
+            if (retryCount >= maxRetries) {
+                console.warn(`${config.name}|[fetchMessages]|Maximum retry attempts (${maxRetries}) reached for ${channelName}, skipping for now`, this.processRunCounter);
+                return [];
+            }
+            
             const params: any = {};
             if (limit) {
                 params.limit = Math.min(limit, this.config.max_messages_per_channel);
@@ -362,11 +372,28 @@ class TelegramReader {
 
             try {
                 const response = await this.session.get(`/json/${channelName}`, { params });
-                if (response.status === 429) {
-                    console.log(`${config.name}|[fetchMessages]|Rate limit exceeded, waiting ${this.config.rate_limit_delay} seconds`, this.processRunCounter);
-                    await new Promise(resolve => setTimeout(resolve, this.config.rate_limit_delay * 1000));
-                    return this.fetchMessages(channelName, limit);
+                
+                // Handle both 429 and 420 status codes which indicate rate limiting
+                if (response.status === 429 || response.status === 420) {
+                    // Calculate exponential backoff delay
+                    const currentRetries = retryCount + 1;
+                    const exponentialDelay = Math.min(
+                        this.config.rate_limit_delay * Math.pow(2, retryCount) * 1000,
+                        60000 // Max delay of 60 seconds
+                    );
+                    
+                    console.log(`${config.name}|[fetchMessages]|Rate limit exceeded (${response.status}), retry ${currentRetries}, waiting ${exponentialDelay/1000} seconds`, this.processRunCounter);
+                    
+                    // Update channel's retry counter
+                    this.channelRateLimitRetries.set(channelName, currentRetries);
+                    
+                    await new Promise(resolve => setTimeout(resolve, exponentialDelay));
+                    return this.fetchMessages(channelName, limit, currentRetries);
                 }
+                
+                // Reset retry counter on success
+                this.channelRateLimitRetries.delete(channelName);
+                
                 if (!response.data || !response.data.messages || response.data.messages.length === 0) {
                     console.warn(`${config.name}|[fetchMessages]|NOT VALID DATA FROM RESPONSE ${channelName}`, this.processRunCounter);
                     return [];
@@ -375,7 +402,25 @@ class TelegramReader {
                 
                 return response.data.messages;
             } catch (error: any) {
-                console.error(`${config.name}|[fetchMessages]|Error fetching messages for ${channelName}: ${error}`, this.processRunCounter);
+                // Check for rate limit errors in the caught error as well
+                if (error.response && (error.response.status === 429 || error.response.status === 420)) {
+                    // Calculate exponential backoff delay
+                    const currentRetries = retryCount + 1;
+                    const exponentialDelay = Math.min(
+                        this.config.rate_limit_delay * Math.pow(2, retryCount) * 1000,
+                        60000 // Max delay of 60 seconds
+                    );
+                    
+                    console.log(`${config.name}|[fetchMessages]|Rate limit exceeded (${error.response.status}), retry ${currentRetries}, waiting ${exponentialDelay/1000} seconds`, this.processRunCounter);
+                    
+                    // Update channel's retry counter
+                    this.channelRateLimitRetries.set(channelName, currentRetries);
+                    
+                    await new Promise(resolve => setTimeout(resolve, exponentialDelay));
+                    return this.fetchMessages(channelName, limit, currentRetries);
+                }
+                
+                console.log(`${config.name}|[fetchMessages]|Error fetching messages for ${channelName}: ${error}`, this.processRunCounter);
                 return [];
             }
         } catch (error) {
@@ -406,6 +451,15 @@ class TelegramReader {
                 this.pruneKnownMessages();
             }, 3600000); // Prune every hour
             
+            // Set to track rate-limited channels to give them a longer cooldown
+            const rateLimitedChannels = new Set<string>();
+            
+            // Function to add random jitter to delay times to avoid predictable patterns
+            const addJitter = (baseDelay: number, jitterFactor = 0.3) => {
+                const jitter = baseDelay * jitterFactor * (Math.random() - 0.5);
+                return Math.max(baseDelay + jitter, 0);
+            };
+            
             while (!this.isShuttingDown) {
                 try {
                     console.log(`${config.name}|[monitorChannels]|CYCLE_START`, this.processRunCounter);
@@ -415,11 +469,26 @@ class TelegramReader {
                         if (this.isShuttingDown) break;
                         
                         try {
+                            // Skip this channel if it's in the rate-limited set
+                            if (rateLimitedChannels.has(channel.username)) {
+                                console.log(`${config.name}|[monitorChannels]|Skipping rate-limited channel: ${channel.username}`, this.processRunCounter);
+                                continue;
+                            }
+                            
                             console.log(`${config.name}|[monitorChannels]|Checking channel: ${channel.username}`, this.processRunCounter);
                             const messages = await this.fetchMessages(
                                 channel.username,
                                 this.config.max_messages_per_channel
                             );
+
+                            // Check if this channel hit the max retry limit
+                            const retryCount = this.channelRateLimitRetries.get(channel.username) || 0;
+                            if (retryCount >= (this.config.max_retries || 3)) {
+                                console.warn(`${config.name}|[monitorChannels]|Channel ${channel.username} is being rate limited, adding to cooldown list`, this.processRunCounter);
+                                rateLimitedChannels.add(channel.username);
+                                // Clear the retry counter
+                                this.channelRateLimitRetries.delete(channel.username);
+                            }
 
                             if (!messages || messages.length === 0) {
                                 console.log(`${config.name}|[monitorChannels]|No messages received for channel ${channel.username}`, this.processRunCounter);
@@ -434,7 +503,10 @@ class TelegramReader {
                             }
                             
                             if (!this.isShuttingDown) {
-                                await new Promise(resolve => setTimeout(resolve, this.config.rate_limit_delay * 1000));
+                                // Add jitter to the rate limit delay to avoid synchronized requests
+                                const delayWithJitter = addJitter(this.config.rate_limit_delay * 1000);
+                                console.log(`${config.name}|[monitorChannels]|Waiting ${delayWithJitter/1000} seconds before next channel check`, this.processRunCounter);
+                                await new Promise(resolve => setTimeout(resolve, delayWithJitter));
                             }
                         } catch (e) {
                             console.error(`${config.name}|[monitorChannels]|Error processing channel ${channel.username}: ${e}`, this.processRunCounter);
@@ -443,12 +515,21 @@ class TelegramReader {
                     }
                     
                     if (!this.isShuttingDown) {
-                        console.log(`${config.name}|[monitorChannels]|CYCLE_END Completed monitoring channels. Waiting ${this.config.check_interval} seconds before next check...`, this.processRunCounter++);
-                        await new Promise(resolve => setTimeout(resolve, this.config.check_interval * 1000));
+                        // Also add jitter to the check interval
+                        const checkIntervalWithJitter = addJitter(this.config.check_interval * 1000, 0.2);
+                        console.log(`${config.name}|[monitorChannels]|CYCLE_END Completed monitoring channels. Waiting ${checkIntervalWithJitter/1000} seconds before next check...`, this.processRunCounter++);
+                        
+                        // Clear the rate-limited channels after a full cycle
+                        if (rateLimitedChannels.size > 0) {
+                            console.log(`${config.name}|[monitorChannels]|Clearing rate-limited channels: ${Array.from(rateLimitedChannels).join(', ')}`, this.processRunCounter);
+                            rateLimitedChannels.clear();
+                        }
+                        
+                        await new Promise(resolve => setTimeout(resolve, checkIntervalWithJitter));
                     }
                 } catch (e) {
                     console.error(`${config.name}|[monitorChannels]|Error in monitor loop: ${e}`);
-                    console.log(`${config.name}|[monitorChannels]|CYCLE_END ${this.processRunCounter++}`, this.processRunCounter++);
+                    console.log(`${config.name}|[monitorChannels]|CYCLE_END ${this.processRunCounter}`, this.processRunCounter++);
                     
                     if (!this.isShuttingDown) {
                         await new Promise(resolve => setTimeout(resolve, this.config.retry_delay * 1000));
