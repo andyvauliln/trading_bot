@@ -28,6 +28,7 @@ export async function initializeDatabaseTables(): Promise<boolean> {
   }
 }
 
+
 // ***************************HOLDINGS TABLE**************************
 export async function createTableHoldings(database: any): Promise<boolean> {
   try {
@@ -46,7 +47,8 @@ export async function createTableHoldings(database: any): Promise<boolean> {
       Slot INTEGER NOT NULL,
       Program TEXT NOT NULL,
       BotName TEXT NOT NULL,
-      WalletPublicKey TEXT NOT NULL
+      WalletPublicKey TEXT NOT NULL,
+      TxId TEXT
     );
   `);
     return true;
@@ -89,18 +91,18 @@ export async function insertHolding(holding: HoldingRecord, processRunCounter: n
 
   // Proceed with adding holding
   if (holdingsTableExist) {
-    const { Time, Token, TokenName, Balance, SolPaid, SolFeePaid, SolPaidUSDC, SolFeePaidUSDC, PerTokenPaidUSDC, Slot, Program, BotName, WalletPublicKey } = holding;
+    const { Time, Token, TokenName, Balance, SolPaid, SolFeePaid, SolPaidUSDC, SolFeePaidUSDC, PerTokenPaidUSDC, Slot, Program, BotName, WalletPublicKey, TxId } = holding;
     
     // Ensure all numeric values are numbers before storing
     await db.run(
       `
-    INSERT INTO holdings (Time, Token, TokenName, Balance, SolPaid, SolFeePaid, SolPaidUSDC, SolFeePaidUSDC, PerTokenPaidUSDC, Slot, Program, BotName, WalletPublicKey)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    INSERT INTO holdings (Time, Token, TokenName, Balance, SolPaid, SolFeePaid, SolPaidUSDC, SolFeePaidUSDC, PerTokenPaidUSDC, Slot, Program, BotName, WalletPublicKey, TxId)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
   `,
       [
         Number(Time), Token, TokenName, Number(Balance), Number(SolPaid), Number(SolFeePaid), 
         Number(SolPaidUSDC), Number(SolFeePaidUSDC), Number(PerTokenPaidUSDC), Number(Slot), 
-        Program, BotName, WalletPublicKey
+        Program, BotName, WalletPublicKey, TxId
       ]
     );
 
@@ -109,7 +111,8 @@ export async function insertHolding(holding: HoldingRecord, processRunCounter: n
       TokenName,
       Balance: Number(Balance),
       PerTokenPaidUSDC: Number(PerTokenPaidUSDC).toFixed(8),
-      SolPaidUSDC: Number(SolPaidUSDC).toFixed(8)
+      SolPaidUSDC: Number(SolPaidUSDC).toFixed(8),
+      TxId: TxId
     });
 
     await db.close();
@@ -516,7 +519,8 @@ export async function createTableProfitLoss(database: any): Promise<boolean> {
       Program TEXT NOT NULL,
       BotName TEXT NOT NULL,
       IsTakeProfit INTEGER NOT NULL,
-      WalletPublicKey TEXT NOT NULL
+      WalletPublicKey TEXT NOT NULL,
+      TxId TEXT
     );
   `);
     return true;
@@ -561,7 +565,8 @@ export async function insertProfitLoss(record: ProfitLossRecord, processRunCount
     Program,
     BotName,
     IsTakeProfit,
-    WalletPublicKey
+    WalletPublicKey,
+    TxId
   } = record;
 
   // Ensure all numeric values are numbers before storing
@@ -571,15 +576,15 @@ export async function insertProfitLoss(record: ProfitLossRecord, processRunCount
       Time, EntryTime, Token, TokenName, EntryBalance, ExitBalance, 
       EntrySolPaid, ExitSolReceived, TotalSolFees, ProfitLossSOL, 
       ProfitLossUSDC, ROIPercentage, EntryPriceUSDC, ExitPriceUSDC, 
-      HoldingTimeSeconds, Slot, Program, BotName, IsTakeProfit, WalletPublicKey
+      HoldingTimeSeconds, Slot, Program, BotName, IsTakeProfit, WalletPublicKey, TxId
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
   `,
     [
       Number(Time), Number(EntryTime), Token, TokenName, Number(EntryBalance), Number(ExitBalance),
       Number(EntrySolPaid), Number(ExitSolReceived), Number(TotalSolFees), Number(ProfitLossSOL),
       Number(ProfitLossUSDC), Number(ROIPercentage), Number(EntryPriceUSDC), Number(ExitPriceUSDC),
-      Number(HoldingTimeSeconds), Number(Slot), Program, BotName, IsTakeProfit ? 1 : 0, WalletPublicKey
+      Number(HoldingTimeSeconds), Number(Slot), Program, BotName, IsTakeProfit ? 1 : 0, WalletPublicKey, TxId
     ]
   );
 
@@ -588,7 +593,8 @@ export async function insertProfitLoss(record: ProfitLossRecord, processRunCount
     ProfitLossUSDC: Number(ProfitLossUSDC).toFixed(8),
     ROIPercentage: Number(ROIPercentage).toFixed(2),
     EntryPriceUSDC: Number(EntryPriceUSDC).toFixed(8),
-    ExitPriceUSDC: Number(ExitPriceUSDC).toFixed(8)
+    ExitPriceUSDC: Number(ExitPriceUSDC).toFixed(8),
+    TxId: TxId
   });
 
   await db.close();
@@ -837,7 +843,8 @@ export async function createTableTransactions(database: any): Promise<boolean> {
       Slot INTEGER NOT NULL,
       Program TEXT NOT NULL,
       BotName TEXT NOT NULL,
-      WalletPublicKey TEXT NOT NULL
+      WalletPublicKey TEXT NOT NULL,
+      TxId TEXT
     );
   `);
     return true;
@@ -847,21 +854,7 @@ export async function createTableTransactions(database: any): Promise<boolean> {
   }
 }
 
-export async function insertTransaction(transaction: {
-  Time: number;
-  Token: string;
-  TokenName: string;
-  TransactionType: 'BUY' | 'SELL';
-  TokenAmount: number;
-  SolAmount: number;
-  SolFee: number;
-  PricePerTokenUSDC: number;
-  TotalUSDC: number;
-  Slot: number;
-  Program: string;
-  BotName: string;
-  WalletPublicKey: string;
-}, processRunCounter: number) {
+export async function insertTransaction(transaction:TransactionRecord, processRunCounter: number) {
   const db = await open({
     filename: config.db_name_tracker_holdings,
     driver: sqlite3.Database,
@@ -888,7 +881,8 @@ export async function insertTransaction(transaction: {
     Slot,
     Program,
     BotName,
-    WalletPublicKey
+    WalletPublicKey,
+    TxId
   } = transaction;
 
   // Ensure all numeric values are numbers before storing
@@ -896,13 +890,13 @@ export async function insertTransaction(transaction: {
     `
     INSERT INTO transactions (
       Time, Token, TokenName, TransactionType, TokenAmount, SolAmount,
-      SolFee, PricePerTokenUSDC, TotalUSDC, Slot, Program, BotName, WalletPublicKey
+      SolFee, PricePerTokenUSDC, TotalUSDC, Slot, Program, BotName, WalletPublicKey, TxId
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
   `,
     [
       Number(Time), Token, TokenName, TransactionType, Number(TokenAmount), Number(SolAmount),
-      Number(SolFee), Number(PricePerTokenUSDC), Number(TotalUSDC), Number(Slot), Program, BotName, WalletPublicKey
+      Number(SolFee), Number(PricePerTokenUSDC), Number(TotalUSDC), Number(Slot), Program, BotName, WalletPublicKey, TxId
     ]
   );
 
@@ -911,7 +905,8 @@ export async function insertTransaction(transaction: {
     TransactionType,
     TokenAmount: Number(TokenAmount),
     PricePerTokenUSDC: Number(PricePerTokenUSDC).toFixed(8),
-    TotalUSDC: Number(TotalUSDC).toFixed(8)
+    TotalUSDC: Number(TotalUSDC).toFixed(8),
+    TxId: TxId
   });
 
   await db.close();

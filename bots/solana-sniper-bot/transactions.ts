@@ -765,7 +765,8 @@ export async function fetchAndSaveSwapDetails(tx: string, processRunCounter: num
       Slot: swapTransactionData.slot,
       Program: swapTransactionData.programInfo ? swapTransactionData.programInfo.source : "N/A",
       BotName: config.name,
-      WalletPublicKey: walletPublicKey
+      WalletPublicKey: walletPublicKey,
+      TxId: tx
     };
 
     await insertHolding(newHolding, processRunCounter).catch((err: any) => {
@@ -787,7 +788,8 @@ export async function fetchAndSaveSwapDetails(tx: string, processRunCounter: num
       Slot: swapTransactionData.slot,
       Program: swapTransactionData.programInfo ? swapTransactionData.programInfo.source : "N/A",
       BotName: config.name,
-      WalletPublicKey: walletPublicKey
+      WalletPublicKey: walletPublicKey,
+      TxId: tx
     };
     
     // Insert transaction into database

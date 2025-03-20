@@ -150,7 +150,8 @@ TODO API:
 [] fix tracker bot,
 [] make wallet dictionaries
 [] fix [object Object] in rug conditions
-[] add txid and link to data
+[] add txid and link to holding, proffit loss and transaction
+[] Make better discord notificaitons system.
 
 
 

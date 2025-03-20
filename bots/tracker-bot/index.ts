@@ -258,7 +258,8 @@ async function main() {
                       Program: tokenProgram,
                       BotName: config.name,
                       IsTakeProfit: unrealizedPnLPercentage >= 0,
-                      WalletPublicKey: walletPublicKey
+                      WalletPublicKey: walletPublicKey,
+                      TxId: txTransaction
                     };
 
                     await insertProfitLoss(profitLossRecord, processRunCounter);
@@ -284,7 +285,8 @@ async function main() {
                       Slot: tokenSlot,
                       Program: tokenProgram,
                       BotName: config.name,
-                      WalletPublicKey: walletPublicKey
+                      WalletPublicKey: walletPublicKey,
+                      TxId: txTransaction
                     };
                     
                     await insertTransaction(transactionData, processRunCounter).catch((err: any) => {
@@ -362,7 +364,8 @@ async function main() {
                       Program: tokenProgram,
                       BotName: config.name,
                       IsTakeProfit: unrealizedPnLPercentage >= 0,
-                      WalletPublicKey: walletPublicKey
+                      WalletPublicKey: walletPublicKey,
+                      TxId: txTransaction
                     };
 
                     await insertProfitLoss(profitLossRecord, processRunCounter);
@@ -388,7 +391,8 @@ async function main() {
                       Slot: tokenSlot,
                       Program: tokenProgram,
                       BotName: config.name,
-                      WalletPublicKey: walletPublicKey
+                      WalletPublicKey: walletPublicKey,
+                      TxId: txTransaction
                     };
                     
                     await insertTransaction(transactionData, processRunCounter).catch((err: any) => {

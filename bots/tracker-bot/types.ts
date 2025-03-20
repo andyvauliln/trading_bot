@@ -25,6 +25,7 @@ export interface TransactionRecord {
   Program?: string;
   BotName?: string;
   WalletPublicKey: string;
+  TxId: string;
 }
 
 export interface SerializedQuoteResponse {
@@ -293,6 +294,7 @@ export interface HoldingRecord {
   Program: string;
   BotName: string;
   WalletPublicKey: string;
+  TxId: string;
 }
 
 export interface NewTokenRecord {
@@ -389,4 +391,5 @@ export interface ProfitLossRecord {
   BotName: string;              // Bot that executed the trade
   IsTakeProfit: boolean;       // Whether the trade was a take-profit
   WalletPublicKey: string;     // Added wallet public key field
+  TxId: string;               // Transaction ID (signature)
 }
