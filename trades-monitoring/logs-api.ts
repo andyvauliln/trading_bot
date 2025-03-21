@@ -128,27 +128,6 @@ router.get('/logs', (req: Request, res: Response) => {
 router.get('/live-logs', (req: Request, res: Response) => {
   (async () => {
     try {
-      const { limit } = req.query;
-      const { module } = req.query;
-      if (!module) {
-        return res.status(400).json({
-          error: 'Module parameter is required'
-        });
-      }
-      // Validate limit if provided
-      let parsedLimit: number | undefined;
-      if (limit) {
-        parsedLimit = parseInt(limit as string, 10);
-        if (isNaN(parsedLimit) || parsedLimit < 1) {
-          parsedLimit = 3;
-        }
-      }
-      if (typeof module !== 'string' || !/^[a-zA-Z0-9_-]+$/.test(module)) {
-        return res.status(400).json({
-          error: 'Invalid module name format'
-        });
-      }
-
       //TODO: DO SOMETHING WITH THIS, not need hardcore
       const modules = ['solana-sniper-bot', 'telegram-trading-bot', 'tracker-bot'];
      
