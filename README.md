@@ -154,6 +154,10 @@ TODO API:
 [] Make better discord notificaitons system.
 [] add dates
 [] Insert ScreenShoot in Discord
+[] burning tokens cron
+[] investigate proffit lose
+[] include price effects on sell to callculating profit and loss
+
 
 
 ## Test server Api
