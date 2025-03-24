@@ -62,7 +62,7 @@ export class AIMessageProcessor {
       - is_potential_to_buy_token: boolean - whether the token is potential to buy, false only if message specifically says not to buy
       - message_text: string - the exact text of the message where the token was mentioned
       
-      IMPORTANT: Your response must be a valid JSON array (even if empty). Do not include backticks, markdown formatting, or any commentary outside the JSON. 
+      IMPORTANT: Your response must be a valid JSON array (even if empty). Do not include backticks, markdown formatting, or any commentary outside the JSON just raw JSON array. 
       If you are not sure about the token or if the message contains no tokens, return an empty array like this: []
       
       Example of a valid response format:
@@ -72,13 +72,10 @@ export class AIMessageProcessor {
           "is_message_has_any_mentioned_token": true,
           "analysis": "This message indicates a strong buy signal because...",
           "is_potential_to_buy_token": true,
-          "message_text": "Let's ape into this new token 7KTvQMsGPnwsVRUUQAQQBkMBHJp5YA68yRnwZyq8Z6oa"
+          "message_text": "Let's ape into this new token 7KTvQMsGPnwsVRUUQAQQBkMBHJp5YA68yRnwZyq8Z6oa",
+          "message_id": 1234567890
         }
       ]`;
-
-      console.log(`${configData.name}|[AIMessageProcessor]| Making request to: ${this.baseUrl}`);
-      console.log(`${configData.name}|[AIMessageProcessor]| Using model: ${this.model}`);
-      console.log(`${configData.name}|[AIMessageProcessor]| Auth header: Bearer ${this.apiKey.substring(0, 10)}...`);
 
       let response;
       try {
@@ -108,22 +105,26 @@ export class AIMessageProcessor {
           processRunCounter
         );
       } catch (apiError) {
-        console.error(`${configData.name}|[AIMessageProcessor]|[processMessage]| API call error: ${apiError}`);
+        console.error(`${configData.name}|[AIMessageProcessor]|[processMessage]| API call error: ${apiError}`, processRunCounter);
         if (axios.isAxiosError(apiError)) {
-          console.error(`${configData.name}|[AIMessageProcessor]|[processMessage]| API call failed with status: ${apiError.response?.status}`);
-          console.error(`${configData.name}|[AIMessageProcessor]|[processMessage]| API error details:`, apiError.response?.data);
+          console.error(`${configData.name}|[AIMessageProcessor]|[processMessage]| API call failed with status: ${apiError.response?.status}`, processRunCounter);
+          console.error(`${configData.name}|[AIMessageProcessor]|[processMessage]| API error details:`, apiError.response?.data, processRunCounter);
         }
         return [];
       }
 
       // Validate the response structure
       if (!response.data || !response.data.choices || !response.data.choices[0] || !response.data.choices[0].message) {
-        console.error(`${configData.name}|[AIMessageProcessor]|[processMessage]| Invalid API response structure:`, response.data);
+        console.error(`${configData.name}|[AIMessageProcessor]|[processMessage]| Invalid API response structure:`, response.data, processRunCounter);
         return [];
       }
-
+      console.log(`${configData.name}|[AIMessageProcessor]|[processMessage]| Response:`, response.data, processRunCounter);
       const result = response.data.choices[0].message.content;
-      console.log(`${configData.name}|[AIMessageProcessor]| Raw API Response:`, result);
+      console.log(`${configData.name}|[AIMessageProcessor]| Raw API Response:`, result, processRunCounter);
+      if (!result) {
+        console.error(`${configData.name}|[AIMessageProcessor]|[processMessage]| No result found in response`, processRunCounter);
+        return [];
+      }
 
       // Parse the response as JSON with improved error handling
       let parsedResult;

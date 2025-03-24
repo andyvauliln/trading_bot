@@ -2,13 +2,15 @@ import * as express from 'express';
 import { Request, Response } from 'express';
 import * as sqlite3 from 'sqlite3';
 import { open } from 'sqlite';
-import { config } from '../bots/tracker-bot/config';
 import { TAGS } from "../bots/utils/log-tags";
-
+import { config } from './config';
+import path from 'path';
 const router = express.Router();
 
 // Initialize database connection and create table if not exists
-const initDb = async (db_path: string) => {
+const initDb = async (module: string) => {
+  const db_path = path.resolve(process.cwd(), 'data', `${module}-logs.db`);
+  console.log(`${config.name}|[logs-api]|DB: ${db_path}`);
   const db = await open({
     filename: db_path,
     driver: sqlite3.Database
@@ -136,25 +138,30 @@ router.get('/live-logs', (req: Request, res: Response) => {
      
       for (const module of modules) {
         const db = await initDb(module);
+        console.log(`${config.name}|[logs-api]|DB: ${db}`);
         // Initialize DB and ensure table exists
         const tableName = module.replace(/-/g, '_');
+        console.log(`${config.name}|[logs-api]|Table: ${tableName}`);
         const tableExists = await checkTableExists(db, tableName);
         if (!tableExists) {
           return res.status(500).json({ error: 'Table does not exist' });
         }
         
-        let query = `
+        // Using parameterized query for safety
+        const sellTag = TAGS.sell_tx_confirmed.name;
+        const buyTag = TAGS.buy_tx_confirmed.name;
+        const rugTag = TAGS.rug_validation.name;
+        const telegramTag = TAGS.telegram_ai_token_analysis.name;
+        
+        const query = `
           SELECT *
           FROM ${tableName}
-          WHERE tag = ${TAGS.sell_tx_confirmed.name} or tag = ${TAGS.buy_tx_confirmed.name} or tag = ${TAGS.rug_validation.name} or tag = ${TAGS.telegram_ai_token_analysis.name}
-          ORDER BY date DESC, time DESC
-          ${parsedLimit ? 'LIMIT ?' : ''}
+          WHERE tag = ? OR tag = ? OR tag = ? OR tag = ?
+          ORDER BY date DESC, time DESC LIMIT 5
         `;
+        console.log(`${config.name}|[logs-api]|Query with parameters: ${query} [${sellTag}, ${buyTag}, ${rugTag}, ${telegramTag}]`);
       
-        const params = [];
-        if (parsedLimit) params.push(parsedLimit);
-        
-        const logs = await db.all(query, ...params);
+        const logs = await db.all(query, sellTag, buyTag, rugTag, telegramTag);
       
         // Parse JSON data field
         const parsedLogs = logs.map(log => ({

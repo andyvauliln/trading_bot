@@ -1,5 +1,5 @@
 import { HoldingRecord, PoolSizeData, TransactionRecord } from '../bots/tracker-bot/types';
-import { config } from '../bots/tracker-bot/config';
+import { config } from './config';
 import axios from 'axios';
 import { retryAxiosRequest } from '../bots/utils/help-functions';
 import { Keypair, Connection, PublicKey } from '@solana/web3.js';
@@ -46,7 +46,7 @@ export async function getDexscreenerPrices(tokenAddresses: string[]): Promise<De
 
       const response = await retryAxiosRequest(
         () => axios.get<DexscreenerPair[]>(dexPriceUrl, {
-          timeout: config.tx.get_timeout,
+          timeout: 3000,
         }).then(response => response.data),
         10,
         2000,
@@ -163,7 +163,7 @@ export async function getWalletData(wallet:string): Promise<WalletToken[]> {
 
     // Add SOL to tokens array
     tokens.push({
-      tokenMint: config.liquidity_pool.wsol_pc_mint, // SOL mint address
+      tokenMint: config.wsol_pc_mint, // SOL mint address
       balance: solBalanceInSOL,
     });
 
@@ -180,7 +180,7 @@ export async function getWalletData(wallet:string): Promise<WalletToken[]> {
       
       // Get token metadata, prioritizing Dexscreener data
       let metadata;
-      if (token.tokenMint === config.liquidity_pool.wsol_pc_mint) {
+      if (token.tokenMint === config.wsol_pc_mint) {
         metadata = { name: 'Solana', symbol: 'SOL' };
       } else {
         const dexscreenerPair = dexscreenerResult.pairs[token.tokenMint]?.[0];
@@ -225,7 +225,7 @@ export async function populateWithCurrentProfitsLosses(holdings: HoldingRecord[]
   
       // Get all token ids for price fetching
       const tokenAddresses = holdings.map((holding) => holding.Token);
-      const solMint = config.liquidity_pool.wsol_pc_mint;
+      const solMint = config.wsol_pc_mint;
       
       // Add SOL mint to the token addresses if not already included
       if (!tokenAddresses.includes(solMint)) {
@@ -311,7 +311,7 @@ export async function populateWithCurrentProfitsLosses(holdings: HoldingRecord[]
               params: {
                 ids: tokenValues,
               },
-              timeout: config.tx.get_timeout,
+              timeout: 3000,
             }),
             5,
             1000,
@@ -320,7 +320,7 @@ export async function populateWithCurrentProfitsLosses(holdings: HoldingRecord[]
           
           // If we got a valid response with price data, break out of the retry loop
           if (priceResponse && priceResponse.data && priceResponse.data.data && 
-              priceResponse.data.data[config.liquidity_pool.wsol_pc_mint]?.price) {
+              priceResponse.data.data[config.wsol_pc_mint]?.price) {
             break;
           } else {
             throw new Error("Invalid price data received");
@@ -385,7 +385,7 @@ async function getBirdeyeHistoricalPrices(
         const response = await retryAxiosRequest(
           () => axios.get<BirdeyeHistoricalPriceResponse>(url, {
             headers: options.headers,
-            timeout: config.tx.get_timeout
+            timeout:  3000
           }),
           5,
           2000,

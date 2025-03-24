@@ -9,6 +9,7 @@ export const config = {
   name: module_name,
   environment: process.env.NODE_ENV || "development", // development, production, test
   port: 9090,
+  wsol_pc_mint: "So11111111111111111111111111111111111111112",
   db_historical_data_path: path.resolve(process.cwd(), 'data', 'historical-data.db'),
   bots:['tracker-bot', 'telegram-trading-bot', "solana-sniper-bot"],
   db_holdings_path: path.resolve(process.cwd(), 'data', 'holdings.db'),

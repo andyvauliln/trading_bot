@@ -352,9 +352,6 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
       return;
     }
     
-    // Current time to enforce minimum delay between save attempts
-    const now = Date.now();
-    
     // Check if database connection exists, if not try to initialize it
     if (config.logger.db_logs && !this.dbConnection) {
       try {
