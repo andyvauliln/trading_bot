@@ -289,7 +289,11 @@ class TelegramReader {
 
     private async processMessagesWithAI(messages: Message[]): Promise<void> {
         console.log(`${config.name}|[processMessagesWithAI]| PROCESSING MESSAGES WITH AI`, this.processRunCounter);
-        const allMessageText = "Messages:" + messages.map(message => message.message).join('\nMessage:');
+        if (messages.length === 0) {
+            console.log(`${config.name}|[processMessagesWithAI]| No messages to process`, this.processRunCounter);
+            return;
+        }
+        const allMessageText = messages.map(msg => "Message ID[" + msg.id + "]:" + msg.message).join('\n');
         
         try {
             // Process the message with AI
