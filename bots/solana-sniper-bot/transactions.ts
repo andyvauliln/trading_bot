@@ -590,7 +590,7 @@ export async function getRugCheckConfirmed(token: string, processRunCounter: num
   } catch (error: any) {
     // Check if error is related to "Token not found" (status code 400)
     if (error.response && error.response.status === 400) {
-      console.warn(`${config.name}|[getRugCheckConfirmed]| ⚠️ Warning: Token not found in rug validation: ${token} Token may be too new or not indexed yet by RugCheck.`, processRunCounter, TAGS.rug_validation.name);
+      console.log(`${config.name}|[getRugCheckConfirmed]| ⚠️ Warning: Token not found in rug validation: ${token} Token may be too new or not indexed yet by RugCheck.`, processRunCounter, TAGS.rug_validation.name);
       
       return true; // Allow the token to pass rug check when it's not found
     } else {

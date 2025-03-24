@@ -99,7 +99,7 @@ module.exports = {
     },
     {
       name: 'clean-wallet-from-tokens-cron',
-      script: './dist/crons/clean-wallet-from-tokens-refactored.js',
+      script: './dist/crons/clean-wallet-from-tokens.js',
       out_file: process.env.NODE_ENV === 'development' ? 'logs/pm2/clean-wallet-from-tokens.log' : '/dev/null',
       error_file: process.env.NODE_ENV === 'development' ? 'logs/pm2/clean-wallet-from-tokens.error.log' : '/dev/null',
       cron_restart: '59 23 * * *',  // Run every day at midnight

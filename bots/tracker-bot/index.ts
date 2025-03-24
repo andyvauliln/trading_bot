@@ -36,7 +36,7 @@ async function main() {
     let currentPriceSource = "Jupiter Agregator";
 
     // Get all our current holdings
-    const holdings = await getAllHoldings();
+    const holdings = await getAllHoldings(false);
 
     console.log(`${config.name}|[main]|Found Holdings: ${holdings.length}`, processRunCounter, holdings);
     if (holdings.length !== 0) {
