@@ -491,7 +491,7 @@ export async function getHistoricalWalletData(days: number = 30): Promise<Histor
         const todayKey = endDate.toFormat('yyyy-MM-dd');
         const todayData = dailyData.get(todayKey);
         if (!todayData || todayData.tokens.length === 0) {
-            console.warn(`${config.name}|[getHistoricalWalletData]|No data found for today, creating new records...`);
+            console.log(`${config.name}|[getHistoricalWalletData]|No data found for today, creating new records...`);
             try {
                 // Create new records for the current time
                 const now = DateTime.now();
