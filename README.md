@@ -157,6 +157,7 @@ TODO API:
 [] burning tokens cron
 [] investigate proffit lose
 [] include price effects on sell to callculating profit and loss
+[] handle negative transactions
 
 
 

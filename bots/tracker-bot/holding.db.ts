@@ -76,7 +76,7 @@ export async function getAllHoldings(): Promise<HoldingRecord[]> {
     return [];
   }
 
-  const holdings = await db.all(`SELECT * FROM holdings;`);
+  const holdings = await db.all(`SELECT * FROM holdings WHERE IsSkipped = 0;`);
   await db.close();
   return holdings;
 }
