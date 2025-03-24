@@ -349,6 +349,10 @@ async function processSkippedHoldings(privateKey: string): Promise<{ success: bo
             success: false,
             msg: "Token account not found"
           });
+          await removeHolding(holding.Token, 0, walletPublicKey.toString()).catch(err => {
+            console.error(`❌ Error removing holding from database: ${err.message}`);
+          });
+          console.log(`🗑️ Removed holding from database: ${holding.Token} (${holding.TokenName})`);
           continue;
         }
         

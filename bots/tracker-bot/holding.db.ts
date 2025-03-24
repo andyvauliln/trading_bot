@@ -368,7 +368,8 @@ export async function createTableNewTokens(database: any): Promise<boolean> {
       name TEXT NOT NULL,
       mint TEXT NOT NULL,
       creator TEXT NOT NULL,
-      rug_conditions TEXT
+      rug_conditions TEXT,
+      tokenReport TEXT
     );
   `);
     return true;
@@ -377,7 +378,7 @@ export async function createTableNewTokens(database: any): Promise<boolean> {
   }
 }
 
-export async function insertNewToken(newToken: NewTokenRecord, processRunCounter: number, rug_conditions: any[]) {
+export async function insertNewToken(newToken: NewTokenRecord, processRunCounter: number) {
   const db = await open({
     filename: config.db_name_tracker_holdings,
     driver: sqlite3.Database,
@@ -391,7 +392,7 @@ export async function insertNewToken(newToken: NewTokenRecord, processRunCounter
   }
 
   // Check if token already exists
-  const { time, name, mint, creator } = newToken;
+  const { time, name, mint, creator, tokenReport, rug_conditions } = newToken;
   const existingToken = await db.get(
     `
     SELECT * FROM tokens 
@@ -411,10 +412,10 @@ export async function insertNewToken(newToken: NewTokenRecord, processRunCounter
   // Proceed with adding new token if it doesn't exist
   await db.run(
     `
-    INSERT INTO tokens (time, timeDate, name, mint, creator, rug_conditions)
-    VALUES (?, ?, ?, ?, ?, ?);
+    INSERT INTO tokens (time, timeDate, name, mint, creator, rug_conditions, tokenReport)
+    VALUES (?, ?, ?, ?, ?, ?, ?);
     `,
-    [time, timeDate, name, mint, creator, rug_conditions]
+    [time, timeDate, name, mint, creator, rug_conditions, tokenReport]
   );
   console.log(`${config.name}|[insertNewToken]| New token inserted successfully`, processRunCounter);
 

@@ -575,7 +575,7 @@ export async function getRugCheckConfirmed(token: string, processRunCounter: num
       rug_conditions: JSON.stringify(conditions),
       tokenReport: JSON.stringify(tokenReport),
     };
-    await insertNewToken(newToken, processRunCounter, conditions).catch((err) => {
+    await insertNewToken(newToken, processRunCounter).catch((err) => {
         console.log(`${config.name}|[getRugCheckConfirmed]| ⛔ Unable to store new token for tracking duplicate tokens: ${err}`, processRunCounter);
     });
   
