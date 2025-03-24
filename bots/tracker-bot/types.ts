@@ -8,9 +8,40 @@ export interface PoolSizeData {
   change: number;
 }
 
-export interface QuoteResponse {
-  data: unknown;
+export interface RoutePlanSwapInfo {
+  ammKey: string;
+  label: string;
+  inputMint: string;
+  outputMint: string;
+  inAmount: string;
+  outAmount: string;
+  feeAmount: string;
+  feeMint: string;
 }
+
+export interface RoutePlanItem {
+  swapInfo: RoutePlanSwapInfo;
+  percent: number;
+}
+
+export interface QuoteResponse {
+  inputMint: string;
+  inAmount: string;
+  outputMint: string;
+  outAmount: string;
+  otherAmountThreshold: string;
+  swapMode: string;
+  slippageBps: number;
+  platformFee: null | {
+    amount: string;
+    feeBps: number;
+  };
+  priceImpactPct: string | number;
+  routePlan: RoutePlanItem[];
+  contextSlot: number;
+  timeTaken: number;
+}
+
 export interface TransactionRecord {
   id?: number;
   Time: number;

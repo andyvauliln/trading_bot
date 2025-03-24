@@ -248,3 +248,79 @@ export async function createSellTransaction(solMint: string, tokenMint: string, 
     };
   }
 }
+
+/**
+ * Checks the price impact of a potential sell transaction
+ * @param tokenMint The token mint address to sell
+ * @param solMint The SOL mint address to receive
+ * @param amount The amount of tokens to sell (in raw units)
+ * @param tokenName The token name for display purposes
+ * @param processRunCounter The current process run counter
+ * @returns Object containing success flag, price impact percentage, and expected output amount
+ */
+export async function checkPriceImpact(
+  tokenMint: string, 
+  solMint: string, 
+  amount: string, 
+  tokenName: string,
+  processRunCounter: number
+): Promise<{ 
+  success: boolean; 
+  priceImpactPct: number; 
+  expectedOutAmount: string;
+  error?: string;
+}> {
+  const quoteUrl = process.env.JUP_HTTPS_QUOTE_URI || "";
+  
+  try {
+    console.log(`${config.name}|[checkPriceImpact]| Checking price impact for ${tokenName} (${tokenMint}), amount: ${amount}`, processRunCounter);
+    
+    // Request a quote to check price impact
+    const quoteResponse = await retryAxiosRequest(
+      () => axios.get<QuoteResponse>(quoteUrl, {
+        params: {
+          inputMint: tokenMint,
+          outputMint: solMint,
+          amount: amount,
+          slippageBps: config.sell.slippageBps,
+        },
+        timeout: config.tx.get_timeout,
+      }),
+      5,
+      1000,
+      processRunCounter
+    );
+
+    if (!quoteResponse.data) {
+      return { 
+        success: false, 
+        priceImpactPct: 0, 
+        expectedOutAmount: "0",
+        error: "No valid quote received" 
+      };
+    }
+
+    // The QuoteResponse is directly in the axios response's data property
+    const priceImpactPct = typeof quoteResponse.data.priceImpactPct === 'string' 
+      ? parseFloat(quoteResponse.data.priceImpactPct) 
+      : Number(quoteResponse.data.priceImpactPct || 0);
+    
+    const expectedOutAmount = quoteResponse.data.outAmount;
+    
+    console.log(`${config.name}|[checkPriceImpact]| Price impact for ${tokenName}: ${priceImpactPct.toFixed(2)}%, expected output: ${expectedOutAmount}`, processRunCounter);
+    
+    return {
+      success: true,
+      priceImpactPct,
+      expectedOutAmount
+    };
+  } catch (error: any) {
+    console.error(`${config.name}|[checkPriceImpact]| Error checking price impact for ${tokenName}: ${error.message}`, processRunCounter);
+    return { 
+      success: false, 
+      priceImpactPct: 0, 
+      expectedOutAmount: "0",
+      error: error.message 
+    };
+  }
+}
