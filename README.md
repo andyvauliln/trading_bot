@@ -158,8 +158,8 @@ TODO API:
 [] investigate proffit lose
 [] include price effects on sell to callculating profit and loss
 [] handle negative transactions
-
-
+[] fix date time wrong format in a tables 1970-01-21T04:02:56.561Z
+[] add in cleaning if swap operation lees then fee, just burn it
 
 ## Test server Api
 `http://35.204.20.112:9090/api/logs?module=tracker-bot`
