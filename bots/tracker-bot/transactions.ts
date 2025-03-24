@@ -93,8 +93,8 @@ export async function createSellTransaction(solMint: string, tokenMint: string, 
         },
         timeout: config.tx.get_timeout,
       }),
-      config.tx.fetch_tx_max_retries || 3,
-      config.tx.retry_delay || 500,
+      3,
+      5000,
       processRunCounter
     );
 

@@ -7,7 +7,6 @@ import { DateTime } from "luxon";
 import { createSellTransaction } from "./transactions";
 import { retryAxiosRequest } from "../utils/help-functions";
 import logger from "./logger"; // Import the logger
-import { TAGS } from "../utils/log-tags";
 import { Keypair } from "@solana/web3.js";
 import { Wallet } from "@project-serum/anchor";
 import bs58 from "bs58";
@@ -259,7 +258,7 @@ async function main() {
               try {
                 // Check if holding is skipped
                 if (holding.IsSkipped) {
-                  console.log(`${config.name}|[main]| ⚠️ Skipping sell attempt for ${tokenName} - marked as unsellable after 5 failed attempts`, processRunCounter);
+                  console.log(`${config.name}|[main]| ⚠️ Skipping sell attempt for ${tokenName} - marked as unsellable after ${config.sell.max_sell_attempts} failed attempts`, processRunCounter);
                   return;
                 }
 

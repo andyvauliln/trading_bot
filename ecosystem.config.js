@@ -97,5 +97,21 @@ module.exports = {
         NODE_ENV: process.env.NODE_ENV,
       },
     },
+    {
+      name: 'clean-wallet-from-tokens-cron',
+      script: './dist/crons/clean-wallet-from-tokens-refactored.js',
+      out_file: process.env.NODE_ENV === 'development' ? 'logs/pm2/clean-wallet-from-tokens.log' : '/dev/null',
+      error_file: process.env.NODE_ENV === 'development' ? 'logs/pm2/clean-wallet-from-tokens.error.log' : '/dev/null',
+      cron_restart: '59 23 * * *',  // Run every day at midnight
+      autorestart: false,  // Don't restart automatically, rely on cron
+      watch: false,
+      max_memory_restart: '100M',  // Restart if memory gets too high
+      kill_timeout: 3000,  // Give it time to cleanup before killing
+      wait_ready: true,    // Wait for process to emit ready signal
+      max_restarts: 3,     // Limit restarts if there are real errors
+      env: {
+        NODE_ENV: process.env.NODE_ENV,
+      },
+    },
   ]
 }; 

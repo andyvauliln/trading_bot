@@ -4,6 +4,19 @@ import { config } from "./config";
 import { HoldingRecord, NewTokenRecord, ProfitLossRecord, TransactionRecord } from "./types";
 import { makeTokenScreenshotAndSendToDiscord } from "../../gmgn_api/make_token_screen-shot";
 
+/**
+ * Helper function to convert timestamps to ISO date strings
+ * This handles both milliseconds and seconds timestamp formats
+ * @param timestamp The timestamp to convert
+ * @returns ISO date string
+ */
+function convertTimestampToISO(timestamp: number): string {
+  // If timestamp represents seconds (Unix timestamp), convert to ms
+  // We assume timestamps before year 2001 (timestamp < 1000000000000) are in seconds
+  const timeMs = timestamp < 1000000000000 ? timestamp * 1000 : timestamp;
+  return new Date(timeMs).toISOString();
+}
+
 // Function to initialize all database tables
 export async function initializeDatabaseTables(): Promise<boolean> {
   try {
@@ -64,11 +77,12 @@ export async function createTableHoldings(database: any): Promise<boolean> {
 }
 
 // ***************************GET ALL HOLDINGS**************************
-export async function getAllHoldings(): Promise<HoldingRecord[]> {
+export async function getAllHoldings(onlySkipped: boolean = true, walletPublicKey?: string): Promise<HoldingRecord[]> {
   const db = await open({
     filename: config.db_name_tracker_holdings,
     driver: sqlite3.Database,
   });
+  
   // Create Table if not exists
   const holdingsTableExist = await createTableHoldings(db);
   if (!holdingsTableExist) {
@@ -76,7 +90,22 @@ export async function getAllHoldings(): Promise<HoldingRecord[]> {
     return [];
   }
 
-  const holdings = await db.all(`SELECT * FROM holdings WHERE IsSkipped = 0;`);
+  let query = 'SELECT * FROM holdings';
+  const conditions: string[] = [];
+  
+  if (onlySkipped) {
+    conditions.push('IsSkipped = 1');
+  }
+  
+  if (walletPublicKey) {
+    conditions.push(`WalletPublicKey = '${walletPublicKey}'`);
+  }
+  
+  if (conditions.length > 0) {
+    query += ` WHERE ${conditions.join(' AND ')}`;
+  }
+
+  const holdings = await db.all(query);
   await db.close();
   return holdings;
 }
@@ -99,8 +128,8 @@ export async function insertHolding(holding: HoldingRecord, processRunCounter: n
   if (holdingsTableExist) {
     const { Time, Token, TokenName, Balance, SolPaid, SolFeePaid, SolPaidUSDC, SolFeePaidUSDC, PerTokenPaidUSDC, Slot, Program, BotName, WalletPublicKey, TxId } = holding;
     
-    // Create ISO UTC date strings
-    const timeDate = new Date(Number(Time)).toISOString();
+    // Create ISO UTC date strings using the helper function
+    const timeDate = convertTimestampToISO(Number(Time));
     
     // Ensure all numeric values are numbers before storing
     await db.run(
@@ -406,8 +435,8 @@ export async function insertNewToken(newToken: NewTokenRecord, processRunCounter
     return;
   }
 
-  // Create ISO UTC date string
-  const timeDate = new Date(Number(time)).toISOString();
+  // Create ISO UTC date string using the helper function
+  const timeDate = convertTimestampToISO(Number(time));
 
   // Proceed with adding new token if it doesn't exist
   await db.run(
@@ -591,9 +620,9 @@ export async function insertProfitLoss(record: ProfitLossRecord, processRunCount
     TxId
   } = record;
 
-  // Create ISO UTC date strings
-  const timeDate = new Date(Number(Time)).toISOString();
-  const entryTimeDate = new Date(Number(EntryTime)).toISOString();
+  // Create ISO UTC date strings using the helper function
+  const timeDate = convertTimestampToISO(Number(Time));
+  const entryTimeDate = convertTimestampToISO(Number(EntryTime));
 
   // Format numeric values to avoid scientific notation
   const formattedRecord = {
@@ -945,8 +974,8 @@ export async function insertTransaction(transaction:TransactionRecord, processRu
     TxId
   } = transaction;
 
-  // Create ISO UTC date string
-  const timeDate = new Date(Number(Time)).toISOString();
+  // Create ISO UTC date string using the helper function
+  const timeDate = convertTimestampToISO(Number(Time));
 
   // Ensure all numeric values are numbers before storing
   await db.run(
@@ -1160,7 +1189,7 @@ export async function updateSellAttempts(token: string, walletPublicKey: string,
 
   try {
     const currentTime = Date.now();
-    const currentTimeDate = new Date(currentTime).toISOString();
+    const currentTimeDate = convertTimestampToISO(currentTime);
 
     // Update sell attempts and last attempt time
     await db.run(`
@@ -1178,7 +1207,7 @@ export async function updateSellAttempts(token: string, walletPublicKey: string,
       WHERE Token = ? AND WalletPublicKey = ?;
     `, [token, walletPublicKey]);
 
-    if (holding && holding.SellAttempts >= 5) {
+    if (holding && holding.SellAttempts >= config.sell.max_sell_attempts) {
       // Mark as skipped if max attempts reached
       await db.run(`
         UPDATE holdings 
@@ -1186,7 +1215,7 @@ export async function updateSellAttempts(token: string, walletPublicKey: string,
         WHERE Token = ? AND WalletPublicKey = ?;
       `, [token, walletPublicKey]);
 
-      console.warn(`${config.name}|[updateSellAttempts]| ⚠️ Token ${token} marked as skipped after 5 failed sell attempts for wallet ${walletPublicKey}.\n Process Manualy https://solscan.io/tx/${txId}`, 
+      console.warn(`${config.name}|[updateSellAttempts]| ⚠️ Token ${token} marked as skipped after ${config.sell.max_sell_attempts} failed sell attempts for wallet ${walletPublicKey}.\n https://solscan.io/tx/${txId}. Token will be removed from holdings and burned today at midnight.`, 
         processRunCounter, null, "send-to-discord");
     }
 
@@ -1200,21 +1229,28 @@ export async function updateSellAttempts(token: string, walletPublicKey: string,
 }
 
 // ***************************GET SKIPPED HOLDINGS**************************
-export async function getSkippedHoldings(): Promise<HoldingRecord[]> {
+export async function getSkippedHoldings(walletPublicKey?: string): Promise<HoldingRecord[]> {
   const db = await open({
     filename: config.db_name_tracker_holdings,
     driver: sqlite3.Database,
   });
 
   try {
-    const skippedHoldings = await db.all(`
-      SELECT * FROM holdings 
-      WHERE IsSkipped = 1 
-      ORDER BY LastAttemptTime DESC;
-    `);
+    let query = 'SELECT * FROM holdings WHERE IsSkipped = 1';
+    
+    if (walletPublicKey) {
+      query += ` AND WalletPublicKey = ?`;
+    }
+    
+    query += ' ORDER BY LastAttemptTime DESC';
+
+    const params = walletPublicKey ? [walletPublicKey] : [];
+    const skippedHoldings = await db.all(query, params);
+    
     await db.close();
     return skippedHoldings;
   } catch (error: any) {
+    console.error(`Error getting skipped holdings: ${error.message}`);
     await db.close();
     return [];
   }
