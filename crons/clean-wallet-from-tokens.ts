@@ -11,6 +11,47 @@ import { createSellTransaction } from "../bots/tracker-bot/transactions";
 dotenv.config();
 
 /**
+ * Helper function to retry API requests with exponential backoff
+ * @param requestFn Function that returns a Promise
+ * @param maxRetries Maximum number of retry attempts
+ * @param initialDelay Initial delay in ms before first retry
+ * @returns The result or throws an error after all retries fail
+ */
+async function retryApiRequest<T>(
+  requestFn: () => Promise<T>,
+  maxRetries: number = 3,
+  initialDelay: number = 1000
+): Promise<T> {
+  let lastError: any;
+  let delay = initialDelay;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await requestFn();
+    } catch (error: any) {
+      lastError = error;
+      
+      if (attempt >= maxRetries) {
+        console.log(`Max retries (${maxRetries}) reached for API request`);
+        break;
+      }
+      
+      // Add some randomness (jitter) to avoid thundering herd problem
+      const jitter = Math.random() * 1000;
+      const waitTime = delay + jitter;
+      
+      console.log(`API request failed: ${error.message}, retrying in ${Math.round(waitTime/1000)}s, attempt ${attempt+1}/${maxRetries}`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+      
+      // Increase delay for next attempt with exponential backoff
+      delay *= 2;
+    }
+  }
+  
+  throw lastError;
+}
+
+/**
  * Helper function to retry Solana RPC requests with exponential backoff
  * @param requestFn Function that returns a Promise
  * @param maxRetries Maximum number of retry attempts
@@ -65,30 +106,84 @@ async function retrySolanaRequest<T>(
 /**
  * Gets all token accounts for a wallet
  */
-async function getTokenAccounts(walletPublicKey: PublicKey, connection: Connection) {
-  const tokenAccounts = await retrySolanaRequest(() => 
-    connection.getParsedTokenAccountsByOwner(
-      walletPublicKey,
-      { programId: new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA") }
-    )
-  );
-  console.log(JSON.stringify(tokenAccounts, null, 2), "TOKEN ACCOUNTS");
-
-  const result = tokenAccounts.value.map(account => {
-    const parsedAccountInfo = account.account.data.parsed.info;
-    const mintAddress = parsedAccountInfo.mint;
-    const tokenBalance = parsedAccountInfo.tokenAmount.amount;
-    const decimals = parsedAccountInfo.tokenAmount.decimals;
+async function getTokenAccounts(walletPublicKey: PublicKey, connection: Connection): Promise<Array<{
+  mint: string;
+  balance: string;
+  decimals: number;
+  account: string;
+  uiAmount?: number;
+}>> {
+  try {
+    // Use Jupiter's API to get token balances - more reliable and includes token metadata
+    console.log(`🔄 Fetching token balances from Jupiter API for wallet ${walletPublicKey.toString()}...`);
+    const jupiterApiUrl = `https://api.jup.ag/ultra/v1/balances/${walletPublicKey.toString()}`;
     
-    return {
-      mint: mintAddress,
-      balance: tokenBalance,
-      decimals,
-      account: account.pubkey.toString()
-    };
-  })
-  console.log(result, "ALL TOKENS FROM WALLET");
-  return result.filter(token => Number(token.balance) > 0); // Only include tokens with balance
+    // Use our retry function for the Jupiter API request with timeout
+    const balancesResponse = await retryApiRequest(async () => {
+      // Create timeout promise that rejects after 15 seconds
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Jupiter API request timed out after 15 seconds')), 15000);
+      });
+      
+      // Fetch request promise
+      const fetchPromise = fetch(jupiterApiUrl);
+      
+      // Race the fetch against the timeout
+      const response = await Promise.race([fetchPromise, timeoutPromise]) as Response;
+      
+      if (!response.ok) {
+        throw new Error(`Jupiter API returned ${response.status}: ${response.statusText}`);
+      }
+      
+      return response.json();
+    }, 5, 2000); // 5 retries, starting with 2 second delay
+    
+    console.log(`✅ Jupiter API returned balances for ${Object.keys(balancesResponse).length} tokens`);
+    
+    // Transform Jupiter format to our format and filter out SOL and frozen tokens
+    const filteredTokens = Object.entries(balancesResponse)
+      .filter(([tokenMint, tokenData]: [string, any]) => {
+        // Skip SOL and frozen tokens
+        return tokenMint !== "SOL" && !tokenData.isFrozen;
+      })
+      .map(([tokenMint, tokenData]: [string, any]) => {
+        return {
+          mint: tokenMint,
+          balance: tokenData.amount,
+          uiAmount: tokenData.uiAmount,
+          decimals: Math.log10(tokenData.uiAmount / (Number(tokenData.amount) || 1)), // Calculate decimals from amounts
+          account: "" // We don't have the token account from Jupiter API, but we don't need it for display
+        };
+      });
+      
+    console.log(`📊 Found ${filteredTokens.length} non-SOL, non-frozen tokens in wallet`);
+    return filteredTokens;
+  } catch (error: any) {
+    console.error(`❌ Failed to fetch Jupiter balances: ${error.message}`);
+    console.log("⚠️ Falling back to Solana RPC for token accounts...");
+    
+    // Fallback to the original method using Solana RPC
+    const tokenAccounts = await retrySolanaRequest(() => 
+      connection.getParsedTokenAccountsByOwner(
+        walletPublicKey,
+        { programId: new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA") }
+      )
+    );
+
+    return tokenAccounts.value.map(account => {
+      const parsedAccountInfo = account.account.data.parsed.info;
+      const mintAddress = parsedAccountInfo.mint;
+      const tokenBalance = parsedAccountInfo.tokenAmount.amount;
+      const decimals = parsedAccountInfo.tokenAmount.decimals;
+      
+      return {
+        mint: mintAddress,
+        balance: tokenBalance,
+        decimals,
+        account: account.pubkey.toString()
+      };
+    }).filter(token => Number(token.balance) > 0); // Only include tokens with balance
+  }
 }
 
 /**
@@ -173,7 +268,8 @@ async function processSkippedHoldings(privateKey: string): Promise<{ success: bo
       console.log(`| No tokens found in this wallet                                 |`);
     } else {
       allTokenAccounts.forEach(token => {
-        const formattedBalance = Number(token.balance) / Math.pow(10, token.decimals);
+        // Use uiAmount if available (from Jupiter), otherwise calculate it
+        const formattedBalance = token.uiAmount || Number(token.balance) / Math.pow(10, token.decimals);
         const balanceStr = formattedBalance.toLocaleString(undefined, {
           minimumFractionDigits: 0,
           maximumFractionDigits: 6
@@ -218,6 +314,28 @@ async function processSkippedHoldings(privateKey: string): Promise<{ success: bo
     // Results array to track progress
     const results = [];
     
+    // Get all token accounts for burn operations if Jupiter API was used
+    let tokenAccountsForBurn: any[] = [];
+    // Check if we're using Jupiter API data (which doesn't have token accounts)
+    if (allTokenAccounts.length > 0 && !allTokenAccounts[0].account) {
+      console.log("🔄 Fetching token accounts for burn operations...");
+      // Get token accounts using Solana RPC
+      const tokenAccountsResponse = await retrySolanaRequest(() => 
+        connection.getParsedTokenAccountsByOwner(
+          walletPublicKey,
+          { programId: new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA") }
+        )
+      );
+      
+      tokenAccountsForBurn = tokenAccountsResponse.value.map(account => {
+        const parsedAccountInfo = account.account.data.parsed.info;
+        return {
+          mint: parsedAccountInfo.mint,
+          account: account.pubkey.toString()
+        };
+      });
+    }
+    
     // Process each skipped holding
     for (const holding of walletSkippedHoldings) {
       try {
@@ -235,7 +353,7 @@ async function processSkippedHoldings(privateKey: string): Promise<{ success: bo
         }
         
         console.log(`🔄 Processing token: ${holding.Token} (${holding.TokenName})`);
-        console.log(`   Balance: ${tokenAccount.balance}`);
+        console.log(`   Balance: ${tokenAccount.uiAmount || tokenAccount.balance}`);
 
         // Check if we have enough SOL to pay for the transaction
         const solBalance = await retrySolanaRequest(() => connection.getBalance(walletPublicKey));
@@ -268,12 +386,43 @@ async function processSkippedHoldings(privateKey: string): Promise<{ success: bo
             console.log(`❌ Could not sell token ${holding.Token}: ${sellTxResult?.msg || "Failed to create sell transaction"}`);
             console.log(`🔥 Burning the token...`);
             
+            // Find token account for burn if using Jupiter API
+            let tokenAccountAddress = tokenAccount.account;
+            if (!tokenAccountAddress && tokenAccountsForBurn.length > 0) {
+              const burnAccount = tokenAccountsForBurn.find(acc => acc.mint === holding.Token);
+              if (burnAccount) {
+                tokenAccountAddress = burnAccount.account;
+              } else {
+                console.error(`❌ Could not find token account for burning ${holding.Token}`);
+                results.push({
+                  token: holding.Token,
+                  tokenName: holding.TokenName,
+                  success: false,
+                  msg: "Could not find token account for burning",
+                  method: "burn_failed"
+                });
+                continue;
+              }
+            }
+            
+            if (!tokenAccountAddress) {
+              console.error(`❌ No token account address found for ${holding.Token}`);
+              results.push({
+                token: holding.Token,
+                tokenName: holding.TokenName,
+                success: false,
+                msg: "No token account address for burning",
+                method: "burn_failed"
+              });
+              continue;
+            }
+            
             // Burn the token
             const signature = await burnToken(
               connection,
               myWallet,
               holding.Token,
-              tokenAccount.account,
+              tokenAccountAddress,
               tokenAccount.balance
             );
             
