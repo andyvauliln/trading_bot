@@ -52,7 +52,7 @@ async function processTransaction(signature: string, processRunCounter: number):
   
     const isRugCheckPassed = await getRugCheckConfirmed(data.tokenMint, processRunCounter);
     if (!isRugCheckPassed) {
-      console.log(`${config.name}|[processTransaction]|🚫 Rug Check not passed ${config.rug_check.enabled ? '! Transaction aborted.' : 'But Rug Check is disabled. Going to swap anyway.'}`, processRunCounter);
+      console.log(`${config.name}|[processTransaction]|🚫 Rug Check not passed for token ${data.tokenMint} ${config.rug_check.enabled ? '! Transaction aborted.' : 'But Rug Check is disabled. Going to swap anyway.'}`, processRunCounter, {token: data.tokenMint}, "discord-log");
       console.log(`${config.name}|[processTransaction]|🟢 Resuming looking for new tokens...`, processRunCounter);
       if (config.rug_check.enabled) {
         return false;

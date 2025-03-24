@@ -161,7 +161,7 @@ export async function getHoldingRecord(token: string, processRunCounter: number,
   await db.close();
 
   if (!tokenRecord) {
-    console.warn(`${config.name}|[getHoldingRecord]| Token not found: ${token}${walletPublicKey ? ` for wallet ${walletPublicKey}` : ''}`, processRunCounter);
+    console.log(`${config.name}|[getHoldingRecord]| Token not found: ${token}${walletPublicKey ? ` for wallet ${walletPublicKey}` : ''}`, processRunCounter);
   }
 
   return tokenRecord || null;

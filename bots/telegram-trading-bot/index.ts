@@ -293,7 +293,7 @@ class TelegramReader {
             console.log(`${config.name}|[processMessagesWithAI]| No messages to process`, this.processRunCounter);
             return;
         }
-        const allMessageText = messages.map(msg => "Message ID[" + msg.id + "]:" + msg.message).join('\n');
+        const allMessageText = messages.map(msg => "Message Channel:[" + msg.channelName + "] ID[" + msg.id + "]:" + msg.message).join('\n');
         
         try {
             // Process the message with AI
@@ -301,17 +301,23 @@ class TelegramReader {
             
             // Log the results
             if (analysisResults.length === 0) {
-                console.log(`${config.name}|[processMessagesWithAI]| No Solana tokens found in last messages`, this.processRunCounter);
+                console.log(`${config.name}|[processMessagesWithAI]| No tokens found in last messages`, this.processRunCounter);
                 return;
             } else {
                 for (const result of analysisResults) {
                     
-                    if (result.is_potential_to_buy_token && result.token_address) {
+                    if (result.is_potential_to_buy_token && result.token_address && result.chain === "solana") {
                         console.log(`${config.name}|[processMessagesWithAI]| Detect potential to buy token ${result.token_address} ${JSON.stringify(result, null, 2)} `, this.processRunCounter, result, TAGS.telegram_ai_token_analysis.name);
                         await validateAndSwapToken(result.token_address, this.processRunCounter);
                     }
+                    else if (!result.is_potential_to_buy_token && result.token_address) {
+                        console.log(`${config.name}|[processMessagesWithAI]| Token found but does not have potential to buy. Skiiping processing ${result.token_address} ${JSON.stringify(result, null, 2)} `, this.processRunCounter, result);
+                    }
+                    else if (result.chain !== "solana") {
+                        console.log(`${config.name}|[processMessagesWithAI]| Token found but not on solana, all another chains will be supported soon. Skipping processing ${result.token_address} ${JSON.stringify(result, null, 2)} `, this.processRunCounter, result);
+                    }
                     else {
-                        console.log(`${config.name}|[processMessagesWithAI]| TOKEN DOES NOT HAVE POTENTIAL TO BUY or empty token address`, this.processRunCounter);
+                        console.log(`${config.name}|[processMessagesWithAI]| No tokens found in last messages`, this.processRunCounter);
                     }
                 }
                 await this.markMessageAsProcessed(messages);

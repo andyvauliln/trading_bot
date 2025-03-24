@@ -178,8 +178,16 @@ export async function getRugCheckConfirmed(token: string, processRunCounter: num
   
     return conditions.every((condition) => !condition.check);
   } catch (error: any) {
-    console.error(`${config.name}|[getRugCheckConfirmed]| ⛔ Error during rug check processing: ${error.message}`, processRunCounter);
-    return false;
+    // Check if error is related to "Token not found" (status code 400)
+    if (error.response && error.response.status === 400) {
+      console.warn(`${config.name}|[getRugCheckConfirmed]| ⚠️ Warning: Token not found in rug validation: ${token} Token may be too new or not indexed yet by RugCheck or it's not a token, check it manually to be sure.`, processRunCounter, TAGS.rug_validation.name);
+      
+      return false; // Allow the token to pass rug check when it's not found
+    } else {
+      // Handle other errors with the original error message
+      console.error(`${config.name}|[getRugCheckConfirmed]| ⛔ Error during rug check processing: ${error.message}`, processRunCounter);
+      return false;
+    }
   }
 }
   
@@ -195,22 +203,23 @@ export async function validateAndSwapToken(token: string, processRunCounter: num
 
   // Check if token is already in holdings for any wallet
   const tokenRecord = await getHoldingRecord(token, processRunCounter);
-  console.log(`${config.name}|[validateAndSwapToken]| Checking if token already in holding: ${tokenRecord}, Buy additional holding: ${config.swap.is_additional_holding}`, processRunCounter);
+  if(tokenRecord) {
+    console.log(`${config.name}|[validateAndSwapToken]| Token ${tokenRecord.TokenName} already in holdings. Config: Buy Additional Tokens if Present: ${config.swap.is_additional_holding ? 'Yes, going to swap.' : 'No, skipping swap.'}`, processRunCounter, tokenRecord, "discord-log");
+  }
   if(tokenRecord && !config.swap.is_additional_holding) {
-    console.log(`${config.name}|[validateAndSwapToken]| Additional holding is disabled. Skipping validation and swapping.`, processRunCounter);
     return false;
   }
 
-    const isRugCheckPassed = await getRugCheckConfirmed(token, processRunCounter);
-    if (!isRugCheckPassed) {
-      console.log(`${config.name}|[validateAndSwapToken]|🚫 Rug Check not passed ${config.rug_check.enabled ? '! Transaction aborted.' : 'But Rug Check is disabled. Going to swap anyway.'}`, processRunCounter);
-      console.log(`${config.name}|[validateAndSwapToken]| 🟢 Resuming looking for new tokens...`, processRunCounter);
-      if (config.rug_check.enabled) {
-        return false;
-      }
+  const isRugCheckPassed = await getRugCheckConfirmed(token, processRunCounter);
+  if (!isRugCheckPassed) {
+    console.log(`${config.name}|[validateAndSwapToken]|🚫 Rug Check not passed for token ${token} ${config.rug_check.enabled ? '! Transaction aborted.' : 'But Rug Check is disabled. Going to swap anyway.'}`, processRunCounter, {token}, "discord-log");
+    console.log(`${config.name}|[validateAndSwapToken]| 🟢 Resuming looking for new tokens...`, processRunCounter);
+    if (config.rug_check.enabled) {
+      return false;
     }
-    console.log(`${config.name}|[validateAndSwapToken]| 🚀 Rug Check passed! Swapping token: ${token}`, processRunCounter);
-  
+  }
+  console.log(`${config.name}|[validateAndSwapToken]| 🚀 Rug Check passed! Swapping token: ${token}`, processRunCounter);
+
 
   // Handle ignored tokens
   if (token.trim().toLowerCase().endsWith("pump") && config.rug_check.ignore_pump_fun) {
@@ -253,7 +262,7 @@ export async function validateAndSwapToken(token: string, processRunCounter: num
       // Fetch and store the transaction for tracking purposes
       const saveConfirmation = await fetchAndSaveSwapDetails(result.txid, processRunCounter, result.walletPublicKey);
       if (!saveConfirmation) {
-        console.warn(`${config.name}|[validateAndSwapToken]| ❌ Warning: Transaction not saved for tracking! Track Manually!, Wallet: ${result.walletPublicKey}`, processRunCounter);
+        console.warn(`${config.name}|[validateAndSwapToken]| ❌ Warning: Transaction not saved for tracking! Track Manually!, http://solscan.io/tx/${result.txid}`, processRunCounter);
       }
 
       successfulTransactions++;

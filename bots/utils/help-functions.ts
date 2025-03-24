@@ -1,4 +1,3 @@
-
 /**
  * Helper function to retry axios requests with exponential backoff
  * @param requestFn Function that returns an axios request promise
@@ -21,13 +20,37 @@ export async function retryAxiosRequest<T>(
         return await requestFn();
       } catch (error: any) {
         lastError = error;
+        
+        // Check for rate limiting or service unavailable errors
+        const statusCode = error?.response?.status;
+        const isRateLimitError = statusCode === 429;
+        const isServiceUnavailable = statusCode === 503;
+        
         if (attempt >= maxRetries) {
+          console.log(`Max retries (${maxRetries}) reached for API request`, processRunCounter);
           break;
         }
         
-        // Wait before next retry with exponential backoff
-        await new Promise(resolve => setTimeout(resolve, delay));
-        delay *= 2; // Exponential backoff
+        // Add additional delay for rate limit errors
+        if (isRateLimitError || isServiceUnavailable) {
+          // Get retry-after header if available, or use exponential backoff with jitter
+          const retryAfter = error?.response?.headers?.['retry-after'];
+          const retryAfterMs = retryAfter ? parseInt(retryAfter) * 1000 : delay * 1.5;
+          
+          // Add some randomness (jitter) to avoid thundering herd problem
+          const jitter = Math.random() * 1000;
+          const waitTime = retryAfterMs + jitter;
+          
+          console.log(`Rate limit (${statusCode}) encountered, waiting ${Math.round(waitTime/1000)}s before retry, attempt ${attempt+1}/${maxRetries}`, processRunCounter);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+        } else {
+          // Standard exponential backoff for other errors
+          console.log(`Request failed, retrying in ${delay}ms, attempt ${attempt+1}/${maxRetries}`, processRunCounter);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+        
+        // Increase delay for next attempt with exponential backoff
+        delay *= 2; 
       }
     }
     

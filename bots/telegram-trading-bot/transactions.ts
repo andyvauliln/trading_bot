@@ -76,8 +76,8 @@ export async function createSwapTransaction(solMint: string, tokenMint: string, 
       if (error.response && error.response.status === 400) {
         const errorData = error.response.data;
         if (errorData.errorCode === "TOKEN_NOT_TRADABLE") {
-          console.warn(`${config.name}|[createSwapTransaction]|Token not tradable. Retrying...`, processRunCounter);
           retryCount++;
+          console.warn(`${config.name}|[createSwapTransaction]|Token ${tokenMint} not tradable.  Retrying... ${retryCount + 1}/${config.swap.token_not_tradable_400_error_retries}`, processRunCounter);
           await new Promise((resolve) => setTimeout(resolve, config.swap.token_not_tradable_400_error_delay));
           continue; // Retry
         }
@@ -295,16 +295,20 @@ export async function fetchAndSaveSwapDetails(tx: string, processRunCounter: num
     
     // Check if we have a valid response after all retries
     if (!txResponse || !txResponse.data || txResponse.data.length === 0) {
-      console.log(`${config.name}|[fetchAndSaveSwapDetails]| ⛔ Could not fetch swap details: No response received from API after ${maxRetries} attempts.`, processRunCounter);
+      console.warn(`${config.name}|[fetchAndSaveSwapDetails]| ⛔ No transaction data recived from Solana Node. Check manually: http://solscan.io/tx/${tx}`, processRunCounter);
       return false;
     }
 
     // Safely access the event information
     const transactions: TransactionDetailsResponseArray = txResponse.data;
+    if (!transactions[0]?.events?.swap || !transactions[0]?.events?.swap?.innerSwaps) {
+      console.warn(`${config.name}|[fetchAndSaveSwapDetails]| ⛔ No swap details recived from Solana Node. Check manually: http://solscan.io/tx/${tx}`, processRunCounter);
+      return false;
+    }
     const swapTransactionData: SwapEventDetailsResponse = {
-      programInfo: transactions[0]?.events.swap.innerSwaps[0].programInfo,
-      tokenInputs: transactions[0]?.events.swap.innerSwaps[0].tokenInputs,
-      tokenOutputs: transactions[0]?.events.swap.innerSwaps[transactions[0]?.events.swap.innerSwaps.length - 1].tokenOutputs,
+      programInfo: transactions[0]?.events?.swap?.innerSwaps[0]?.programInfo,
+      tokenInputs: transactions[0]?.events?.swap?.innerSwaps[0]?.tokenInputs,
+      tokenOutputs: transactions[0]?.events?.swap?.innerSwaps[transactions[0]?.events?.swap?.innerSwaps?.length - 1]?.tokenOutputs,
       fee: transactions[0]?.fee,
       slot: transactions[0]?.slot,
       timestamp: transactions[0]?.timestamp,

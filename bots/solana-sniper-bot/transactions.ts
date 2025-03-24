@@ -204,10 +204,15 @@ export async function createSwapTransaction(solMint: string, tokenMint: string, 
       if (error.response && error.response.status === 400) {
         const errorData = error.response.data;
         if (errorData.errorCode === "TOKEN_NOT_TRADABLE") {
-          console.warn(`${config.name}|[createSwapTransaction]|Token not tradable. Retrying...`, processRunCounter);
           retryCount++;
-          await new Promise((resolve) => setTimeout(resolve, config.swap.token_not_tradable_400_error_delay));
-          continue; // Retry
+          if (retryCount < config.swap.token_not_tradable_400_error_retries) {
+            console.log(`${config.name}|[createSwapTransaction]|Token ${tokenMint} not tradable.  Retrying... ${retryCount + 1}/${config.swap.token_not_tradable_400_error_retries}`, processRunCounter);
+            await new Promise((resolve) => setTimeout(resolve, config.swap.token_not_tradable_400_error_delay));
+            continue; // Retry
+          } else {
+            console.error(`${config.name}|[createSwapTransaction]| ⛔ Token ${tokenMint} not tradable. All retries failed.`, processRunCounter, {tokenMint}, "discord-log");
+            return null;
+          }
         }
       }
 
@@ -583,8 +588,16 @@ export async function getRugCheckConfirmed(token: string, processRunCounter: num
   
     return conditions.every((condition) => !condition.check);
   } catch (error: any) {
-    console.error(`${config.name}|[getRugCheckConfirmed]| ⛔ Error during rug check processing: ${error.message}`, processRunCounter);
-    return false;
+    // Check if error is related to "Token not found" (status code 400)
+    if (error.response && error.response.status === 400) {
+      console.warn(`${config.name}|[getRugCheckConfirmed]| ⚠️ Warning: Token not found in rug validation: ${token} Token may be too new or not indexed yet by RugCheck.`, processRunCounter, TAGS.rug_validation.name);
+      
+      return true; // Allow the token to pass rug check when it's not found
+    } else {
+      // Handle other errors with the original error message
+      console.error(`${config.name}|[getRugCheckConfirmed]| ⛔ Error during rug check processing: ${error.message}`, processRunCounter);
+      return false;
+    }
   }
 }
 
@@ -648,12 +661,18 @@ export async function fetchAndSaveSwapDetails(tx: string, processRunCounter: num
     
     // Check if we have a valid response after all retries
     if (!txResponse || !txResponse.data || txResponse.data.length === 0) {
-      console.log(`${config.name}|[fetchAndSaveSwapDetails]| ⛔ Could not fetch swap details: No response received from API after ${maxRetries} attempts.`, processRunCounter);
+      console.warn(`${config.name}|[fetchAndSaveSwapDetails]| ⛔ No transaction data recived from Solana Node. Check manually: http://solscan.io/tx/${tx}`, processRunCounter);
       return false;
     }
 
     // Safely access the event information
     const transactions: TransactionDetailsResponseArray = txResponse.data;
+    if (!transactions[0]?.events?.swap || !transactions[0]?.events?.swap?.innerSwaps) {
+      console.warn(`${config.name}|[fetchAndSaveSwapDetails]| ⛔ No swap details recived from Solana Node. Check manually: http://solscan.io/tx/${tx}`, processRunCounter);
+      return false;
+    }
+
+    // Safely access the event information
     const swapTransactionData: SwapEventDetailsResponse = {
       programInfo: transactions[0]?.events.swap.innerSwaps[0].programInfo,
       tokenInputs: transactions[0]?.events.swap.innerSwaps[0].tokenInputs,
