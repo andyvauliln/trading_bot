@@ -82,5 +82,7 @@ export const config = {
     stop_loss_percent: 20,
     take_profit_percent: 50,
     include_fees_in_pnl: false, // Whether to include fees in profit/loss calculations
+    max_sell_attempts: 10, // Maximum number of sell attempts
+    price_impact_pct_threshold: 10, // Maximum price impact percentage (0-100)
   },
 };
