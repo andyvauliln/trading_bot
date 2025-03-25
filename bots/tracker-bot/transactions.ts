@@ -239,7 +239,7 @@ export async function createSellTransaction(solMint: string, tokenMint: string, 
     };
 
   } catch (error: any) {
-    console.error(`${config.name}|[createSellTransaction]| Error with wallet: ${JSON.stringify({error}, null, 2)}`, processRunCounter);
+    console.log(`${config.name}|[createSellTransaction]| Error with wallet: ${JSON.stringify({error}, null, 2)}`, processRunCounter);
     return {
       success: false,
       msg: error.message,
