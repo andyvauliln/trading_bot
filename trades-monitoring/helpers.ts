@@ -498,36 +498,38 @@ export async function getHistoricalWalletData(days: number = 30): Promise<Histor
                 const results = await makeAccountHistoricalData(now);
                 console.log(`${config.name}|[getHistoricalWalletData]|Created new records for today:`, results);
 
-                // Fetch the newly created records
-                const todayRecords = await selectHistoricalDataByAccount(addresses[0], endDate, endDate.plus({ days: 1 }));
-                if (todayRecords && todayRecords.length > 0) {
-                    const newTodayData: HistoricalPoolData = {
-                        timestamp: now.toMillis(),
-                        totalValueUSDC: 0,
-                        tokens: []
-                    };
-
-                    for (const record of todayRecords) {
-                        const token: WalletToken = {
-                            tokenName: record.TokenName,
-                            tokenSymbol: record.Symbol,
-                            tokenMint: record.Token,
-                            balance: record.Amount,
-                            tokenValueUSDC: record.USDPrice * record.Amount,
-                            percentage: 0
+                // Fetch current wallet data directly instead of from the database
+                // This ensures we have the latest data even if there are database timing issues
+                if (addresses.length > 0) {
+                    const walletData = await getWalletData(addresses[0]);
+                    if (walletData && walletData.length > 0) {
+                        const newTodayData: HistoricalPoolData = {
+                            timestamp: now.toMillis(),
+                            totalValueUSDC: 0,
+                            tokens: []
                         };
-                        newTodayData.tokens.push(token);
+                        
+                        // Use the real-time wallet data
+                        for (const token of walletData) {
+                            newTodayData.tokens.push({
+                                tokenName: token.tokenName,
+                                tokenSymbol: token.tokenSymbol,
+                                tokenMint: token.tokenMint,
+                                balance: token.balance,
+                                tokenValueUSDC: token.tokenValueUSDC,
+                                percentage: token.percentage
+                            });
+                        }
+                        
+                        // Calculate total value (already done in getWalletData but double-checking)
+                        newTodayData.totalValueUSDC = newTodayData.tokens.reduce((sum, t) => sum + t.tokenValueUSDC, 0);
+                        
+                        // Update the map with today's data
+                        dailyData.set(todayKey, newTodayData);
+                        console.log(`${config.name}|[getHistoricalWalletData]|Updated today's data with wallet value: ${newTodayData.totalValueUSDC}`);
+                    } else {
+                        console.warn(`${config.name}|[getHistoricalWalletData]|No wallet data returned for today`);
                     }
-
-                    // Calculate total value and percentages
-                    newTodayData.totalValueUSDC = newTodayData.tokens.reduce((sum, t) => sum + t.tokenValueUSDC, 0);
-                    if (newTodayData.totalValueUSDC > 0) {
-                        newTodayData.tokens.forEach(t => {
-                            t.percentage = (t.tokenValueUSDC / newTodayData.totalValueUSDC) * 100;
-                        });
-                    }
-
-                    dailyData.set(todayKey, newTodayData);
                 }
             } catch (error) {
                 console.error(`${config.name}|[getHistoricalWalletData]|Error creating today\'s records:`, 0, error);

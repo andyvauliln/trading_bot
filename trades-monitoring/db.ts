@@ -17,7 +17,8 @@ export async function createHistoricalDataTable(database: any): Promise<boolean>
             TokenName TEXT NOT NULL,
             Amount REAL NOT NULL,
             USDPrice REAL NOT NULL,
-            Time INTEGER NOT NULL
+            Time INTEGER NOT NULL,
+            DateTime TEXT NOT NULL
         );
       `);
     return true;
@@ -70,6 +71,13 @@ export async function selectHistoricalDataByAccount(account?: string, date_from?
   }
 }
 
+function convertTimestampToISO(timestamp: number): string {
+  // If timestamp represents seconds (Unix timestamp), convert to ms
+  // We assume timestamps before year 2001 (timestamp < 1000000000000) are in seconds
+  const timeMs = timestamp < 1000000000000 ? timestamp * 1000 : timestamp;
+  return new Date(timeMs).toISOString();
+}
+
 export async function insertHistoricalData(data: InsertHistoricalDataDetails): Promise<boolean> {
   try {
     const db = await open({
@@ -90,10 +98,10 @@ export async function insertHistoricalData(data: InsertHistoricalDataDetails): P
 
       await db.run(
         `
-      INSERT INTO historical_data (Account, Token, Symbol, TokenName, Amount, USDPrice, Time)
+      INSERT INTO historical_data (Account, Token, Symbol, TokenName, Amount, USDPrice, Time, DateTime)
       VALUES (?, ?, ?, ?, ?, ?, ?);
     `,
-        [account, token, symbol, tokenName, amount, usdPrice, time.toMillis()]
+        [account, token, symbol, tokenName, amount, usdPrice, time.toMillis(), convertTimestampToISO(time.toMillis())]
       );
 
       await db.close();

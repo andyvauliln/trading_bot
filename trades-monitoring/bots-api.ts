@@ -76,45 +76,40 @@ router.get('/get-profit-losses', (req: Request, res: Response) => {
 router.get('/performance-metrics', (req: Request, res: Response) => {
   (async () => {
     try {
-      // Fixed 24-hour period
+      // For "all time" metrics
+      const allTimeRecords = await getProfitLossRecords({});
+      
+      // For yesterday's metrics (for comparison)
       const now = Date.now();
-      const startTime = now - (24 * 60 * 60 * 1000);
+      const startOfToday = new Date().setHours(0, 0, 0, 0);
+      const startOfYesterday = startOfToday - (24 * 60 * 60 * 1000);
       
-      // Get profit/loss records for the 24-hour period
-      const records = await getProfitLossRecords({
-        startDate: startTime,
-        endDate: now,
-        limit: 1000,
-        offset: 0
+      const yesterdayRecords = await getProfitLossRecords({
+        startDate: startOfYesterday,
+        endDate: startOfToday
       });
       
-      // Calculate performance metrics
-      const winningTrades = records.filter(record => record.ProfitLossUSDC > 0);
-      const winRate = records.length > 0 ? (winningTrades.length / records.length) * 100 : 0;
-      
-      // Calculate total volume
-      const volume = records.reduce((sum, record) => sum + (record.EntryPriceUSDC * record.EntryBalance), 0);
+      // Calculate all-time metrics
+      const allTimeWinningTrades = allTimeRecords.filter(record => record.ProfitLossUSDC > 0);
+      const allTimeWinRate = allTimeRecords.length > 0 ? (allTimeWinningTrades.length / allTimeRecords.length) * 100 : 0;
+      const allTimeVolume = allTimeRecords.reduce((sum, record) => sum + (record.EntryPriceUSDC * record.EntryBalance), 0);
+      const allTimeProfitLoss = allTimeRecords.reduce((sum, record) => sum + record.ProfitLossUSDC, 0);
 
-      // Calculate metrics for previous 24 hours for comparison
-      const previousPeriodStart = startTime - (24 * 60 * 60 * 1000);
-      const previousPeriodEnd = startTime;
-      
-      const previousRecords = await getProfitLossRecords({
-        startDate: previousPeriodStart,
-        endDate: previousPeriodEnd,
-        limit: 1000,
-        offset: 0
-      });
-      
-      // Calculate previous period metrics
-      const previousWinningTrades = previousRecords.filter(record => record.ProfitLossUSDC > 0);
-      const previousWinRate = previousRecords.length > 0 ? (previousWinningTrades.length / previousRecords.length) * 100 : 0;
-      const previousVolume = previousRecords.reduce((sum, record) => sum + (record.EntryPriceUSDC * record.EntryBalance), 0);
+      // Calculate yesterday's metrics for comparison
+      const yesterdayWinningTrades = yesterdayRecords.filter(record => record.ProfitLossUSDC > 0);
+      const yesterdayWinRate = yesterdayRecords.length > 0 ? (yesterdayWinningTrades.length / yesterdayRecords.length) * 100 : 0;
+      const yesterdayVolume = yesterdayRecords.reduce((sum, record) => sum + (record.EntryPriceUSDC * record.EntryBalance), 0);
+      const yesterdayProfitLoss = yesterdayRecords.reduce((sum, record) => sum + record.ProfitLossUSDC, 0);
       
       // Calculate changes
-      const winRateChange = previousWinRate > 0 ? ((winRate - previousWinRate) / previousWinRate) * 100 : 0;
-      const tradesChange = previousRecords.length > 0 ? ((records.length - previousRecords.length) / previousRecords.length) * 100 : 0;
-      const volumeChange = previousVolume > 0 ? ((volume - previousVolume) / previousVolume) * 100 : 0;
+      const winRateChange = yesterdayWinRate > 0 ? 
+        ((allTimeWinRate - yesterdayWinRate) / yesterdayWinRate) * 100 : 0;
+      
+      const volumeChange = yesterdayVolume > 0 ? 
+        ((allTimeVolume - yesterdayVolume) / yesterdayVolume) * 100 : 0;
+      
+      const profitLossChange = yesterdayProfitLoss !== 0 ? 
+        ((allTimeProfitLoss - yesterdayProfitLoss) / Math.abs(yesterdayProfitLoss)) * 100 : 0;
       
       const poolData = await getPoolSizeData();
       
@@ -122,16 +117,25 @@ router.get('/performance-metrics', (req: Request, res: Response) => {
         success: true,
         data: {
           winRate: {
-            value: winRate.toFixed(1),
-            change: parseFloat(winRateChange.toFixed(1))
+            value: allTimeWinRate.toFixed(1),
+            change: parseFloat(winRateChange.toFixed(1)),
+            yesterday: yesterdayWinRate.toFixed(1)
           },
           totalTrades: {
-            value: records.length,
-            change: parseFloat(tradesChange.toFixed(1))
+            value: allTimeRecords.length,
+            change: yesterdayRecords.length > 0 ? 
+              ((allTimeRecords.length - yesterdayRecords.length) / yesterdayRecords.length) * 100 : 0,
+            yesterday: yesterdayRecords.length
           },
           volume: {
-            value: volume.toFixed(2),
-            change: parseFloat(volumeChange.toFixed(1))
+            value: allTimeVolume.toFixed(2),
+            change: parseFloat(volumeChange.toFixed(1)),
+            yesterday: yesterdayVolume.toFixed(2)
+          },
+          profitLoss: {
+            value: allTimeProfitLoss.toFixed(2),
+            change: parseFloat(profitLossChange.toFixed(1)),
+            yesterday: yesterdayProfitLoss.toFixed(2)
           },
           poolSize: {
             value: poolData.value.toFixed(2),

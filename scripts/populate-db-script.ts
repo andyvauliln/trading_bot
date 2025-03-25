@@ -1,7 +1,6 @@
 import { DateTime } from "luxon";
 import { InsertHistoricalDataDetails } from "../trades-monitoring/types";
 import { insertHistoricalData } from "../trades-monitoring/db";
-import { config } from "../trades-monitoring/config";
 
 // Sample data for testing
 const TEST_ACCOUNTS = [
