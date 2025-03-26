@@ -65,8 +65,8 @@ Will run all bots simultaneously in different processes
 `pm2 start   ecosystem.config.js --only sniper`
 `pm2 start   ecosystem.config.js --only clean-db-logs-cron`
 `pm2 start   ecosystem.config.js --only pool-historic-data-cron`
-`pm2 start   ecosystem.config.js --only test`
-`pm2 restart ecosystem.config.js`
+`pm2 start   ecosystem.config.js`
+`pm2 restart ecosystem.config.js --daemon # connect Independently`
 `pm2 list`
 `pm2 delete all`
 `pm2 stop all`
@@ -160,6 +160,8 @@ TODO API:
 [] handle negative transactions
 [] fix date time wrong format in a tables 1970-01-21T04:02:56.561Z
 [] add in cleaning if swap operation lees then fee, just burn it
+[] figure out why same messages in telegram
+[] telegram chanel unknown
 
 ## Test server Api
 `http://35.204.20.112:9090/api/logs?module=tracker-bot`
