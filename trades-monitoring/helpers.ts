@@ -8,17 +8,19 @@ import bs58 from 'bs58';
 import { Metaplex } from "@metaplex-foundation/js";
 import { DateTime } from 'luxon';
 import { selectHistoricalDataByAccount, insertHistoricalData } from './db';
-import { 
-  WalletToken, 
-  TokenPrices, 
+import {
+  WalletToken,
   DexscreenerResult,
   DexscreenerPair,
-  TokenHistoricalPrices,
+  TokenPrices,
   HistoricalPoolData,
+  TokenHistoricalPrices,
   TransactionRecordWithComments,
   BirdeyeHistoricalPriceResponse,
-  InsertHistoricalDataDetails
+  InsertHistoricalDataDetails,
+  EnhancedTransactionRecordWithComments
 } from './types';
+import { EnhancedTransactionRecord } from '../bots/utils/trade-history';
 
 async function getTokenMetadata(connection: Connection, mint: string) {
   try {
@@ -544,7 +546,7 @@ export async function getHistoricalWalletData(days: number = 30): Promise<Histor
     }
 }
 
-export async function addComments(tradingHistory: TransactionRecord[]): Promise<TransactionRecordWithComments[]> {
+export async function addComments(tradingHistory: TransactionRecord[] | EnhancedTransactionRecord[]): Promise<TransactionRecordWithComments[] | EnhancedTransactionRecordWithComments[]> {
   return tradingHistory.map(transaction => ({
     ...transaction,
     comment: "Wow that is the trade of the century, honey "

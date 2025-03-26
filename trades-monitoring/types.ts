@@ -1,5 +1,6 @@
 import { DateTime } from "luxon";
 import { TransactionRecord } from '../bots/tracker-bot/types';
+import { EnhancedTransactionRecord } from '../bots/utils/trade-history';
 
 export interface InsertHistoricalDataDetails {
     account: string;
@@ -68,5 +69,9 @@ export interface HistoricalPoolData {
 }
 
 export interface TransactionRecordWithComments extends TransactionRecord {
+    comment: string | null;
+}
+
+export interface EnhancedTransactionRecordWithComments extends EnhancedTransactionRecord {
     comment: string | null;
 }

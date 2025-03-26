@@ -3,6 +3,7 @@ import { open } from "sqlite";
 import { config } from "./config";
 import { HoldingRecord, NewTokenRecord, ProfitLossRecord, TransactionRecord } from "./types";
 import { makeTokenScreenshotAndSendToDiscord } from "../../gmgn_api/make_token_screen-shot";
+import { EnhancedTransactionRecord, getEnhancedTransactionHistory as getEnhancedTxHistoryFromUtil } from "../utils/trade-history";
 
 /**
  * Helper function to convert timestamps to ISO date strings
@@ -1281,5 +1282,28 @@ export async function resetSellAttempts(token: string, walletPublicKey: string, 
     await db.close();
     return false;
   }
+}
+
+// ***************************GET ENHANCED TRANSACTION HISTORY**************************
+/**
+ * Get transaction history with profit/loss data added to sell transactions
+ * This enhances the regular transaction history by including profit/loss metrics
+ * for each sell transaction from the profit_loss table
+ * 
+ * @param options Filter options for the transactions
+ * @returns Enhanced transaction records with profit/loss data
+ */
+export async function getTransactionHistoryWithProfitLoss(options?: { 
+  offset?: number; 
+  limit?: number; 
+  module?: string;
+  walletPublicKey?: string;
+  startDate?: number;
+  endDate?: number;
+}): Promise<EnhancedTransactionRecord[]> {
+  return await getEnhancedTxHistoryFromUtil(
+    config.db_name_tracker_holdings,
+    options
+  );
 }
 

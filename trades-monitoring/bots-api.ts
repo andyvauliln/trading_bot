@@ -1,6 +1,6 @@
 import * as express from 'express';
 import { Request, Response } from 'express';
-import { getAllHoldings, getTotalProfitLoss, getProfitLossRecords, getAllTransactions } from '../bots/tracker-bot/holding.db';
+import { getAllHoldings, getTotalProfitLoss, getProfitLossRecords, getAllTransactions, getTransactionHistoryWithProfitLoss } from '../bots/tracker-bot/holding.db';
 import { getWalletData, populateWithCurrentProfitsLosses, getHistoricalWalletData, addComments, getPoolSizeData } from './helpers';
 import { WalletToken } from './types';
 import { config } from './config';
@@ -317,7 +317,14 @@ router.get('/get-trading-history', (req: Request, res: Response) => {
   (async () => {
     try {
       const { module, limit, offset } = req.query;
-      const tradingHistory = await getAllTransactions({ module: module as string, limit: limit ? parseInt(limit as string) : undefined, offset: offset ? parseInt(offset as string) : undefined });
+      
+      // Use enhanced transaction history instead of regular transactions
+      const tradingHistory = await getTransactionHistoryWithProfitLoss({ 
+        module: module as string, 
+        limit: limit ? parseInt(limit as string) : undefined, 
+        offset: offset ? parseInt(offset as string) : undefined 
+      });
+      
       console.log(`${config.name}|[get-trading-history]| Trading history:`, tradingHistory);
       const historyWithComments = await addComments(tradingHistory);
       console.log(`${config.name}|[get-trading-history]| History with comments:`, historyWithComments);
