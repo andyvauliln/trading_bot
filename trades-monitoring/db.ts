@@ -99,7 +99,7 @@ export async function insertHistoricalData(data: InsertHistoricalDataDetails): P
       await db.run(
         `
       INSERT INTO historical_data (Account, Token, Symbol, TokenName, Amount, USDPrice, Time, DateTime)
-      VALUES (?, ?, ?, ?, ?, ?, ?);
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?);
     `,
         [account, token, symbol, tokenName, amount, usdPrice, time.toMillis(), convertTimestampToISO(time.toMillis())]
       );
