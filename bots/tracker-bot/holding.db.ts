@@ -78,7 +78,7 @@ export async function createTableHoldings(database: any): Promise<boolean> {
 }
 
 // ***************************GET ALL HOLDINGS**************************
-export async function getAllHoldings(onlySkipped: boolean = true, walletPublicKey?: string): Promise<HoldingRecord[]> {
+export async function getAllHoldings(filter: 'all' | 'skipped' | 'notSkipped' = 'all', walletPublicKey?: string): Promise<HoldingRecord[]> {
   const db = await open({
     filename: config.db_name_tracker_holdings,
     driver: sqlite3.Database,
@@ -94,8 +94,10 @@ export async function getAllHoldings(onlySkipped: boolean = true, walletPublicKe
   let query = 'SELECT * FROM holdings';
   const conditions: string[] = [];
   
-  if (onlySkipped) {
+  if (filter === 'skipped') {
     conditions.push('IsSkipped = 1');
+  } else if (filter === 'notSkipped') {
+    conditions.push('IsSkipped = 0');
   }
   
   if (walletPublicKey) {
@@ -290,7 +292,7 @@ export async function getAllHoldingsGroupedByWallet(options?: {
 }
 
 // Add a new function to get holdings with flexible filtering
-export async function getHoldings(options?: {
+export async function All(options?: {
   walletPublicKey?: string;
   token?: string;
   botName?: string;
@@ -684,7 +686,7 @@ export async function insertProfitLoss(record: ProfitLossRecord, processRunCount
     ExitPriceUSDC: formattedRecord.ExitPriceUSDC.toFixed(8)
   };
 
-  console.log(`${config.name}|[insertProfitLoss]| Profit/loss record inserted successfully \n${JSON.stringify(logRecord, null, 2)}`, processRunCounter, null, "discord-log");
+  console.log(`${config.name}|[insertProfitLoss]| Profit/loss record inserted successfully \n${JSON.stringify(logRecord, null, 2)}`, processRunCounter, formattedRecord);
 
   await db.close();
 }
@@ -1182,7 +1184,7 @@ export async function getWalletTransactionStats(walletPublicKey: string, options
 }
 
 // ***************************UPDATE SELL ATTEMPTS**************************
-export async function updateSellAttempts(token: string, walletPublicKey: string, txId: string, processRunCounter: number): Promise<boolean> {
+export async function updateSellAttempts(id: number, processRunCounter: number): Promise<boolean> {
   const db = await open({
     filename: config.db_name_tracker_holdings,
     driver: sqlite3.Database,
@@ -1198,26 +1200,26 @@ export async function updateSellAttempts(token: string, walletPublicKey: string,
       SET SellAttempts = SellAttempts + 1,
           LastAttemptTime = ?,
           LastAttemptTimeDate = ?
-      WHERE Token = ? AND WalletPublicKey = ?;
-    `, [currentTime, currentTimeDate, token, walletPublicKey]);
+      WHERE id = ?;
+    `, [currentTime, currentTimeDate, id]);
 
     // Check if we've reached max attempts
     const holding = await db.get(`
       SELECT SellAttempts 
       FROM holdings 
-      WHERE Token = ? AND WalletPublicKey = ?;
-    `, [token, walletPublicKey]);
+      WHERE id = ?;
+    `, [id]);
 
     if (holding && holding.SellAttempts >= config.sell.max_sell_attempts) {
       // Mark as skipped if max attempts reached
       await db.run(`
         UPDATE holdings 
         SET IsSkipped = 1 
-        WHERE Token = ? AND WalletPublicKey = ?;
-      `, [token, walletPublicKey]);
+        WHERE id = ?;
+      `, [id]);
 
-      console.warn(`${config.name}|[updateSellAttempts]| ⚠️ Token ${token} marked as skipped after ${config.sell.max_sell_attempts} failed sell attempts for wallet ${walletPublicKey}.\n https://solscan.io/tx/${txId}. Token will be removed from holdings and burned today at midnight.`, 
-        processRunCounter, null, "send-to-discord");
+      console.warn(`${config.name}|[updateSellAttempts]| ⚠️ Token ${holding.TokenName} marked as skipped after ${config.sell.max_sell_attempts}.\n https://solscan.io/tx/${txId}. Token will be removed from holdings and burned today at midnight.`, 
+        processRunCounter, holding, "send-to-discord");
     }
 
     await db.close();
@@ -1257,32 +1259,6 @@ export async function getSkippedHoldings(walletPublicKey?: string): Promise<Hold
   }
 }
 
-// ***************************RESET SELL ATTEMPTS**************************
-export async function resetSellAttempts(token: string, walletPublicKey: string, processRunCounter: number): Promise<boolean> {
-  const db = await open({
-    filename: config.db_name_tracker_holdings,
-    driver: sqlite3.Database,
-  });
-
-  try {
-    await db.run(`
-      UPDATE holdings 
-      SET SellAttempts = 0,
-          IsSkipped = 0,
-          LastAttemptTime = NULL
-      WHERE Token = ? AND WalletPublicKey = ?;
-    `, [token, walletPublicKey]);
-
-    console.log(`${config.name}|[resetSellAttempts]| Reset sell attempts for token ${token} and wallet ${walletPublicKey}`, processRunCounter);
-    
-    await db.close();
-    return true;
-  } catch (error: any) {
-    console.error(`${config.name}|[resetSellAttempts]| Error resetting sell attempts: ${error.message}`, processRunCounter);
-    await db.close();
-    return false;
-  }
-}
 
 // ***************************GET ENHANCED TRANSACTION HISTORY**************************
 /**

@@ -29,6 +29,7 @@ export interface QuoteResponse {
   inAmount: string;
   outputMint: string;
   outAmount: string;
+  swapUsdValue: string;
   otherAmountThreshold: string;
   swapMode: string;
   slippageBps: number;
@@ -41,6 +42,32 @@ export interface QuoteResponse {
   contextSlot: number;
   timeTaken: number;
 }
+
+export interface CalculatedPNL {
+  tokenName: string;
+  tokenAddress: string;
+  priceImpact: number;
+  pnlUSD: number;
+  pnlPercent: number;
+  priceDiffUSD: number;
+  priceDiffPercentUSDC: number;
+  initialPriceUSDC: number;
+  currentPriceUSDC: number;
+  totalInvestmentUSDC: number;
+  currentValueUSDC: number;
+  tokenBalance: number;
+  fees: {
+      solFeeUSDC: number;
+      routeFeesSOL: number;
+      platformFeeSOL: number;
+  };
+ 
+  slippage: number;
+ 
+  currentStopLossPercent: number;
+  currentTakeProfitPercent: number;
+}
+
 
 export interface TransactionRecord {
   id?: number;

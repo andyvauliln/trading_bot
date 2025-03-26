@@ -12,7 +12,7 @@ router.get('/active-holdings', (req: Request, res: Response) => {
   (async () => {
     try {
       const { module } = req.query;
-      const holdings = await getAllHoldings();
+      const holdings = await getAllHoldings("notSkipped");
       
       // Filter by module if specified
       const filteredHoldings = module 

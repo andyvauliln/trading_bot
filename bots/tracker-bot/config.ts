@@ -77,7 +77,7 @@ export const config = {
     price_source: "dex", // dex=Dexscreener,jup=Jupiter Agregator (Dex is most accurate and Jupiter is always used as fallback)
     prio_fee_max_lamports: 1000000, // 0.001 SOL
     prio_level: "veryHigh", // If you want to land transaction fast, set this to use `veryHigh`. You will pay on average higher priority fee.
-    slippageBps: "400", // 5%
+    slippageBps: "400", // 4%
     auto_sell: true, // If set to true, stop loss and take profit triggers automatically when set.
     stop_loss_percent: 20,
     take_profit_percent: 50,

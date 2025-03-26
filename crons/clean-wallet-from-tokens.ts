@@ -598,7 +598,7 @@ async function prepareTokensToProcess(
   unlisted_tokens: any[]
 }> {
   // Get all holdings from the database (skipped and not skipped)
-  const allHoldings = await getAllHoldings(false, walletPublicKey.toString());
+  const allHoldings = await getAllHoldings("all", walletPublicKey.toString());
 
   // Check for tokens in wallet that are not in holdings tables
   const unlisted_tokens = allTokenAccounts.filter(token => 

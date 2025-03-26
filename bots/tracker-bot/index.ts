@@ -373,6 +373,7 @@ async function main() {
   }
 }
 
+
 logger.init().then(() => {
   main().catch(async (err) => {
     console.error(err);

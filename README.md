@@ -65,8 +65,8 @@ Will run all bots simultaneously in different processes
 `pm2 start   ecosystem.config.js --only sniper`
 `pm2 start   ecosystem.config.js --only clean-db-logs-cron`
 `pm2 start   ecosystem.config.js --only pool-historic-data-cron`
-`pm2 start   ecosystem.config.js`
-`pm2 restart ecosystem.config.js --daemon # connect Independently`
+`pm2 start   ecosystem.config.js --daemon`
+`pm2 restart ecosystem.config.js# connect Independently`
 `pm2 list`
 `pm2 delete all`
 `pm2 stop all`
