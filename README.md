@@ -162,6 +162,9 @@ TODO API:
 [] add in cleaning if swap operation lees then fee, just burn it
 [] figure out why same messages in telegram
 [] telegram chanel unknown
+[] [api][insertHistoricalData] Error storing historical data: Error: SQLITE_ERROR: 7 values for 8 columns
+[] figure out chrome problems for puppiter
+[] fixing issues can't connect to remote server (luck of resources)
 
 ## Test server Api
 `http://35.204.20.112:9090/api/logs?module=tracker-bot`
