@@ -1,86 +1,6 @@
 import sqlite3 from "sqlite3";
 import { open } from "sqlite";
-import { config } from "../../trades-monitoring/config";
 import path from "path";
-
-// Config Types
-export type CommonConfigKeys = 
-  | "environment" 
-  | "simulation_mode" 
-  | "verbose_log" 
-  | "logger" 
-  | "tx" 
-  | "swap" 
-  | "rug_check";
-
-// Specific types for common configuration sections
-export interface LoggerConfig {
-  keeping_days_in_db: number;
-  terminal_logs: boolean;
-  db_logs: boolean;
-  file_logs: boolean;
-  db_logs_path: string;
-  file_logs_path: string;
-}
-
-export interface TxConfig {
-  fetch_tx_max_retries: number;
-  fetch_tx_initial_delay: number;
-  swap_tx_initial_delay: number;
-  get_timeout: number;
-  concurrent_transactions: number;
-  retry_delay: number;
-}
-
-export interface SwapConfig {
-  prio_fee_max_lamports: number;
-  prio_level: string;
-  amount: string;
-  slippageBps: string;
-  token_not_tradable_400_error_retries: number;
-  token_not_tradable_400_error_delay: number;
-  [key: string]: any; // Allow for bot-specific extra fields
-}
-
-export interface RugCheckConfig {
-  enabled: boolean;
-  verbose_log?: boolean;
-  allow_mint_authority: boolean;
-  allow_not_initialized: boolean;
-  allow_freeze_authority: boolean;
-  allow_rugged: boolean;
-  allow_mutable: boolean;
-  block_returning_token_names?: boolean;
-  block_returning_token_creators?: boolean;
-  block_symbols: string[];
-  block_names: string[];
-  allow_insider_topholders: boolean;
-  max_alowed_pct_topholders: number;
-  exclude_lp_from_topholders: boolean;
-  min_total_markets: number;
-  min_total_lp_providers: number;
-  min_total_market_Liquidity: number;
-  ignore_pump_fun: boolean;
-  max_score: number;
-  legacy_not_allowed: string[];
-}
-
-// Common configuration interface that all bots share
-export interface CommonConfig {
-  environment: string;
-  simulation_mode: boolean;
-  verbose_log: boolean;
-  logger: LoggerConfig;
-  tx: TxConfig;
-  swap: SwapConfig;
-  rug_check: RugCheckConfig;
-}
-
-// Generic bot configuration interface
-export interface BotConfig extends CommonConfig {
-  name: string;
-  [key: string]: any; // Allow additional bot-specific configuration
-}
 
 // Database path
 const CONFIG_DB_PATH = path.resolve(process.cwd(), 'data', 'config.db');
@@ -92,8 +12,16 @@ async function createConfigsTable(db: any): Promise<boolean> {
       CREATE TABLE IF NOT EXISTS configs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         bot_name TEXT NOT NULL UNIQUE,
-        config_data TEXT NOT NULL,
-        updated_at INTEGER NOT NULL
+        bot_type TEXT NOT NULL,
+        bot_version TEXT NOT NULL,
+        bot_description TEXT NOT NULL,
+        bot_author_wallet_address TEXT,
+        send_notifications_to_discord BOOLEAN NOT NULL,
+        is_enabled BOOLEAN NOT NULL,
+        trading_wallet_address TEXT NOT NULL,
+        bot_data TEXT NOT NULL,
+        updated_at INTEGER NOT NULL,
+        created_at INTEGER NOT NULL
       );
     `);
     return true;
