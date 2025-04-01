@@ -360,7 +360,7 @@ export async function All(options?: {
 
 // ***************************REMOVE HOLDING**************************
 
-export async function removeHolding(tokenMint: string, processRunCounter: number, walletPublicKey?: string) {
+export async function removeHolding(tokenMint: string, processRunCounter: number, walletPublicKey: string) {
   const db = await open({
     filename: config.db_name_tracker_holdings,
     driver: sqlite3.Database,
@@ -369,6 +369,11 @@ export async function removeHolding(tokenMint: string, processRunCounter: number
   // Create Table if not exists
   const holdingsTableExist = await createTableHoldings(db);
   if (!holdingsTableExist) {
+    await db.close();
+    return;
+  }
+  const holding = await db.get(`SELECT * FROM holdings WHERE Token = ? AND WalletPublicKey = ?`, [tokenMint, walletPublicKey]);
+  if (!holding) {
     await db.close();
     return;
   }
@@ -382,7 +387,7 @@ export async function removeHolding(tokenMint: string, processRunCounter: number
 
   await db.run(query, params);
 
-  console.log(`${config.name}|[removeHolding]| Holding removed successfully${walletPublicKey ? ` for wallet ${walletPublicKey}` : ''}`, processRunCounter);
+  console.log(`${config.name}|[removeHolding]| Holding removed successfully${walletPublicKey ? ` for wallet ${walletPublicKey}` : ''}`, processRunCounter, "discord-log");
 
   await db.close();
 }
@@ -566,12 +571,17 @@ export async function createTableProfitLoss(database: any): Promise<boolean> {
       ProfitLossSOL REAL NOT NULL,
       ProfitLossUSDC REAL NOT NULL,
       ROIPercentage REAL NOT NULL,
+      ProfitLossSOLWithFees REAL NOT NULL,
+      ProfitLossUSDCWithFees REAL NOT NULL,
+      ROIPercentageWithFees REAL NOT NULL,
       EntryPriceUSDC REAL NOT NULL,
       ExitPriceUSDC REAL NOT NULL,
       HoldingTimeSeconds INTEGER NOT NULL,
       Slot INTEGER NOT NULL,
       Program TEXT NOT NULL,
       BotName TEXT NOT NULL,
+      ConfigTakeProfit REAL NOT NULL,
+      ConfigStopLoss REAL NOT NULL,
       IsTakeProfit INTEGER NOT NULL,
       WalletPublicKey TEXT NOT NULL,
       TxId TEXT
@@ -612,12 +622,17 @@ export async function insertProfitLoss(record: ProfitLossRecord, processRunCount
     ProfitLossSOL,
     ProfitLossUSDC,
     ROIPercentage,
+    ProfitLossSOLWithFees,
+    ProfitLossUSDCWithFees,
+    ROIPercentageWithFees,
     EntryPriceUSDC,
     ExitPriceUSDC,
     HoldingTimeSeconds,
     Slot,
     Program,
     BotName,
+    ConfigTakeProfit,
+    ConfigStopLoss,
     IsTakeProfit,
     WalletPublicKey,
     TxId
@@ -642,10 +657,15 @@ export async function insertProfitLoss(record: ProfitLossRecord, processRunCount
     ProfitLossSOL: Number(Number(ProfitLossSOL).toFixed(8)),
     ProfitLossUSDC: Number(Number(ProfitLossUSDC).toFixed(8)),
     ROIPercentage: Number(Number(ROIPercentage).toFixed(2)),
+    ProfitLossSOLWithFees: Number(Number(ProfitLossSOLWithFees).toFixed(8)),
+    ProfitLossUSDCWithFees: Number(Number(ProfitLossUSDCWithFees).toFixed(8)),
+    ROIPercentageWithFees: Number(Number(ROIPercentageWithFees).toFixed(2)),
     EntryPriceUSDC: Number(Number(EntryPriceUSDC).toFixed(8)),
     ExitPriceUSDC: Number(Number(ExitPriceUSDC).toFixed(8)),
     HoldingTimeSeconds: Number(HoldingTimeSeconds),
-    Slot: Number(Slot)
+    Slot: Number(Slot),
+    ConfigTakeProfit: Number(Number(ConfigTakeProfit).toFixed(2)),
+    ConfigStopLoss: Number(Number(ConfigStopLoss).toFixed(2))
   };
 
   // Ensure all numeric values are numbers before storing
@@ -653,40 +673,28 @@ export async function insertProfitLoss(record: ProfitLossRecord, processRunCount
     `
     INSERT INTO profit_loss (
       Time, TimeDate, EntryTime, EntryTimeDate, Token, TokenName, EntryBalance, ExitBalance, 
-      EntrySolPaid, ExitSolReceived, TotalSolFees, ProfitLossSOL, 
-      ProfitLossUSDC, ROIPercentage, EntryPriceUSDC, ExitPriceUSDC, 
-      HoldingTimeSeconds, Slot, Program, BotName, IsTakeProfit, WalletPublicKey, TxId
+      EntrySolPaid, ExitSolReceived, TotalSolFees, ProfitLossSOL, ProfitLossUSDC, ROIPercentage,
+      ProfitLossSOLWithFees, ProfitLossUSDCWithFees, ROIPercentageWithFees,
+      EntryPriceUSDC, ExitPriceUSDC, HoldingTimeSeconds, Slot, Program, BotName,
+      ConfigTakeProfit, ConfigStopLoss, IsTakeProfit, WalletPublicKey, TxId
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
   `,
     [
       formattedRecord.Time, formattedRecord.TimeDate, formattedRecord.EntryTime, formattedRecord.EntryTimeDate,
       Token, TokenName, formattedRecord.EntryBalance, formattedRecord.ExitBalance,
       formattedRecord.EntrySolPaid, formattedRecord.ExitSolReceived, 
       formattedRecord.TotalSolFees, formattedRecord.ProfitLossSOL,
-      formattedRecord.ProfitLossUSDC, formattedRecord.ROIPercentage, 
+      formattedRecord.ProfitLossUSDC, formattedRecord.ROIPercentage,
+      formattedRecord.ProfitLossSOLWithFees, formattedRecord.ProfitLossUSDCWithFees, formattedRecord.ROIPercentageWithFees,
       formattedRecord.EntryPriceUSDC, formattedRecord.ExitPriceUSDC,
       formattedRecord.HoldingTimeSeconds, formattedRecord.Slot, 
-      Program, BotName, IsTakeProfit ? 1 : 0, WalletPublicKey, TxId
+      Program, BotName, formattedRecord.ConfigTakeProfit, formattedRecord.ConfigStopLoss,
+      IsTakeProfit ? 1 : 0, WalletPublicKey, TxId
     ]
   );
 
-  // Format the log output to avoid scientific notation
-  const logRecord = {
-    ...formattedRecord,
-    EntryBalance: formattedRecord.EntryBalance.toFixed(8),
-    ExitBalance: formattedRecord.ExitBalance.toFixed(8),
-    EntrySolPaid: formattedRecord.EntrySolPaid.toFixed(8),
-    ExitSolReceived: formattedRecord.ExitSolReceived.toFixed(8),
-    TotalSolFees: formattedRecord.TotalSolFees.toFixed(8),
-    ProfitLossSOL: formattedRecord.ProfitLossSOL.toFixed(8),
-    ProfitLossUSDC: formattedRecord.ProfitLossUSDC.toFixed(8),
-    ROIPercentage: formattedRecord.ROIPercentage.toFixed(2),
-    EntryPriceUSDC: formattedRecord.EntryPriceUSDC.toFixed(8),
-    ExitPriceUSDC: formattedRecord.ExitPriceUSDC.toFixed(8)
-  };
-
-  console.log(`${config.name}|[insertProfitLoss]| Profit/loss record inserted successfully \n${JSON.stringify(logRecord, null, 2)}`, processRunCounter, formattedRecord);
+  console.log(`${config.name}|[insertProfitLoss]| Profit/loss record inserted successfully \n${JSON.stringify(record, null, 2)}`, processRunCounter, formattedRecord);
 
   await db.close();
 }
@@ -1205,7 +1213,7 @@ export async function updateSellAttempts(id: number, processRunCounter: number):
 
     // Check if we've reached max attempts
     const holding = await db.get(`
-      SELECT SellAttempts 
+      SELECT * 
       FROM holdings 
       WHERE id = ?;
     `, [id]);
@@ -1218,7 +1226,7 @@ export async function updateSellAttempts(id: number, processRunCounter: number):
         WHERE id = ?;
       `, [id]);
 
-      console.warn(`${config.name}|[updateSellAttempts]| ⚠️ Token ${holding.TokenName} marked as skipped after ${config.sell.max_sell_attempts}.\n https://solscan.io/tx/${txId}. Token will be removed from holdings and burned today at midnight.`, 
+      console.warn(`${config.name}|[updateSellAttempts]| ⚠️ Token ${holding.TokenName} marked as skipped after ${config.sell.max_sell_attempts}.\n https://solscan.io/tx/${holding.TxId}. Token will be removed from holdings and burned today at midnight.`, 
         processRunCounter, holding, "send-to-discord");
     }
 

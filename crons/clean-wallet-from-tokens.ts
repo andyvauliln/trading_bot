@@ -4,9 +4,9 @@ import { Wallet } from "@project-serum/anchor";
 import bs58 from "bs58";
 import dotenv from "dotenv";
 import { getAllHoldings, getSkippedHoldings, removeHolding } from "../bots/tracker-bot/holding.db";
-import { createBurnInstruction } from "@solana/spl-token";
-import { createSellTransaction } from "../bots/tracker-bot/transactions";
-import { HoldingRecord as DBHoldingRecord } from "../bots/tracker-bot/types";
+import { createBurnCheckedInstruction } from "@solana/spl-token";
+import { createSellTransaction, getTokenQuotes, calculatePNL } from "../bots/tracker-bot/transactions";
+import { HoldingRecord as DBHoldingRecord, HoldingRecord } from "../bots/tracker-bot/types";
 
 // Load environment variables from the .env file
 dotenv.config();
@@ -307,12 +307,17 @@ async function burnToken(
     const mintPubkey = new PublicKey(tokenMintAddress);
     const tokenAccountPubkey = new PublicKey(tokenAccount);
     
+    // Get token decimals
+    const tokenInfo = await connection.getParsedAccountInfo(mintPubkey);
+    const decimals = (tokenInfo.value?.data as any)?.parsed?.info?.decimals || 0;
+    
     // Create the burn instruction
-    const burnInstruction = createBurnInstruction(
-      tokenAccountPubkey,
-      mintPubkey,
-      wallet.publicKey,
-      BigInt(amount)
+    const burnInstruction = createBurnCheckedInstruction(
+      tokenAccountPubkey,  // token account to burn from
+      mintPubkey,         // mint address
+      wallet.publicKey,   // token authority
+      BigInt(amount),    // amount to burn
+      decimals          // token decimals
     );
     
     // Create and sign transaction
@@ -379,27 +384,40 @@ async function verifyTransactionConfirmation(connection: Connection, signature: 
  * @returns Processing result object
  */
 async function attemptTokenSell(
-  tokenMint: string, 
-  tokenBalance: string,
-  tokenName: string,
+  holding: HoldingRecord,
+  walletPublicKey: PublicKey,
   privateKey: string
 ): Promise<ProcessingResult> {
-  console.log(`💰 Attempting to sell token ${tokenMint} using createSellTransaction...`);
+  console.log(`💰 Attempting to sell token ${holding.Token} using createSellTransaction...`);
   
+  
+  const quotes = await getTokenQuotes(holding, 0, false, "");
+  if (!quotes || !quotes.data) {
+    await removeHolding(holding.Token, 0, walletPublicKey.toString());
+    return {
+      token: holding.Token,
+      tokenName: holding.TokenName || "Unknown",
+      success: false,
+      msg: "Failed to get token quotes",
+      method: "sell_failed"
+    };
+    
+  }
+
+  const calculatedPNL = await calculatePNL(holding, quotes.data, false, 0);
   try {
     const sellTxResult = await createSellTransaction(
-      "So11111111111111111111111111111111111111112", // SOL mint
-      tokenMint,
-      tokenBalance,
+      holding,
+      quotes.data,
+      calculatedPNL,
       0, // processRunCounter
-      "sell", // type
       privateKey
     );
     
     if (!sellTxResult || !sellTxResult.success) {
       return {
-        token: tokenMint,
-        tokenName: tokenName,
+        token: holding.Token,
+        tokenName: holding.TokenName || "Unknown",
         success: false,
         msg: sellTxResult?.msg || "Failed to create sell transaction",
         method: "sell_failed"
@@ -407,19 +425,19 @@ async function attemptTokenSell(
     }
     
     // Transaction was successful
-    console.log(`✅ Successfully sold token ${tokenMint}, tx: https://solscan.io/tx/${sellTxResult.tx || ""}`);
+    console.log(`✅ Successfully sold token ${holding.Token}, tx: https://solscan.io/tx/${sellTxResult.tx || ""}`);
     
     return {
-      token: tokenMint,
-      tokenName: tokenName,
+      token: holding.Token,
+      tokenName: holding.TokenName || "Unknown",
       success: true,
       tx: sellTxResult.tx || "",
       method: "sold"
     };
   } catch (error: any) {
     return {
-      token: tokenMint,
-      tokenName: tokenName,
+      token: holding.Token,
+      tokenName: holding.TokenName || "Unknown",
       success: false,
       msg: error.message,
       method: "sell_failed"
@@ -472,6 +490,12 @@ async function attemptTokenBurn(
     
     // Verify the transaction was successful
     await verifyTransactionConfirmation(connection, signature);
+    
+    // Remove the holding from the database after successful burn
+    console.log(`🗑️ Removing holding for token ${tokenInfo.mint} from database...`);
+    await removeHolding(tokenInfo.mint, 0, wallet.publicKey.toString()).catch((err) => {
+      console.error(`❌ Error removing holding from database: ${err.message}`);
+    });
     
     // Return successful result
     return {
@@ -544,9 +568,8 @@ async function processToken(
     
     // First try to sell the token
     const sellResult = await attemptTokenSell(
-      holding.Token,
-      tokenAccount.balance,
-      holding.TokenName || "Unknown",
+      holding,
+      wallet.publicKey,
       privateKey
     );
     

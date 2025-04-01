@@ -56,14 +56,18 @@ export interface CalculatedPNL {
   totalInvestmentUSDC: number;
   currentValueUSDC: number;
   tokenBalance: number;
+  solanaPrice: number;
+  isIncludeFee: boolean;
+  slippagePercent: number;
   fees: {
-      solFeeUSDC: number;
+      entryFeeUSDC: number;
+      exitFeeUSDC: number;
+      entryFeeSOL: number;
+      exitFeeSOL: number;
       routeFeesSOL: number;
       platformFeeSOL: number;
   };
- 
-  slippage: number;
- 
+  slippageBps: number;
   currentStopLossPercent: number;
   currentTakeProfitPercent: number;
 }
@@ -456,6 +460,9 @@ export interface ProfitLossRecord {
   ProfitLossSOL: number;        // Profit/Loss in SOL
   ProfitLossUSDC: number;       // Profit/Loss in USDC
   ROIPercentage: number;        // Return on Investment percentage
+  ProfitLossSOLWithFees: number; // Profit/Loss in SOL including fees
+  ProfitLossUSDCWithFees: number; // Profit/Loss in USDC including fees
+  ROIPercentageWithFees: number; // Return on Investment percentage including fees
   EntryPriceUSDC: number;       // Entry price in USDC
   ExitPriceUSDC: number;        // Exit price in USDC
   HoldingTimeSeconds: number;   // How long we held the position
@@ -465,4 +472,6 @@ export interface ProfitLossRecord {
   IsTakeProfit: boolean;       // Whether the trade was a take-profit
   WalletPublicKey: string;     // Added wallet public key field
   TxId: string;               // Transaction ID (signature)
+  ConfigTakeProfit: number;   // Take profit percentage from config
+  ConfigStopLoss: number;    // Stop loss percentage from config
 }
