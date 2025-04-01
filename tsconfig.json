@@ -9,6 +9,6 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["bots/**/*", "trades-monitoring/**/*", "crons/**/*", "common/utils", "common/bot-configuration/config-manager.ts", "common/bot-configuration/config-usage-example.ts", "common/bot-configuration/migration-helper.ts", "common/bot-configuration/config.db.ts"],
+  "include": ["bots/**/*", "trades-monitoring/**/*", "crons/**/*", "common/utils", "common/bot-configuration/config-manager.ts", "common/bot-configuration/config-usage-example.ts", "common/bot-configuration/migration-helper.ts", "common/bot-configuration/config.db.ts", "services/discord"],
   "exclude": ["node_modules"]
 }

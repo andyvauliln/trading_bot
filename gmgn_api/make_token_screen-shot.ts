@@ -1,5 +1,5 @@
 import { createBrowser } from './scraperClient';
-import { initializeDiscordClient, sendMessageOnDiscord } from '../bots/discord/discordSend';
+import { initializeDiscordClient, sendMessageOnDiscord } from '../services/discord/discordSend';
 import fs from 'fs';
 import path from 'path';
 import { Browser } from 'puppeteer';

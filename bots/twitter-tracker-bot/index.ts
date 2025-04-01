@@ -2,7 +2,7 @@ import * as dotenv from "dotenv";
 import puppeteer, { ConsoleMessage } from "puppeteer"; // Puppeteer is a JavaScript library which provides a high-level API to control Chrome or Firefox
 import { config } from "./config"; // Configuration parameters for our bot
 import { insertNewPost, selectPostExistsByPostId } from "./db";
-import { initializeDiscordClient, getDiscordChannel, sendMessageOnDiscord, shutdownDiscordClient } from "../discord/discordSend";
+import { initializeDiscordClient, getDiscordChannel, sendMessageOnDiscord, shutdownDiscordClient } from "../../services/discord/discordSend";
 import { InsertNewPostDetails } from "./types";
 
 // Load environment variables from the .env file

@@ -4,7 +4,7 @@ import sqlite3 from 'sqlite3';
 import { open } from 'sqlite';
 import { config } from './config';
 import { v4 as uuidv4 } from 'uuid';
-import { initializeDiscordClient, getDiscordChannel, sendMessageOnDiscord } from "../bots/discord/discordSend";
+import { initializeDiscordClient, getDiscordChannel, sendMessageOnDiscord } from "../services/discord/discordSend";
 
 /**
  * Simple mutex implementation to prevent concurrent database operations
@@ -465,7 +465,7 @@ ${logEntry.data ? `DATA: \n[${this.prettyJson(logEntry.data)}]` : ''}
     // Shutdown Discord client if it was initialized
     if (this.discordEnabled) {
       try {
-        await import("../bots/discord/discordSend").then(async (module) => {
+        await import("../services/discord/discordSend").then(async (module) => {
           await module.shutdownDiscordClient();
         });
       } catch (error) {
