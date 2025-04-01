@@ -2,7 +2,7 @@ import WebSocket from "ws";
 import { WebSocketRequest } from "./types";
 import { config } from "./config";
 import { fetchTransactionDetails, createSwapTransaction, getRugCheckConfirmed, fetchAndSaveSwapDetails } from "./transactions";
-import { validateEnv } from "../utils/env-validator";
+import { validateEnv } from "../../common/utils/env-validator";
 import logger from "./logger";
 
 // Regional Variables

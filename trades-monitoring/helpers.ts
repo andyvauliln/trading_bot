@@ -1,7 +1,7 @@
 import { HoldingRecord, PoolSizeData, TransactionRecord } from '../bots/tracker-bot/types';
 import { config } from './config';
 import axios from 'axios';
-import { retryAxiosRequest } from '../bots/utils/help-functions';
+import { retryAxiosRequest } from '../common/utils/help-functions';
 import { Keypair, Connection, PublicKey } from '@solana/web3.js';
 import { Wallet } from "@project-serum/anchor";
 import bs58 from 'bs58';
@@ -20,7 +20,7 @@ import {
   InsertHistoricalDataDetails,
   EnhancedTransactionRecordWithComments
 } from './types';
-import { EnhancedTransactionRecord } from '../bots/utils/trade-history';
+import { EnhancedTransactionRecord } from '../common/utils/trade-history';
 
 async function getTokenMetadata(connection: Connection, mint: string) {
   try {

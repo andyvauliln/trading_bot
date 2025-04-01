@@ -1,7 +1,7 @@
 import axios from 'axios';
 import {config} from '../trades-monitoring/config';
 import { DateTime } from 'luxon';
-import { retryAxiosRequest } from '../bots/utils/help-functions';
+import { retryAxiosRequest } from '../common/utils/help-functions';
 import dotenv from 'dotenv';
 
 dotenv.config();

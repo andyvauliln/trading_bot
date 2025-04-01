@@ -2,7 +2,7 @@ import * as express from 'express';
 import { Request, Response } from 'express';
 import * as sqlite3 from 'sqlite3';
 import { open } from 'sqlite';
-import { TAGS } from "../bots/utils/log-tags";
+import { TAGS } from "../common/utils/log-tags";
 import { config } from './config';
 import path from 'path';
 const router = express.Router();

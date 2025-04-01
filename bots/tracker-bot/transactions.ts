@@ -11,8 +11,8 @@ import {
   TransactionDetailsResponseArray,
 } from "./types";
 import { removeHolding } from "./holding.db";
-import { TAGS } from "../utils/log-tags";
-import { retryAxiosRequest } from "../utils/help-functions";
+import { TAGS } from "../../common/utils/log-tags";
+import { retryAxiosRequest } from "../../common/utils/help-functions";
 import { makeTokenScreenshotAndSendToDiscord } from "../../gmgn_api/make_token_screen-shot";
 import { HoldingRecord, CalculatedPNL, TransactionRecord, ProfitLossRecord } from "./types";
 import { insertTransaction, insertProfitLoss } from "./holding.db";

@@ -3,7 +3,7 @@ import { open } from "sqlite";
 import { config } from "./config";
 import { HoldingRecord, NewTokenRecord, ProfitLossRecord, TransactionRecord } from "./types";
 import { makeTokenScreenshotAndSendToDiscord } from "../../gmgn_api/make_token_screen-shot";
-import { EnhancedTransactionRecord, getEnhancedTransactionHistory as getEnhancedTxHistoryFromUtil } from "../utils/trade-history";
+import { EnhancedTransactionRecord, getEnhancedTransactionHistory as getEnhancedTxHistoryFromUtil } from "../../common/utils/trade-history";
 
 /**
  * Helper function to convert timestamps to ISO date strings

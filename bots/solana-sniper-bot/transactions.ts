@@ -15,8 +15,8 @@ import {
 } from "./types";
 import { insertHolding, insertNewToken, selectTokenByMint, insertTransaction } from "../tracker-bot/holding.db";
 import { HoldingRecord } from "../tracker-bot/types";
-import { TAGS } from "../utils/log-tags";
-import { retryAxiosRequest } from "../utils/help-functions";
+import { TAGS } from "../../common/utils/log-tags";
+import { retryAxiosRequest } from "../../common/utils/help-functions";
 import { makeTokenScreenshotAndSendToDiscord } from "../../gmgn_api/make_token_screen-shot";
 
 dotenv.config();

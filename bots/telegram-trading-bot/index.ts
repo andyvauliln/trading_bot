@@ -7,7 +7,7 @@ import { TelegramConfig, Message } from './types';
 import { AIMessageProcessor } from './ai-message-processing';
 import { config } from './config';
 import { validateAndSwapToken } from './validate-token';
-import { TAGS } from '../utils/log-tags';
+import { TAGS } from '../../common/utils/log-tags';
 import logger from './logger';
 
 class TelegramReader {
