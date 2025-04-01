@@ -1,0 +1,4 @@
+{
+    "ignoreFiles": [".gitignore", ".myignore"],
+    "targetFile": ".cursorrules"
+}

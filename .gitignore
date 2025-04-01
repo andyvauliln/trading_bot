@@ -39,3 +39,5 @@ holdings.db
 myConfig.ts
 
 /data
+
+.cursor-history

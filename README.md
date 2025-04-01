@@ -164,7 +164,8 @@ TODO API:
 [] telegram chanel unknown
 [] [api][insertHistoricalData] Error storing historical data: Error: SQLITE_ERROR: 7 values for 8 columns
 [] figure out chrome problems for puppiter
-[] fixing issues can't connect to remote server (luck of resources)
+[] researching issues can't connect to remote server (luck of resources)
+[] disk resizing
 
 ## Test server Api
 `http://35.204.20.112:9090/api/logs?module=tracker-bot`

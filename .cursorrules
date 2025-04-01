@@ -1,1 +1,134 @@
-all utils functions move to /bots/utils/*
+General Principles
+- Write clean, concise, and well-commented TypeScript code
+- Favor functional and declarative programming patterns over object-oriented approaches
+- Prioritize code reuse and modularization over duplication
+
+Naming and Conventions
+- Use PascalCase for class names and type definitions
+- Utilize camelCase for variables, functions, and methods
+- Employ kebab-case for file and directory names
+- Reserve UPPERCASE for environment variables and constants
+- Avoid magic numbers by defining constants with meaningful names
+- Start each function name with a verb to indicate its purpose
+
+TypeScript Usage
+- Leverage TypeScript for all code
+- Prefer types over interfaces
+- Favor functional components over class components
+- All types move to @common/types folder
+
+Error Handling and Logging
+- Implement robust error handling and logging mechanisms
+- Provide clear and user-friendly error messages to the end-users
+
+FILE STRUCTURE
+- Maintain a consistent file structure across the project
+- Use subdirectories to organize code by functionality
+- Keep files small and focused (single responsibility)
+
+COMMITS
+- if i start new chat, commit all current changes
+- After every commit update @worklog.md file with date and summary what was commited use file diff to make meaningful summary and main purpose of changes
+
+
+LOGS
+- Make logs in format: "console.log/warn/error(`[${config.name}]|[functionName]|message`, processRunCounter (0 if not present)), data);"
+<FileTree>
+├── README.md
+├── bots
+│   ├── discord
+│   │   ├── discordSend.ts
+│   │   └── test-discord.ts
+│   ├── solana-sniper-bot
+│   │   ├── config.ts
+│   │   ├── index.ts
+│   │   ├── logger.ts
+│   │   ├── transactions.ts
+│   │   └── types.ts
+│   ├── telegram-trading-bot
+│   │   ├── ai-message-processing.ts
+│   │   ├── config.ts
+│   │   ├── index.ts
+│   │   ├── logger.ts
+│   │   ├── test-ai-processor.ts
+│   │   ├── test-transaction.ts
+│   │   ├── transactions.ts
+│   │   ├── types.ts
+│   │   └── validate-token.ts
+│   ├── tracker-bot
+│   │   ├── config.ts
+│   │   ├── holding.db.ts
+│   │   ├── index.ts
+│   │   ├── index_new.ts
+│   │   ├── logger.ts
+│   │   ├── transactions.ts
+│   │   └── types.ts
+│   ├── twitter-tracker-bot
+│   │   ├── config.ts
+│   │   ├── db.ts
+│   │   ├── index.ts
+│   │   └── types.ts
+│   └── utils
+│       ├── env-validator.ts
+│       ├── help-functions.ts
+│       ├── keys.ts
+│       ├── log-tags.ts
+│       └── trade-history.ts
+├── crons
+│   ├── clean-db-logs.ts
+│   ├── clean-wallet-from-tokens.ts
+│   └── pool-historic-data.ts
+├── docs
+│   ├── PUPPETEER_TROUBLESHOOTING.md
+│   ├── chain_utils.md
+│   ├── gmgn_trump_api_requests.json
+│   ├── logger-doc.md
+│   ├── nick_trade_strategy.json
+│   └── tem_.cursorrules
+├── ecosystem.config.js
+├── eslint.config.mjs
+├── filetreecontext.config.json
+├── gmgn_api
+│   ├── get_gas_price.ts
+│   ├── get_slippage.ts
+│   ├── get_token_info.ts
+│   ├── get_token_kline_data.ts
+│   ├── get_token_sequrity_launchpad.ts
+│   ├── get_token_trades.ts
+│   ├── get_token_trades_by_type.ts
+│   ├── get_top_holders.ts
+│   ├── get_top_traders.ts
+│   ├── make_token_screen-shot.ts
+│   ├── oldClient.ts
+│   ├── scraperClient.ts
+│   ├── test-token-screenshot.ts
+│   └── test.ts
+├── nodemon.json
+├── package-lock.json
+├── package.json
+├── scripts
+│   ├── check-puppeteer-config.js
+│   ├── gmgn-browser-script.js
+│   ├── install-chrome-deps.sh
+│   ├── populate-db-script.ts
+│   ├── run-token-screenshot-test.sh
+│   ├── test-browser-simple.js
+│   ├── test-puppeteer-bundled.js
+│   ├── test-puppeteer-extra.js
+│   ├── test-puppeteer-path.js
+│   └── test-puppeteer.js
+├── setup-chrome.sh
+├── start-bots.sh
+├── trades-monitoring
+│   ├── bots-api.ts
+│   ├── config.ts
+│   ├── db.ts
+│   ├── helpers.ts
+│   ├── historical-wallet-data-api.ts
+│   ├── index.ts
+│   ├── logger.ts
+│   ├── logs-api.ts
+│   ├── test-api.ts
+│   └── types.ts
+└── tsconfig.json
+</FileTree>
