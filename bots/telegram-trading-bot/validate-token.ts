@@ -1,7 +1,7 @@
 import { config } from "./config";
 import axios from "axios";
 import { RugResponseExtended, NewTokenRecord } from "./types";
-import { insertNewToken, getHoldingRecord } from "../tracker-bot/holding.db";
+import { insertNewToken, getHoldingRecord } from "../../db/holding.db";
 import { createSwapTransaction, fetchAndSaveSwapDetails } from "./transactions";
 import { retryAxiosRequest } from "../../common/utils/help-functions";
 import { TAGS } from "../../common/utils/log-tags";

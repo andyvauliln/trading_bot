@@ -1,3 +1,8 @@
+import path from "path";
+import { Keypair } from "@solana/web3.js";
+import { Wallet } from "@project-serum/anchor";
+import bs58 from "bs58";
+import { BotConfig } from "../../db/config.db";
 /**
  * Helper function to retry axios requests with exponential backoff
  * @param requestFn Function that returns an axios request promise
@@ -56,4 +61,25 @@ export async function retryAxiosRequest<T>(
     
     throw lastError;
   }
+
+
+  export function getAppVersion() {
+    const packageJson = require(path.resolve(process.cwd(), 'package.json'));
+    return packageJson.version;
+  }
   
+
+  export function getPrivateKeysMap():Map<string, string>{
+    const walletPrivateKeys = (process.env.PRIV_KEY_WALLETS || "").split(",").map(key => key.trim()).filter(key => key);
+    const walletKeyMap = new Map<string, string>();
+    walletPrivateKeys.forEach(privateKey => {
+        const wallet = new Wallet(Keypair.fromSecretKey(bs58.decode(privateKey)));
+        const publicKey = wallet.publicKey.toString();
+        walletKeyMap.set(publicKey, privateKey);
+      });
+    return walletKeyMap;
+}
+
+export function getBotConfigData<T>(botConfig: BotConfig): T {
+  return botConfig.bot_data as T;
+}

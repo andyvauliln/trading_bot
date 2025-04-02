@@ -1,7 +1,7 @@
 import sqlite3 from "sqlite3";
 import { open } from "sqlite";
-import { config } from "./config";
-import { InsertHistoricalDataDetails } from "./types";
+import { config } from "../api/config";
+import { InsertHistoricalDataDetails } from "../api/types";
 import { DateTime } from "luxon";
 
 // Posts

@@ -11,7 +11,7 @@ import {
   SwapEventDetailsResponse,
   NewTokenRecord,
 } from "./types";
-import { insertHolding, selectTokenByMint, insertTransaction } from "../tracker-bot/holding.db";
+import { insertHolding, selectTokenByMint, insertTransaction } from "../../db/holding.db";
 import { HoldingRecord } from "../tracker-bot/types";
 import { retryAxiosRequest } from "../../common/utils/help-functions";
 import { TAGS } from "../../common/utils/log-tags";

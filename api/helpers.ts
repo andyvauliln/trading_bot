@@ -7,7 +7,7 @@ import { Wallet } from "@project-serum/anchor";
 import bs58 from 'bs58';
 import { Metaplex } from "@metaplex-foundation/js";
 import { DateTime } from 'luxon';
-import { selectHistoricalDataByAccount, insertHistoricalData } from './db';
+import { selectHistoricalDataByAccount, insertHistoricalData } from '../db/db';
 import {
   WalletToken,
   DexscreenerResult,

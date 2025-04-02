@@ -68,8 +68,12 @@ export interface CalculatedPNL {
       platformFeeSOL: number;
   };
   slippageBps: number;
-  currentStopLossPercent: number;
-  currentTakeProfitPercent: number;
+  shouldStopLoss: boolean;
+  shouldTakeProfit: boolean;
+  botStrategy: TradeStrategy;
+  currentStopLossStrategy: StrategyAction;
+  currentTakeProfitStrategy: StrategyAction;
+  amountToSell: number;
 }
 
 
@@ -474,4 +478,27 @@ export interface ProfitLossRecord {
   TxId: string;               // Transaction ID (signature)
   ConfigTakeProfit: number;   // Take profit percentage from config
   ConfigStopLoss: number;    // Stop loss percentage from config
+}
+// Default trading strategy
+export type StrategyAction = {
+  type: "stop_loss" | "take_profit";
+  threshold: number;
+  threshold_unit: "percent"|"price";
+  sellAmount: number;
+  sellAmount_unit: "percent"|"amount";
+  order: number;
+  executed: boolean;
+};
+
+export type TradeStrategy = {
+  stop_loss: StrategyAction[];
+  take_profit: StrategyAction[];
+};
+export interface TrackerBotConfig {
+  prio_fee_max_lamports: number;
+  prio_level: "low"|"medium"|"high"|"veryHigh";
+  slippageBps: string;
+  auto_sell: boolean;
+  strategy: TradeStrategy;
+  include_fees_in_pnl: boolean;
 }

@@ -2,31 +2,36 @@ import axios from "axios";
 import { Connection, Keypair, VersionedTransaction, TransactionResponse, PublicKey } from "@solana/web3.js";
 import { Wallet } from "@project-serum/anchor";
 import bs58 from "bs58";
-import dotenv from "dotenv";
-import { config } from "./config";
+import dotenv, { config } from "dotenv";
+import {app_config_common} from "../../common/config-app";
 import {
   QuoteResponse,
   SerializedQuoteResponse,
+  StrategyAction,
   SwapEventDetailsResponse,
+  TrackerBotConfig,
+  TradeStrategy,
   TransactionDetailsResponseArray,
+
 } from "./types";
-import { removeHolding } from "./holding.db";
+import { removeHolding } from "../../db/holding.db";
 import { TAGS } from "../../common/utils/log-tags";
 import { retryAxiosRequest } from "../../common/utils/help-functions";
 import { makeTokenScreenshotAndSendToDiscord } from "../../gmgn_api/make_token_screen-shot";
 import { HoldingRecord, CalculatedPNL, TransactionRecord, ProfitLossRecord } from "./types";
-import { insertTransaction, insertProfitLoss } from "./holding.db";
+import { insertTransaction, insertProfitLoss } from "../../db/holding.db";
 import { DateTime } from "luxon";
-import { parseErrorForTransaction } from '@mercurial-finance/optimist';
+
+import { BotConfig } from "../../db/config.db";
 // Load environment variables from the .env file
 dotenv.config();
 
-export async function createSellTransaction(holding: HoldingRecord, tokenQuotes: QuoteResponse, calculatedPNL: CalculatedPNL, processRunCounter: number, privateKey: string, alreadyTryExcludedDexes: boolean = false): Promise<{ success: boolean; msg: string | null; tx: string | null; walletPublicKey: string }> {
+export async function createSellTransaction(holding: HoldingRecord, tokenQuotes: QuoteResponse, calculatedPNL: CalculatedPNL, processRunCounter: number, privateKey: string, botConfig: BotConfig, alreadyTryExcludedDexes: boolean = false): Promise<{ success: boolean; msg: string | null; tx: string | null; walletPublicKey: string }> {
   const swapUrl = process.env.JUP_HTTPS_SWAP_URI || "";
   const rpcUrl = process.env.HELIUS_HTTPS_URI || "";
   
   if (!privateKey) {
-    console.error(`${config.name}|[createSellTransaction]| ⛔ No private key provided`, processRunCounter);
+    console.error(`${botConfig.bot_name}|[createSellTransaction]| ⛔ No private key provided`, processRunCounter);
     return { success: false, msg: "No private key provided", tx: null, walletPublicKey: "" };
   }
 
@@ -35,7 +40,7 @@ export async function createSellTransaction(holding: HoldingRecord, tokenQuotes:
   try {
     const myWallet = new Wallet(Keypair.fromSecretKey(bs58.decode(privateKey)));
     const walletPublicKey = myWallet.publicKey.toString();
-    console.log(`${config.name}|[createSellTransaction]| Creating Sell Transaction for Wallet ${walletPublicKey} with token ${holding.TokenName} and amount ${tokenQuotes.inAmount}`, processRunCounter);
+    console.log(`${botConfig.bot_name}|[createSellTransaction]| Creating Sell Transaction for Wallet ${walletPublicKey} with token ${holding.TokenName} and amount ${tokenQuotes.inAmount}`, processRunCounter);
 
     // Check token balance using RPC connection
     const tokenAccounts = await connection.getParsedTokenAccountsByOwner(myWallet.publicKey, {
@@ -50,15 +55,12 @@ export async function createSellTransaction(holding: HoldingRecord, tokenQuotes:
 
     // Skip this wallet if it doesn't have the token balance
     if (totalBalance <= 0n) {
-      console.log(`${config.name}|[createSellTransaction]| Wallet ${walletPublicKey} has no balance for token ${tokenQuotes.inputMint}. Balance: ${totalBalance}`, processRunCounter);
+      console.log(`${botConfig.bot_name}|[createSellTransaction]| Wallet ${walletPublicKey} has no balance for token ${tokenQuotes.inputMint}. Balance: ${totalBalance}`, processRunCounter);
       return { success: false, msg: "No token balance", tx: null, walletPublicKey };
     }
 
     // Get token decimals and convert amounts properly
     const tokenDecimals = tokenAccounts.value[0]?.account.data.parsed.info.tokenAmount.decimals || 9;
-    
-    // Convert holding balance to raw amount with proper decimals
-    const holdingBalanceRaw = BigInt(Math.floor(Number(holding.Balance) * Math.pow(10, tokenDecimals)));
     
     // Convert totalBalance to human readable format for comparison
     const totalBalanceHuman = Number(totalBalance) / Math.pow(10, tokenDecimals);
@@ -66,20 +68,20 @@ export async function createSellTransaction(holding: HoldingRecord, tokenQuotes:
 
     // Verify amount with tokenBalance using human readable format
     if (totalBalanceHuman < holdingBalanceHuman) {
-      console.log(`${config.name}|[createSellTransaction]| Wallet ${walletPublicKey} has insufficient balance (${totalBalanceHuman} tokens) for requested amount (${holdingBalanceHuman} tokens)`, processRunCounter);
+      console.log(`${botConfig.bot_name}|[createSellTransaction]| Wallet ${walletPublicKey} has insufficient balance (${totalBalanceHuman} tokens) for requested amount (${holdingBalanceHuman} tokens)`, processRunCounter);
       return { success: false, msg: "Insufficient token balance", tx: null, walletPublicKey };
     }
 
     // Check if wallet has enough SOL to cover fees
     const solBalance = await connection.getBalance(myWallet.publicKey);
-    const minRequiredBalance = config.sell.prio_fee_max_lamports + 5000 + 1000000; // prio fee + base fee + safety buffer
+    const minRequiredBalance = botConfig.bot_data.prio_fee_max_lamports + 5000 + 1000000; // prio fee + base fee + safety buffer
     
     if (solBalance < minRequiredBalance) {
-      console.log(`${config.name}|[createSellTransaction]| Wallet ${walletPublicKey} has insufficient SOL for fees`, processRunCounter);
+      console.log(`${botConfig.bot_name}|[createSellTransaction]| Wallet ${walletPublicKey} has insufficient SOL for fees`, processRunCounter);
       return { success: false, msg: "Insufficient SOL for fees", tx: null, walletPublicKey };
     }
     // Serialize the quote into a swap transaction that can be submitted on chain
-    console.log(`${config.name}|[createSellTransaction]| Serializing quote into a swap transaction that can be submitted on chain`, processRunCounter);
+    console.log(`${botConfig.bot_name}|[createSellTransaction]| Serializing quote into a swap transaction that can be submitted on chain`, processRunCounter);
     const swapTransaction = await retryAxiosRequest(
       () => axios.post<SerializedQuoteResponse>(
         swapUrl,
@@ -92,8 +94,8 @@ export async function createSellTransaction(holding: HoldingRecord, tokenQuotes:
           },
           prioritizationFeeLamports: {
             priorityLevelWithMaxLamports: {
-              maxLamports: config.sell.prio_fee_max_lamports,
-              priorityLevel: config.sell.prio_level,
+              maxLamports: botConfig.bot_data.prio_fee_max_lamports,
+              priorityLevel: botConfig.bot_data.prio_level,
             },
           },
         }),
@@ -101,7 +103,7 @@ export async function createSellTransaction(holding: HoldingRecord, tokenQuotes:
           headers: {
             "Content-Type": "application/json",
           },
-          timeout: config.tx.get_timeout,
+          timeout: botConfig.bot_data.tx.get_timeout,
         }
       ),
       3,
@@ -227,228 +229,145 @@ export async function createSellTransaction(holding: HoldingRecord, tokenQuotes:
   }
 }
 
-export async function getProgramIdToLabelHash(processRunCounter: number): Promise<Record<string, string>> {
-  let retryCount = 0;
-  const maxRetries = 5;
-  const retryDelay = 1000;
 
-  while (retryCount < maxRetries) {
-    try {
-      console.log(`[getProgramIdToLabelHash]| Attempt ${retryCount + 1}/${maxRetries}`, processRunCounter);
-      const response = await fetch('https://quote-api.jup.ag/v6/program-id-to-label');
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const data = await response.json();
-      if (data) {
-        return data;
-      }
-      throw new Error("Invalid response data");
-    } catch (error) {
-      retryCount++;
-      console.error(`[getProgramIdToLabelHash]| Error fetching program ID labels (Attempt ${retryCount}/${maxRetries}):`, error);
-      
-      if (retryCount < maxRetries) {
-        const delay = Math.min(retryDelay * Math.pow(1.5, retryCount), 15000);
-        console.log(`[getProgramIdToLabelHash]| Waiting ${delay / 1000} seconds before next attempt...`, processRunCounter);
-        await new Promise(resolve => setTimeout(resolve, delay));
-      } else {
-        throw new Error("Failed to fetch program ID labels after all retries");
-      }
-    }
-  }
-  throw new Error("Failed to fetch program ID labels after all retries");
+
+
+interface SellDecision {
+  shouldSell: boolean;
+  amountToSell: number;
 }
 
-export async function getExcludedDexes(connection: Connection, txid: string, processRunCounter: number): Promise<Set<string>> {
-  let retryCount = 0;
-  const maxRetries = 5;
-  const retryDelay = 1000;
-
-  while (retryCount < maxRetries) {
-    try {
-      console.log(`[getExcludedDexes]| Attempt ${retryCount + 1}/${maxRetries}`, processRunCounter);
-      
-      const transaction = await connection.getTransaction(txid, {
-        maxSupportedTransactionVersion: 0,
-        commitment: 'confirmed'
-      });
-
-      if (!transaction) {
-        throw new Error("Transaction not found");
-      }
-
-      const programIdToLabelHash = await getProgramIdToLabelHash(processRunCounter);
-      
-      // Add the missing 'err' property to match ParseErrorParam type
-      const transactionWithErr = {
-        ...transaction,
-        err: transaction.meta?.err || null
-      } as TransactionResponse & { err: any };
-
-      const { programIds } = parseErrorForTransaction(transactionWithErr);
-
-      let excludeDexes = new Set<string>();
-      if (programIds) {
-        for (let programId of programIds) {
-          let foundLabel = programIdToLabelHash[programId];
-          if(foundLabel) {
-            excludeDexes.add(foundLabel);
-          }
-        }
-      }
-
-      return excludeDexes;
-    } catch (error) {
-      retryCount++;
-      console.error(`[getExcludedDexes]| Error getting excluded DEXes (Attempt ${retryCount}/${maxRetries}):`, error);
-      
-      if (retryCount < maxRetries) {
-        const delay = Math.min(retryDelay * Math.pow(1.5, retryCount), 15000);
-        console.log(`[getExcludedDexes]| Waiting ${delay / 1000} seconds before next attempt...`, processRunCounter);
-        await new Promise(resolve => setTimeout(resolve, delay));
-      } else {
-        console.error("[getExcludedDexes]| Failed to get excluded DEXes after all retries");
-        return new Set<string>(); // Return empty set after all retries fail
-      }
-    }
-  }
+function calculateSellDecision(
+  strategy: StrategyAction | null,
+  currentPrice: number,
+  pnlPercent: number,
+  balance: number,
+  isProfitStrategy: boolean
+): SellDecision {
+  const defaultResult = { shouldSell: false, amountToSell: 0 };
   
-  return new Set<string>(); // Return empty set if we somehow exit the loop
-} 
+  if (!strategy) return defaultResult;
 
-export async function calculatePNL(holding: HoldingRecord, tokenQuotes: QuoteResponse, isIncludeFee:boolean, solanaPrice: number): Promise<CalculatedPNL> {
+  const isCorrectPnlDirection = isProfitStrategy ? pnlPercent > 0 : pnlPercent < 0;
+  if (!isCorrectPnlDirection) return defaultResult;
+
+  let shouldSell = false;
+
+  if (strategy.threshold_unit === "percent") {
+    shouldSell = Math.abs(pnlPercent) > strategy.threshold;
+  } else if (strategy.threshold_unit === "price") {
+    shouldSell = isProfitStrategy 
+      ? currentPrice > strategy.threshold
+      : currentPrice < strategy.threshold;
+  }
+
+  if (!shouldSell) return defaultResult;
+
+  const amountToSell = strategy.sellAmount_unit === "percent"
+    ? (balance * strategy.sellAmount) / 100
+    : Math.min(strategy.sellAmount, balance);
+
+  return { shouldSell, amountToSell };
+}
+
+export async function calculatePNL(holding: HoldingRecord, tokenQuotes: QuoteResponse, trackerBotConfig: TrackerBotConfig, solanaPrice: number): Promise<CalculatedPNL> {
   const { 
-      Balance, 
-      SolPaidUSDC, 
-      SolFeePaidUSDC, 
-      SolFeePaid,
-      PerTokenPaidUSDC,
-      Token
-    } = holding;
+    Balance, 
+    SolPaidUSDC, 
+    SolFeePaidUSDC, 
+    SolFeePaid,
+    PerTokenPaidUSDC,
+    Token
+  } = holding;
 
   const currentPrice = parseFloat(tokenQuotes.swapUsdValue) / parseFloat(tokenQuotes.outAmount);
   let totalCostUSDC = SolPaidUSDC;
-  const currentSOl = isIncludeFee ? parseFloat(tokenQuotes.otherAmountThreshold) * currentPrice : parseFloat(tokenQuotes.outAmount) * currentPrice;
+  const currentSOl = trackerBotConfig.include_fees_in_pnl ? parseFloat(tokenQuotes.otherAmountThreshold) * currentPrice : parseFloat(tokenQuotes.outAmount) * currentPrice;
   
   const currentValueUSDCBasedonSolanaPrice = currentSOl * (solanaPrice || 0);
 
-
-// Include fees if flag is set
-if (isIncludeFee) {
-  totalCostUSDC += SolFeePaidUSDC;
+  if (trackerBotConfig.include_fees_in_pnl) {
+    totalCostUSDC += SolFeePaidUSDC;
+  }
   
-}
-const pnlUSD = currentValueUSDCBasedonSolanaPrice - totalCostUSDC;
-const pnlPercent = totalCostUSDC !== 0 ? (pnlUSD / totalCostUSDC) * 100 : 0;
-const priceDiffUSD =  currentPrice - PerTokenPaidUSDC;
+  const pnlUSD = currentValueUSDCBasedonSolanaPrice - totalCostUSDC;
+  const pnlPercent = totalCostUSDC !== 0 ? (pnlUSD / totalCostUSDC) * 100 : 0;
+  const priceDiffUSD = currentPrice - PerTokenPaidUSDC;
+  const priceDiffPercent = PerTokenPaidUSDC !== 0 ? ((currentPrice - PerTokenPaidUSDC) / PerTokenPaidUSDC) * 100 : 0;
 
-
-const priceDiffPercent = PerTokenPaidUSDC !== 0 ? ((currentPrice - PerTokenPaidUSDC) / PerTokenPaidUSDC) * 100 : 0;
-let routeFees = 0;
-if (isIncludeFee && tokenQuotes.routePlan) {
-  tokenQuotes.routePlan.forEach(route => {
-    if (route.swapInfo && route.swapInfo.feeAmount) {
-      routeFees += parseFloat(route.swapInfo.feeAmount);
-    }
-  });
-}
-return {
-  tokenName: holding.TokenName,
-  tokenAddress: Token,
-  tokenBalance: Balance,
-  initialPriceUSDC: PerTokenPaidUSDC,
-  currentPriceUSDC: currentPrice,
-  priceDiffUSD,
-  priceDiffPercentUSDC: priceDiffPercent,
-  isIncludeFee: isIncludeFee,
-  totalInvestmentUSDC: totalCostUSDC,
-  currentValueUSDC: currentValueUSDCBasedonSolanaPrice,
-  pnlUSD,
-  pnlPercent,
-  solanaPrice: solanaPrice,
-  priceImpact: tokenQuotes.priceImpactPct ? parseFloat(tokenQuotes.priceImpactPct.toString()) : 0,
-  slippageBps: tokenQuotes.slippageBps,
-  slippagePercent: Number(tokenQuotes.slippageBps) ? Number(tokenQuotes.slippageBps)/100 : 0, // Convert bps to percentage
-  fees: {
-    entryFeeUSDC: SolFeePaidUSDC,
-    entryFeeSOL: SolFeePaid,
-    exitFeeUSDC: (parseFloat(tokenQuotes.otherAmountThreshold) - parseFloat(tokenQuotes.outAmount)) * (solanaPrice || 0),
-    exitFeeSOL: (parseFloat(tokenQuotes.otherAmountThreshold) - parseFloat(tokenQuotes.outAmount)),
-    routeFeesSOL: routeFees,
-    platformFeeSOL: tokenQuotes.platformFee ? parseFloat(tokenQuotes.platformFee.amount || "0") : 0,
-  },
-  currentStopLossPercent: config.sell.stop_loss_percent,
-  currentTakeProfitPercent: config.sell.take_profit_percent
-};
-}
-
-export async function getTokenQuotes(holding: HoldingRecord, processRunCounter: number, excludeRoutes: boolean = false, txid?: string) {
-  const quoteUrl = process.env.JUP_HTTPS_QUOTE_URI || "";
-  const rpcUrl = process.env.HELIUS_HTTPS_URI || "";
-  let retryCount = 0;
-  const maxRetries = 10;
-  const retryDelay = 6000;
-  let excludeDexes = new Set<string>();
-
-  if (excludeRoutes && txid) {
-    try {
-      const connection = new Connection(rpcUrl);
-      excludeDexes = await getExcludedDexes(connection, txid, processRunCounter);
-      console.log(`${config.name}|[getTokenQuotes]| Excluding DEXes: ${Array.from(excludeDexes).join(',')}`, processRunCounter);
-    } catch (error) {
-      console.error(`${config.name}|[getTokenQuotes]| Error getting excluded DEXes: ${error}`, processRunCounter);
-    }
+  let routeFees = 0;
+  if (trackerBotConfig.include_fees_in_pnl && tokenQuotes.routePlan) {
+    tokenQuotes.routePlan.forEach(route => {
+      if (route.swapInfo && route.swapInfo.feeAmount) {
+        routeFees += parseFloat(route.swapInfo.feeAmount);
+      }
+    });
   }
-  let params: any = {};
 
-  while (retryCount < maxRetries) {
-    try {
-      params = {
-        inputMint: holding.Token,
-        outputMint: config.liquidity_pool.wsol_pc_mint,
-        amount: Math.round(Number(holding.Balance) * 1e9).toString(),
-        slippageBps: config.sell.slippageBps,
-        restrictItermediateTokens: true
-      };
-      console.log(`${config.name}|[getTokenQuotes]| amount ${holding.Balance} (${params.amount}) Params: ${JSON.stringify(params, null, 2)}`, processRunCounter);
+  const {currentStopLossStrategy, currentTakeProfitStrategy} = getCurrentStopLossAndTakeProfit(trackerBotConfig.strategy);
+  
+  const stopLossDecision = calculateSellDecision(currentStopLossStrategy, currentPrice, pnlPercent, Balance, false);
+  const takeProfitDecision = calculateSellDecision(currentTakeProfitStrategy, currentPrice, pnlPercent, Balance, true);
 
-      if (excludeDexes.size > 0) {
-        params.excludeDexes = Array.from(excludeDexes).join(',');
-      }
-
-      const quoteResponse = await axios.get<QuoteResponse>(quoteUrl, {
-        params,
-        timeout: config.tx.get_timeout,
-      });
-
-      if (quoteResponse.data) {
-        console.log(`${config.name}|[getTokenQuotes]| Quote response: ${JSON.stringify(quoteResponse.data, null, 2)}`, processRunCounter);
-        return { success: true, msg: null, data: quoteResponse.data };
-      }
-      return { success: false, msg: "No data in response", data: null };
-    } catch (error: any) {
-      // If it's a 400 error with COULD_NOT_FIND_ANY_ROUTE, return immediately
-      if (error.response?.status === 400 && error.response?.data?.errorCode === "COULD_NOT_FIND_ANY_ROUTE") {
-        return { success: false, msg: error.response.data.error, data: null };
-      }
-      
-      console.log(`${config.name}|[getTokenQuotes]| Error fetching quote, attempt ${retryCount + 1}/${maxRetries} Error: ${JSON.stringify(error, null, 2)}`, processRunCounter);
-    }
-
-    retryCount++;
-    if (retryCount < maxRetries) {
-      await new Promise(resolve => setTimeout(resolve, retryDelay));
-    }
-  }
-  const fullUrl = quoteUrl + "?" + new URLSearchParams(params).toString();
-  console.log(`${config.name}|[getTokenQuotes]| No valid quote received after retries url: ${fullUrl}`, processRunCounter);
-  return { success: false, msg: "No valid quote received after retries", data: null };
+  return {
+    tokenName: holding.TokenName,
+    tokenAddress: Token,
+    tokenBalance: Balance,
+    initialPriceUSDC: PerTokenPaidUSDC,
+    currentPriceUSDC: currentPrice,
+    priceDiffUSD,
+    priceDiffPercentUSDC: priceDiffPercent,
+    isIncludeFee: trackerBotConfig.include_fees_in_pnl,
+    totalInvestmentUSDC: totalCostUSDC,
+    currentValueUSDC: currentValueUSDCBasedonSolanaPrice,
+    pnlUSD,
+    pnlPercent,
+    solanaPrice: solanaPrice,
+    priceImpact: tokenQuotes.priceImpactPct ? parseFloat(tokenQuotes.priceImpactPct.toString()) : 0,
+    slippageBps: tokenQuotes.slippageBps,
+    slippagePercent: Number(tokenQuotes.slippageBps) ? Number(tokenQuotes.slippageBps)/100 : 0,
+    fees: {
+      entryFeeUSDC: SolFeePaidUSDC,
+      entryFeeSOL: SolFeePaid,
+      exitFeeUSDC: (parseFloat(tokenQuotes.otherAmountThreshold) - parseFloat(tokenQuotes.outAmount)) * (solanaPrice || 0),
+      exitFeeSOL: (parseFloat(tokenQuotes.otherAmountThreshold) - parseFloat(tokenQuotes.outAmount)),
+      routeFeesSOL: routeFees,
+      platformFeeSOL: tokenQuotes.platformFee ? parseFloat(tokenQuotes.platformFee.amount || "0") : 0,
+    },
+    currentStopLossStrategy,
+    currentTakeProfitStrategy,
+    botStrategy: trackerBotConfig.strategy,
+    shouldStopLoss: stopLossDecision.shouldSell,
+    shouldTakeProfit: takeProfitDecision.shouldSell,
+    amountToSell: stopLossDecision.shouldSell ? stopLossDecision.amountToSell : takeProfitDecision.amountToSell,
+  };
 }
+
+function getCurrentStopLossAndTakeProfit(strategy: TradeStrategy): { currentStopLossStrategy: StrategyAction, currentTakeProfitStrategy: StrategyAction } {
+
+  // Get non-executed stop loss strategies sorted by order
+  const stopLossStrategies = strategy.stop_loss
+    .filter(action => !action.executed)
+    .sort((a, b) => a.order - b.order);
+
+  // Get non-executed take profit strategies sorted by order
+  const takeProfitStrategies = strategy.take_profit
+    .filter(action => action.type === 'take_profit' && !action.executed)
+    .sort((a, b) => a.order - b.order);
+
+  return {
+    currentStopLossStrategy: stopLossStrategies[0] || null,
+    currentTakeProfitStrategy: takeProfitStrategies[0] || null
+  };
+}
+
+
 
 export async function fetchAndSaveSwapDetails(tx: string, holding: HoldingRecord, calculatedPNL: CalculatedPNL, walletPublicKey: string, processRunCounter: number): Promise<boolean> {
   try {
-
+    await removeHolding(holding.Token, processRunCounter, walletPublicKey).catch((err) => {
+      console.error(`${config.name}|[fetchAndSaveSwapDetails]| ⛔ Database Error: ${err}`, processRunCounter);
+    });
     // Safely access the event information
     const swapTransactionData = await getTransactionDetails(tx, processRunCounter);
     if (!swapTransactionData) {
@@ -461,6 +380,7 @@ export async function fetchAndSaveSwapDetails(tx: string, holding: HoldingRecord
     }
     await makeInsertTransaction(holding, calculatedPNL, swapTransactionData, walletPublicKey, tx, processRunCounter);
     await makeInsertProfitLoss(holding, calculatedPNL, swapTransactionData, tx, processRunCounter, walletPublicKey);
+   
     return true;
   } catch (error: any) {
     console.error(`${config.name}|[fetchAndSaveSwapDetails]| ⛔ Fetch and Save Swap Details Error: ${error.message}`, processRunCounter);
@@ -553,7 +473,7 @@ async function getTransactionDetails(tx: string, processRunCounter: number): Pro
 }
 
 async function sendSellNotification(holding: HoldingRecord, calculatedPNL: CalculatedPNL, profitLossRecord: ProfitLossRecord, processRunCounter: number) {
-  const icon = profitLossRecord.IsTakeProfit ? "🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢" : "🔴🔴🔴🔴🔴🔴🔴🔴🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢";
+  const icon = profitLossRecord.IsTakeProfit ? "🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢" : "🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴";
   const actionText = profitLossRecord.IsTakeProfit ? "Take profit" : "Stop loss";
   const hrTradeTime = DateTime.fromMillis(Date.now()).toFormat("HH:mm:ss");
   const txLink = `https://solscan.io/tx/${profitLossRecord.TxId}`;
@@ -584,6 +504,8 @@ async function makeInsertTransaction(holding: HoldingRecord, calculatedPNL: Calc
       console.log(`${config.name}|[main]| ⛔ Insert Transaction Database Error: ${err}`, processRunCounter);
   });
 }
+
+let lastSolanaPrice: number | null = null;
 
 export async function getSolanaPrice(processRunCounter: number): Promise<number | null> {
   const priceUrl = process.env.JUP_HTTPS_PRICE_URI || "";
@@ -625,7 +547,7 @@ export async function getSolanaPrice(processRunCounter: number): Promise<number 
       } else {
         // All retries failed
         console.error(`${config.name}|[getSolanaPrice]| ⛔ All price API request attempts failed`, processRunCounter);
-        return null;
+        return lastSolanaPrice;
       }
     }
   }
@@ -634,9 +556,10 @@ export async function getSolanaPrice(processRunCounter: number): Promise<number 
   if (!priceResponse || !priceResponse.data || !priceResponse.data.data || 
       !priceResponse.data.data[config.liquidity_pool.wsol_pc_mint]?.price) {
     console.log(`${config.name}|[getSolanaPrice]| ⛔ Could not fetch latest Sol Price: No valid data received from API after ${maxRetries} attempts.`, processRunCounter);
-    return null;
+    return lastSolanaPrice;
   }
-  return priceResponse.data.data[config.liquidity_pool.wsol_pc_mint]?.price;
+  lastSolanaPrice = priceResponse.data.data[config.liquidity_pool.wsol_pc_mint]?.price;
+  return lastSolanaPrice;
 }
 
 async function makeInsertProfitLoss(holding: HoldingRecord, calculatedPNL: CalculatedPNL, swapTransactionData: SwapEventDetailsResponse, txTransaction: string, processRunCounter: number, publicKey: string) {

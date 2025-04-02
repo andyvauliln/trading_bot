@@ -169,3 +169,5 @@ TODO API:
 
 ## Test server Api
 `http://35.204.20.112:9090/api/logs?module=tracker-bot`
+
+Math.round(Number(balance) * 1e9).toString(), 

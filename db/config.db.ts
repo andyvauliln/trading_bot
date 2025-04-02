@@ -5,6 +5,20 @@ import path from "path";
 // Database path
 const CONFIG_DB_PATH = path.resolve(process.cwd(), 'data', 'config.db');
 
+export interface BotConfig {
+  id?: number;
+  bot_name: string;
+  bot_type: string;
+  bot_version: string;
+  bot_description: string;
+  bot_author_wallet_address: string;
+  send_notifications_to_discord: boolean;
+  is_enabled: boolean;
+  bot_data: object;
+  updated_at?: number;
+  created_at?: number;
+  bot_wallet_address: string;
+}
 // Create the configs table if it doesn't exist
 async function createConfigsTable(db: any): Promise<boolean> {
   try {
@@ -26,7 +40,7 @@ async function createConfigsTable(db: any): Promise<boolean> {
     `);
     return true;
   } catch (error: any) {
-    console.error(`Error creating configs table: ${error.message}`);
+    console.error(`[configs]|[createConfigsTable]|Error creating configs table: ${error.message}`);
     return false;
   }
 }
@@ -52,11 +66,11 @@ export async function saveBotConfig(botName: string, configData: BotConfig): Pro
     const tableExists = await createConfigsTable(db);
     if (!tableExists) {
       await db.close();
-      throw new Error("Could not create configs table");
+      return false;
     }
     
     // Serialize the configuration data to JSON
-    const configJson = JSON.stringify(configData);
+    const botData = JSON.stringify(configData.bot_data);
     const now = Date.now();
     
     // Check if configuration already exists
@@ -65,21 +79,21 @@ export async function saveBotConfig(botName: string, configData: BotConfig): Pro
     if (existingConfig) {
       // Update existing configuration
       await db.run(
-        'UPDATE configs SET config_data = ?, updated_at = ? WHERE bot_name = ?',
-        [configJson, now, botName]
+        'UPDATE configs SET bot_data = ?, bot_type = ?, bot_version = ?, bot_description = ?, bot_author_wallet_address = ?, send_notifications_to_discord = ?, is_enabled = ?, trading_wallet_address = ?, updated_at = ? WHERE bot_name = ?',
+        [botData, configData.bot_type, configData.bot_version, configData.bot_description, configData.bot_author_wallet_address, configData.send_notifications_to_discord, configData.is_enabled, configData.trading_wallet_address, now, botName]
       );
     } else {
       // Insert new configuration
       await db.run(
-        'INSERT INTO configs (bot_name, config_data, updated_at) VALUES (?, ?, ?)',
-        [botName, configJson, now]
+        'INSERT INTO configs (bot_name, bot_data, bot_type, bot_version, bot_description, bot_author_wallet_address, send_notifications_to_discord, is_enabled, trading_wallet_address, updated_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [botName, botData, configData.bot_type, configData.bot_version, configData.bot_description, configData.bot_author_wallet_address, configData.send_notifications_to_discord, configData.is_enabled, configData.trading_wallet_address, now, now]
       );
     }
     
     await db.close();
     return true;
   } catch (error: any) {
-    console.error(`Error saving bot config: ${error.message}`);
+    console.error(`[${botName}]|[saveBotConfig]|Error saving bot config: ${error.message}`);
     return false;
   }
 }
@@ -88,7 +102,7 @@ export async function saveBotConfig(botName: string, configData: BotConfig): Pro
  * Get a bot configuration from the database
  * @param botName The name of the bot
  */
-export async function getBotConfig<T extends BotConfig = BotConfig>(botName: string): Promise<T | null> {
+export async function getBotConfig(botName: string): Promise<BotConfig | null> {
   try {
     const db = await getDatabase();
     
@@ -96,11 +110,11 @@ export async function getBotConfig<T extends BotConfig = BotConfig>(botName: str
     const tableExists = await createConfigsTable(db);
     if (!tableExists) {
       await db.close();
-      throw new Error("Could not create configs table");
+      return null;
     }
     
     // Get the configuration data
-    const result = await db.get('SELECT config_data FROM configs WHERE bot_name = ?', [botName]);
+    const result = await db.get('SELECT * FROM configs WHERE bot_name = ?', [botName]);
     await db.close();
     
     if (!result) {
@@ -108,9 +122,9 @@ export async function getBotConfig<T extends BotConfig = BotConfig>(botName: str
     }
     
     // Parse the JSON data
-    return JSON.parse(result.config_data) as T;
+    return result as BotConfig;
   } catch (error: any) {
-    console.error(`Error getting bot config: ${error.message}`);
+    console.error(`[${botName}]|[getBotConfig]|Error getting bot config: ${error.message}`);
     return null;
   }
 }
@@ -118,7 +132,7 @@ export async function getBotConfig<T extends BotConfig = BotConfig>(botName: str
 /**
  * List all bot configurations
  */
-export async function listBotConfigs(): Promise<{botName: string, updatedAt: Date}[]> {
+export async function getBotConfigs(bot_type: string, excludeNotEnabled: boolean = false): Promise<BotConfig[]> {
   try {
     const db = await getDatabase();
     
@@ -126,19 +140,26 @@ export async function listBotConfigs(): Promise<{botName: string, updatedAt: Dat
     const tableExists = await createConfigsTable(db);
     if (!tableExists) {
       await db.close();
-      throw new Error("Could not create configs table");
+      return [];
     }
     
     // Get all bot names and their update times
-    const results = await db.all('SELECT bot_name, updated_at FROM configs ORDER BY bot_name');
+    let query = 'SELECT * FROM configs ORDER BY bot_name';
+    if (excludeNotEnabled) {
+      query += ' WHERE is_enabled = 1';
+    }
+    if (bot_type) {
+      query += ` WHERE bot_type = '${bot_type}'`;
+    }
+    const results = await db.all(query);
     await db.close();
     
     return results.map(row => ({
-      botName: row.bot_name,
+      ...row,
       updatedAt: new Date(row.updated_at)
     }));
   } catch (error: any) {
-    console.error(`Error listing bot configs: ${error.message}`);
+    console.error(`[${bot_type}]|[getBotConfigs]|Error listing bot configs: ${error.message}`);
     return [];
   }
 }
@@ -155,7 +176,7 @@ export async function deleteBotConfig(botName: string): Promise<boolean> {
     const tableExists = await createConfigsTable(db);
     if (!tableExists) {
       await db.close();
-      throw new Error("Could not create configs table");
+      return false;
     }
     
     // Delete the configuration
@@ -163,7 +184,7 @@ export async function deleteBotConfig(botName: string): Promise<boolean> {
     await db.close();
     return true;
   } catch (error: any) {
-    console.error(`Error deleting bot config: ${error.message}`);
+    console.error(`[${botName}]|[deleteBotConfig]|Error deleting bot config: ${error.message}`);
     return false;
   }
 }
@@ -193,77 +214,38 @@ export async function updateBotConfig(
     // Save the updated configuration
     return await saveBotConfig(botName, updatedConfig);
   } catch (error: any) {
-    console.error(`Error updating bot config: ${error.message}`);
+    console.error(`[${botName}]|[updateBotConfig]|Error updating bot config: ${error.message}`);
     return false;
   }
 }
 
-/**
- * Get a specific section of a bot's configuration
- * @param botName The name of the bot
- * @param section The configuration section to retrieve
- */
-export async function getBotConfigSection<T>(
-  botName: string, 
-  section: keyof BotConfig
-): Promise<T | null> {
+
+
+export async function createDefaultBotConfig(config: BotConfig): Promise<BotConfig | null> {
   try {
-    const config = await getBotConfig(botName);
-    if (!config || !(section in config)) {
+    const db = await getDatabase();
+    
+    // Create table if it doesn't exist
+    const tableExists = await createConfigsTable(db);
+    if (!tableExists) {
+      await db.close();
       return null;
     }
-    
-    return config[section] as unknown as T;
-  } catch (error: any) {
-    console.error(`Error getting bot config section: ${error.message}`);
-    return null;
-  }
-}
-
-/**
- * Initialize the configuration database with default values from a config file
- * @param botName The name of the bot
- * @param defaultConfig The default configuration
- */
-export async function initializeBotConfig(
-  botName: string, 
-  defaultConfig: BotConfig
-): Promise<boolean> {
-  try {
-    // Check if configuration already exists
-    const existingConfig = await getBotConfig(botName);
-    
-    // If it doesn't exist, save the default configuration
-    if (!existingConfig) {
-      return await saveBotConfig(botName, defaultConfig);
+    const botConfig = await getBotConfig(config.bot_name);
+    if (botConfig && botConfig.is_enabled) {
+      return botConfig;
     }
-    
-    return true;
+    else if (botConfig && !botConfig.is_enabled) {
+      return null;
+    }
+    else {
+      await saveBotConfig(config.bot_name, config);
+      console.log(`[${config.bot_name}]|[createDefaultBotConfig]|Created default bot config: ${config.bot_name}`);
+      await db.close();
+      return config;
+    }
   } catch (error: any) {
-    console.error(`Error initializing bot config: ${error.message}`);
-    return false;
-  }
-}
-
-/**
- * Utility to migrate an existing config.ts file to the database
- * @param botName The name of the bot
- * @param configObj The configuration object from the config.ts file
- */
-export async function migrateConfigToDb(
-  botName: string, 
-  configObj: any
-): Promise<boolean> {
-  try {
-    // Ensure it has a name property
-    const configWithName = {
-      ...configObj,
-      name: botName
-    };
-    
-    return await saveBotConfig(botName, configWithName as BotConfig);
-  } catch (error: any) {
-    console.error(`Error migrating config to DB: ${error.message}`);
-    return false;
+    console.error(`[${config.bot_name}]|[createDefaultBotConfig]|Error creating default bot config: ${error.message}`);
+    return null;
   }
 }

@@ -13,7 +13,7 @@ import {
   RugResponseExtended,
   NewTokenRecord,
 } from "./types";
-import { insertHolding, insertNewToken, selectTokenByMint, insertTransaction } from "../tracker-bot/holding.db";
+import { insertHolding, insertNewToken, selectTokenByMint, insertTransaction } from "../../db/holding.db";
 import { HoldingRecord } from "../tracker-bot/types";
 import { TAGS } from "../../common/utils/log-tags";
 import { retryAxiosRequest } from "../../common/utils/help-functions";

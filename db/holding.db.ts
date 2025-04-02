@@ -1,9 +1,9 @@
 import * as sqlite3 from "sqlite3";
 import { open } from "sqlite";
-import { config } from "./config";
-import { HoldingRecord, NewTokenRecord, ProfitLossRecord, TransactionRecord } from "./types";
+import { app_config } from "../bots/tracker-bot/config";
+import { HoldingRecord, NewTokenRecord, ProfitLossRecord, TransactionRecord } from "../bots/tracker-bot/types";
 import { makeTokenScreenshotAndSendToDiscord } from "../../gmgn_api/make_token_screen-shot";
-import { EnhancedTransactionRecord, getEnhancedTransactionHistory as getEnhancedTxHistoryFromUtil } from "../../common/utils/trade-history";
+import { EnhancedTransactionRecord, getEnhancedTransactionHistory as getEnhancedTxHistoryFromUtil } from "../common/utils/trade-history";
 
 /**
  * Helper function to convert timestamps to ISO date strings
@@ -22,7 +22,7 @@ function convertTimestampToISO(timestamp: number): string {
 export async function initializeDatabaseTables(): Promise<boolean> {
   try {
     const db = await open({
-      filename: config.db_name_tracker_holdings,
+      filename: app_config.db_name_tracker_holdings,
       driver: sqlite3.Database,
     });
 
@@ -38,7 +38,7 @@ export async function initializeDatabaseTables(): Promise<boolean> {
     return holdingsTableCreated && tokensTableCreated && 
            profitLossTableCreated && transactionsTableCreated;  // Update this line
   } catch (error: any) {
-    console.error(`${config.name}|[initializeDatabaseTables]| Error initializing database tables: ${error.message}`);
+    console.error(`${app_config.name}|[initializeDatabaseTables]| Error initializing database tables: ${error.message}`);
     return false;
   }
 }
@@ -80,7 +80,7 @@ export async function createTableHoldings(database: any): Promise<boolean> {
 // ***************************GET ALL HOLDINGS**************************
 export async function getAllHoldings(filter: 'all' | 'skipped' | 'notSkipped' = 'all', walletPublicKey?: string): Promise<HoldingRecord[]> {
   const db = await open({
-    filename: config.db_name_tracker_holdings,
+    filename: app_config.db_name_tracker_holdings,
     driver: sqlite3.Database,
   });
   
@@ -117,7 +117,7 @@ export async function getAllHoldings(filter: 'all' | 'skipped' | 'notSkipped' = 
 
 export async function insertHolding(holding: HoldingRecord, processRunCounter: number) {
   const db = await open({
-    filename: config.db_name_tracker_holdings,
+    filename: app_config.db_name_tracker_holdings,
     driver: sqlite3.Database,
   });
 
@@ -147,21 +147,21 @@ export async function insertHolding(holding: HoldingRecord, processRunCounter: n
       ]
     );
 
-    console.log(`${config.name}|[insertHolding]| Added New Holding For Monitoring\n${JSON.stringify(holding, null, 2)}\n https://gmgn.ai/sol/token/${Token}`, processRunCounter, null, "send-to-discord"); //TODO:move to tags
+    console.log(`${app_config.name}|[insertHolding]| Added New Holding For Monitoring\n${JSON.stringify(holding, null, 2)}\n https://gmgn.ai/sol/token/${Token}`, processRunCounter, null, "send-to-discord"); //TODO:move to tags
 
     await db.close();
     
     // Take a screenshot of the token page and send it to Discord after inserting the record
     try {
-      console.log(`${config.name}|[insertHolding]| Taking screenshot of token: ${Token}`);
+      console.log(`${app_config.name}|[insertHolding]| Taking screenshot of token: ${Token}`);
       const discordChannelId = process.env.DISCORD_CT_TRACKER_CHANNEL || '';
       if (discordChannelId) {
         await makeTokenScreenshotAndSendToDiscord(Token, discordChannelId);
       } else {
-        console.warn(`${config.name}|[insertHolding]| Could not take screenshot: Missing Discord channel ID`);
+        console.warn(`${app_config.name}|[insertHolding]| Could not take screenshot: Missing Discord channel ID`);
       }
     } catch (error) {
-      console.error(`${config.name}|[insertHolding]| Error taking screenshot: ${error}`);
+      console.error(`${app_config.name}|[insertHolding]| Error taking screenshot: ${error}`);
     }
   }
 }
@@ -169,7 +169,7 @@ export async function insertHolding(holding: HoldingRecord, processRunCounter: n
 
 export async function getHoldingRecord(token: string, processRunCounter: number, walletPublicKey?: string): Promise<HoldingRecord | null> {
   const db = await open({
-    filename: config.db_name_tracker_holdings,
+    filename: app_config.db_name_tracker_holdings,
     driver: sqlite3.Database,
   });
 
@@ -193,7 +193,7 @@ export async function getHoldingRecord(token: string, processRunCounter: number,
   await db.close();
 
   if (!tokenRecord) {
-    console.log(`${config.name}|[getHoldingRecord]| Token not found: ${token}${walletPublicKey ? ` for wallet ${walletPublicKey}` : ''}`, processRunCounter);
+    console.log(`${app_config.name}|[getHoldingRecord]| Token not found: ${token}${walletPublicKey ? ` for wallet ${walletPublicKey}` : ''}`, processRunCounter);
   }
 
   return tokenRecord || null;
@@ -202,7 +202,7 @@ export async function getHoldingRecord(token: string, processRunCounter: number,
 // Update getWalletHoldings to make wallet optional
 export async function getWalletHoldings(walletPublicKey?: string): Promise<HoldingRecord[]> {
   const db = await open({
-    filename: config.db_name_tracker_holdings,
+    filename: app_config.db_name_tracker_holdings,
     driver: sqlite3.Database,
   });
 
@@ -235,7 +235,7 @@ export async function getAllHoldingsGroupedByWallet(options?: {
   endTime?: number;
 }): Promise<{ [walletPublicKey: string]: HoldingRecord[] }> {
   const db = await open({
-    filename: config.db_name_tracker_holdings,
+    filename: app_config.db_name_tracker_holdings,
     driver: sqlite3.Database,
   });
 
@@ -302,7 +302,7 @@ export async function All(options?: {
   offset?: number;
 }): Promise<HoldingRecord[]> {
   const db = await open({
-    filename: config.db_name_tracker_holdings,
+    filename: app_config.db_name_tracker_holdings,
     driver: sqlite3.Database,
   });
 
@@ -362,7 +362,7 @@ export async function All(options?: {
 
 export async function removeHolding(tokenMint: string, processRunCounter: number, walletPublicKey: string) {
   const db = await open({
-    filename: config.db_name_tracker_holdings,
+    filename: app_config.db_name_tracker_holdings,
     driver: sqlite3.Database,
   });
 
@@ -387,7 +387,7 @@ export async function removeHolding(tokenMint: string, processRunCounter: number
 
   await db.run(query, params);
 
-  console.log(`${config.name}|[removeHolding]| Holding removed successfully${walletPublicKey ? ` for wallet ${walletPublicKey}` : ''}`, processRunCounter, "discord-log");
+  console.log(`${app_config.name}|[removeHolding]| Holding removed successfully${walletPublicKey ? ` for wallet ${walletPublicKey}` : ''}`, processRunCounter, "discord-log");
 
   await db.close();
 }
@@ -417,7 +417,7 @@ export async function createTableNewTokens(database: any): Promise<boolean> {
 
 export async function insertNewToken(newToken: NewTokenRecord, processRunCounter: number) {
   const db = await open({
-    filename: config.db_name_tracker_holdings,
+    filename: app_config.db_name_tracker_holdings,
     driver: sqlite3.Database,
   });
 
@@ -454,7 +454,7 @@ export async function insertNewToken(newToken: NewTokenRecord, processRunCounter
     `,
     [time, timeDate, name, mint, creator, rug_conditions, tokenReport]
   );
-  console.log(`${config.name}|[insertNewToken]| New token inserted successfully`, processRunCounter);
+  console.log(`${app_config.name}|[insertNewToken]| New token inserted successfully`, processRunCounter);
 
   await db.close();
 }
@@ -462,7 +462,7 @@ export async function insertNewToken(newToken: NewTokenRecord, processRunCounter
 export async function selectTokenByNameAndCreator(name: string, creator: string, processRunCounter: number): Promise<NewTokenRecord[]> {
   // Open the database
   const db = await open({
-    filename: config.db_name_tracker_holdings,
+    filename: app_config.db_name_tracker_holdings,
     driver: sqlite3.Database,
   });
 
@@ -493,7 +493,7 @@ export async function selectTokenByNameAndCreator(name: string, creator: string,
 export async function selectTokenByMint(mint: string, processRunCounter: number): Promise<NewTokenRecord[]> {
   // Open the database
   const db = await open({
-    filename: config.db_name_tracker_holdings,
+    filename: app_config.db_name_tracker_holdings,
     driver: sqlite3.Database,
   });
 
@@ -525,7 +525,7 @@ export async function selectTokenByMint(mint: string, processRunCounter: number)
 export async function selectAllTokens(processRunCounter: number): Promise<NewTokenRecord[]> {
   // Open the database
   const db = await open({
-    filename: config.db_name_tracker_holdings,
+    filename: app_config.db_name_tracker_holdings,
     driver: sqlite3.Database,
   });
 
@@ -589,7 +589,7 @@ export async function createTableProfitLoss(database: any): Promise<boolean> {
   `);
     return true;
   } catch (error: any) {
-    console.error(`${config.name}|[createTableProfitLoss]| Error creating profit_loss table: ${error.message}`);
+    console.error(`${app_config.name}|[createTableProfitLoss]| Error creating profit_loss table: ${error.message}`);
     return false;
   }
 }
@@ -597,7 +597,7 @@ export async function createTableProfitLoss(database: any): Promise<boolean> {
 // ***************************INSERT PROFIT LOSS RECORD**************************
 export async function insertProfitLoss(record: ProfitLossRecord, processRunCounter: number) {
   const db = await open({
-    filename: config.db_name_tracker_holdings,
+    filename: app_config.db_name_tracker_holdings,
     driver: sqlite3.Database,
   });
 
@@ -694,7 +694,7 @@ export async function insertProfitLoss(record: ProfitLossRecord, processRunCount
     ]
   );
 
-  console.log(`${config.name}|[insertProfitLoss]| Profit/loss record inserted successfully \n${JSON.stringify(record, null, 2)}`, processRunCounter, formattedRecord);
+  console.log(`${app_config.name}|[insertProfitLoss]| Profit/loss record inserted successfully \n${JSON.stringify(record, null, 2)}`, processRunCounter, formattedRecord);
 
   await db.close();
 }
@@ -702,7 +702,7 @@ export async function insertProfitLoss(record: ProfitLossRecord, processRunCount
 // ***************************GET ALL PROFIT LOSS RECORDS**************************
 export async function getAllProfitLossRecords(): Promise<ProfitLossRecord[]> {
   const db = await open({
-    filename: config.db_name_tracker_holdings,
+    filename: app_config.db_name_tracker_holdings,
     driver: sqlite3.Database,
   });
 
@@ -721,7 +721,7 @@ export async function getAllProfitLossRecords(): Promise<ProfitLossRecord[]> {
 // ***************************GET TOKEN PROFIT LOSS HISTORY**************************
 export async function getTokenProfitLossHistory(token: string): Promise<ProfitLossRecord[]> {
   const db = await open({
-    filename: config.db_name_tracker_holdings,
+    filename: app_config.db_name_tracker_holdings,
     driver: sqlite3.Database,
   });
 
@@ -749,7 +749,7 @@ export async function getTokenProfitLossHistory(token: string): Promise<ProfitLo
 // ***************************GET TOTAL PROFIT LOSS**************************
 export async function getTotalProfitLoss(botName?: string, walletPublicKey?: string): Promise<{ totalProfitLossSOL: number; totalProfitLossUSDC: number }> {
   const db = await open({
-    filename: config.db_name_tracker_holdings,
+    filename: app_config.db_name_tracker_holdings,
     driver: sqlite3.Database,
   });
 
@@ -791,7 +791,7 @@ export async function getProfitLossRecords(params: {
   walletPublicKey?: string;
 }): Promise<ProfitLossRecord[]> {
   const db = await open({
-    filename: config.db_name_tracker_holdings,
+    filename: app_config.db_name_tracker_holdings,
     driver: sqlite3.Database,
   });
 
@@ -849,7 +849,7 @@ export async function getProfitLossRecordsGroupedByWallet(params: {
   module?: string;
 }): Promise<{ [walletPublicKey: string]: { records: ProfitLossRecord[], totals: { totalProfitLossSOL: number; totalProfitLossUSDC: number } } }> {
   const db = await open({
-    filename: config.db_name_tracker_holdings,
+    filename: app_config.db_name_tracker_holdings,
     driver: sqlite3.Database,
   });
 
@@ -904,7 +904,7 @@ export async function getProfitLossRecordsGroupedByWallet(params: {
 // Add a new function to get token profit/loss history for a specific wallet
 export async function getTokenProfitLossHistoryByWallet(token: string, walletPublicKey: string): Promise<ProfitLossRecord[]> {
   const db = await open({
-    filename: config.db_name_tracker_holdings,
+    filename: app_config.db_name_tracker_holdings,
     driver: sqlite3.Database,
   });
 
@@ -949,14 +949,14 @@ export async function createTableTransactions(database: any): Promise<boolean> {
   `);
     return true;
   } catch (error: any) {
-    console.error(`${config.name}|[createTableTransactions]| Error creating transactions table: ${error.message}`);
+    console.error(`${app_config.name}|[createTableTransactions]| Error creating transactions table: ${error.message}`);
     return false;
   }
 }
 
 export async function insertTransaction(transaction:TransactionRecord, processRunCounter: number) {
   const db = await open({
-    filename: config.db_name_tracker_holdings,
+    filename: app_config.db_name_tracker_holdings,
     driver: sqlite3.Database,
   });
 
@@ -1003,7 +1003,7 @@ export async function insertTransaction(transaction:TransactionRecord, processRu
     ]
   );
 
-  console.log(`${config.name}|[insertTransaction]| Transaction inserted successfully`, processRunCounter, {
+  console.log(`${app_config.name}|[insertTransaction]| Transaction inserted successfully`, processRunCounter, {
     Token,
     TransactionType,
     TokenAmount: Number(TokenAmount),
@@ -1023,7 +1023,7 @@ export async function getAllTransactions(options?: {
   walletPublicKey?: string;
 }): Promise<TransactionRecord[]> {
   const db = await open({
-    filename: config.db_name_tracker_holdings,
+    filename: app_config.db_name_tracker_holdings,
     driver: sqlite3.Database,
   });
 
@@ -1072,7 +1072,7 @@ export async function getTransactionsGroupedByWallet(options?: {
   endDate?: number;
 }): Promise<{ [walletPublicKey: string]: TransactionRecord[] }> {
   const db = await open({
-    filename: config.db_name_tracker_holdings,
+    filename: app_config.db_name_tracker_holdings,
     driver: sqlite3.Database,
   });
 
@@ -1132,7 +1132,7 @@ export async function getWalletTransactionStats(walletPublicKey: string, options
   totalUSDCValue: number;
 }> {
   const db = await open({
-    filename: config.db_name_tracker_holdings,
+    filename: app_config.db_name_tracker_holdings,
     driver: sqlite3.Database,
   });
 
@@ -1194,7 +1194,7 @@ export async function getWalletTransactionStats(walletPublicKey: string, options
 // ***************************UPDATE SELL ATTEMPTS**************************
 export async function updateSellAttempts(id: number, processRunCounter: number): Promise<boolean> {
   const db = await open({
-    filename: config.db_name_tracker_holdings,
+    filename: app_config.db_name_tracker_holdings,
     driver: sqlite3.Database,
   });
 
@@ -1218,7 +1218,7 @@ export async function updateSellAttempts(id: number, processRunCounter: number):
       WHERE id = ?;
     `, [id]);
 
-    if (holding && holding.SellAttempts >= config.sell.max_sell_attempts) {
+    if (holding && holding.SellAttempts >= app_config.max_sell_attempts) {
       // Mark as skipped if max attempts reached
       await db.run(`
         UPDATE holdings 
@@ -1226,14 +1226,14 @@ export async function updateSellAttempts(id: number, processRunCounter: number):
         WHERE id = ?;
       `, [id]);
 
-      console.warn(`${config.name}|[updateSellAttempts]| ⚠️ Token ${holding.TokenName} marked as skipped after ${config.sell.max_sell_attempts}.\n https://solscan.io/tx/${holding.TxId}. Token will be removed from holdings and burned today at midnight.`, 
+      console.warn(`${app_config.name}|[updateSellAttempts]| ⚠️ Token ${holding.TokenName} marked as skipped after ${app_config.sell.max_sell_attempts}.\n https://solscan.io/tx/${holding.TxId}. Token will be removed from holdings and burned today at midnight.`, 
         processRunCounter, holding, "send-to-discord");
     }
 
     await db.close();
     return true;
   } catch (error: any) {
-    console.error(`${config.name}|[updateSellAttempts]| Error updating sell attempts: ${error.message}`, processRunCounter);
+    console.error(`${app_config.name}|[updateSellAttempts]| Error updating sell attempts: ${error.message}`, processRunCounter);
     await db.close();
     return false;
   }
@@ -1242,7 +1242,7 @@ export async function updateSellAttempts(id: number, processRunCounter: number):
 // ***************************GET SKIPPED HOLDINGS**************************
 export async function getSkippedHoldings(walletPublicKey?: string): Promise<HoldingRecord[]> {
   const db = await open({
-    filename: config.db_name_tracker_holdings,
+    filename: app_config.db_name_tracker_holdings,
     driver: sqlite3.Database,
   });
 
@@ -1286,7 +1286,7 @@ export async function getTransactionHistoryWithProfitLoss(options?: {
   endDate?: number;
 }): Promise<EnhancedTransactionRecord[]> {
   return await getEnhancedTxHistoryFromUtil(
-    config.db_name_tracker_holdings,
+    app_config.db_name_tracker_holdings,
     options
   );
 }
