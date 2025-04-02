@@ -16,7 +16,7 @@ export async function getTokenQuotes(
   botName: string,
   token: string,
   balance: string,
-  slippageBps: number,
+  slippageBps: string,
   processRunCounter: number,
   excludeRoutes = false,
   txid?: string
@@ -50,7 +50,7 @@ export async function getTokenQuotes(
       const quoteResponse = await axios.get(JUPITER_QUOTE, {
         params: {
           ...params,
-          slippageBps: params.slippageBps.toString(),
+          slippageBps: params.slippageBps,
           restrictItermediateTokens: params.restrictItermediateTokens.toString()
         },
         timeout: API_CONFIG.TIMEOUT.QUOTE,

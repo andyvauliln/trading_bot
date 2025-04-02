@@ -1,6 +1,6 @@
 import { DateTime } from "luxon";
 import { TransactionRecord } from '../bots/tracker-bot/types';
-import { EnhancedTransactionRecord } from '../common/utils/trade-history';
+import { EnhancedTransactionRecord } from './trade-history';
 
 export interface InsertHistoricalDataDetails {
     account: string;

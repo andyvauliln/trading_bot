@@ -1,13 +1,15 @@
 import { tracker_bot_config } from "./config";
 import dotenv, { config } from "dotenv";
 import { getAllHoldings, initializeDatabaseTables, updateSellAttempts } from "../../db/holding.db";
-import { BotConfig, createDefaultBotConfig, getBotConfigs } from "../../db/config.db";
-import { CalculatedPNL, HoldingRecord, QuoteResponse, TrackerBotConfig } from "./types";
+import { createDefaultBotConfig, getBotConfigs } from "../../db/config.db";
+import { CalculatedPNL, HoldingRecord, TrackerBotConfig } from "./types";
 import { DateTime } from "luxon";
-import { createSellTransaction, fetchAndSaveSwapDetails,getSolanaPrice, calculatePNL } from "./transactions";
+import { fetchAndSaveSwapDetails, calculatePNL } from "./tracker-utils";
 import { getTokenQuotes } from "../../services/jupiter/jupiter-get-quotes";
-import logger from "./logger";
+import { createSellTransaction } from "../../services/jupiter/jupiter-sell-transaction";
 import { getBotConfigData, getPrivateKeysMap } from "../../common/utils/help-functions";
+import { getSolanaPrice } from "../../services/jupiter/jupiter-get-solana-price";
+import logger from "../../common/logger";
 
 dotenv.config();
 let processRunCounter = 1;
@@ -16,7 +18,7 @@ async function main() {
     let bot_name = ""
     try {
         const walletKeyMap = getPrivateKeysMap();
-        const solanaPrice = await getSolanaPrice(processRunCounter);
+        const solanaPrice = await getSolanaPrice(tracker_bot_config.name, processRunCounter);
         if (solanaPrice && walletKeyMap.size > 0) {
             const botConfigs = await getBotConfigs(tracker_bot_config.bot_default_config.bot_type, true);
             if(botConfigs.length === 0) {
@@ -36,17 +38,18 @@ async function main() {
                 console.log(`${botConfig.bot_name}|[main]|Found Holdings: ${holdings.length} for bot ${botConfig.bot_wallet_address}`, processRunCounter, holdings);
                 for (const holding of holdings) {
                     const tokenAmount = Math.round(Number(holding.Balance) * 1e9).toString();//TODO: check if this is correct
-                    const tokenQuotes = await getTokenQuotes(botConfig.bot_name, holding.Token, tokenAmount, 500, processRunCounter);
+                    const botConfigData = getBotConfigData<TrackerBotConfig>(botConfig);
+                    const tokenQuotes = await getTokenQuotes(botConfig.bot_name, holding.Token, tokenAmount, botConfigData.slippageBps, processRunCounter);
                     console.log(`${botConfig.bot_name}|[main]|Token Quotes: ${tokenQuotes}`, processRunCounter, tokenQuotes);
 
                     if (tokenQuotes.success && tokenQuotes.data) {
-                        const botConfigData = getBotConfigData<TrackerBotConfig>(botConfig);
-                        const calculatedPNL = await calculatePNL(holding, tokenQuotes.data, botConfigData, solanaPrice);
+                       
+                        const calculatedPNL = await calculatePNL(holding, tokenQuotes.data, botConfigData, solanaPrice, botConfig.bot_name);
             
                         await sendCurrentStateNotification(holding, calculatedPNL, botConfig.bot_name, processRunCounter);
                         
                         if (calculatedPNL.shouldTakeProfit || calculatedPNL.shouldStopLoss) {                        
-                            const result = await createSellTransaction(holding, tokenQuotes.data, calculatedPNL, processRunCounter, botPrivateKey, botConfig);
+                            const result = await createSellTransaction(botConfig.bot_name, tokenQuotes.data, holding.TokenName, tokenAmount, holding.Token, botConfigData.prio_fee_max_lamports, botConfigData.prio_level, processRunCounter, botPrivateKey);
                             const txSuccess = result.success;
                             const txTransaction = result.tx;
                             if (!txSuccess && holding.id) {
@@ -55,9 +58,8 @@ async function main() {
                                 return;
                             }
                             if (txSuccess && txTransaction) {
-                               await fetchAndSaveSwapDetails(txTransaction, holding, calculatedPNL, botConfig.bot_wallet_address, processRunCounter);
-                            } 
-                           
+                               await fetchAndSaveSwapDetails(botConfig.bot_name, txTransaction, holding, calculatedPNL, botConfig.bot_wallet_address, processRunCounter);
+                            }    
                         }
                         
                     } else {
@@ -88,7 +90,7 @@ async function sendCurrentStateNotification(holding: HoldingRecord, calculatedPN
 }
 
 
-logger.init().then(async () => {
+logger.init(tracker_bot_config.name).then(async () => {
     const tablesInitialized = await initializeDatabaseTables();
     if (!tablesInitialized) {
         console.error(`${config.name}|[main]| ⛔ Failed to initialize database tables. Exiting...`);

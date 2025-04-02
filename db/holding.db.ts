@@ -1,9 +1,8 @@
-import * as sqlite3 from "sqlite3";
+
 import { open } from "sqlite";
-import { app_config } from "../bots/tracker-bot/config";
 import { HoldingRecord, NewTokenRecord, ProfitLossRecord, TransactionRecord } from "../bots/tracker-bot/types";
-import { makeTokenScreenshotAndSendToDiscord } from "../../gmgn_api/make_token_screen-shot";
-import { EnhancedTransactionRecord, getEnhancedTransactionHistory as getEnhancedTxHistoryFromUtil } from "../common/utils/trade-history";
+import { makeTokenScreenshotAndSendToDiscord } from "../gmgn_api/make_token_screen-shot";
+import { EnhancedTransactionRecord, getEnhancedTransactionHistory as getEnhancedTxHistoryFromUtil } from "../api/trade-history";
 
 /**
  * Helper function to convert timestamps to ISO date strings

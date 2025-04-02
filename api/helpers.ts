@@ -20,7 +20,7 @@ import {
   InsertHistoricalDataDetails,
   EnhancedTransactionRecordWithComments
 } from './types';
-import { EnhancedTransactionRecord } from '../common/utils/trade-history';
+import { EnhancedTransactionRecord } from './trade-history';
 
 async function getTokenMetadata(connection: Connection, mint: string) {
   try {

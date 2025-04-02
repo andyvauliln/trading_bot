@@ -5,7 +5,7 @@ import bs58 from "bs58";
 import dotenv from "dotenv";
 import { getAllHoldings, getSkippedHoldings, removeHolding } from "../db/holding.db";
 import { createBurnCheckedInstruction } from "@solana/spl-token";
-import { createSellTransaction, getTokenQuotes, calculatePNL } from "../bots/tracker-bot/transactions";
+import { createSellTransaction, getTokenQuotes, calculatePNL } from "../bots/tracker-bot/tracker-utils";
 import { HoldingRecord as DBHoldingRecord, HoldingRecord } from "../bots/tracker-bot/types";
 
 // Load environment variables from the .env file

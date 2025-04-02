@@ -176,25 +176,7 @@ export interface RugResponseExtended {
     data: unknown;
   }
   
-  export interface SerializedQuoteResponse {
-    swapTransaction: string;
-    lastValidBlockHeight: number;
-    prioritizationFeeLamports: number;
-    computeUnitLimit: number;
-    prioritizationType: {
-      computeBudget: Record<string, unknown>;
-    };
-    simulationSlot: number;
-    dynamicSlippageReport: {
-      slippageBps: number;
-      otherAmount: number;
-      simulatedIncurredSlippageBps: number;
-      amplificationRatio: string;
-      categoryName: string;
-      heuristicMaxSlippageBps: number;
-    };
-    simulationError: string | null;
-  }
+  
   
   export interface RugResponseExtended {
     mint: string;

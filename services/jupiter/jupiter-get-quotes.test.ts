@@ -20,7 +20,7 @@ async function runTests() {
       MOCK_DATA.botName,
       MOCK_DATA.token,
       Math.round(Number(MOCK_DATA.balance) * 1e9).toString(),
-      MOCK_DATA.slippageBps,
+      MOCK_DATA.slippageBps.toString(),
       MOCK_DATA.processRunCounter
     );
     console.log('Result:', result);

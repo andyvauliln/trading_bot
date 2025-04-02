@@ -52,7 +52,7 @@ const defaultStrategy: TradeStrategy = {
 };
 
 const defaultTrackerBotConfig: TrackerBotConfig = {
-  prio_fee_max_lamports: 1000000, // 0.001 SOL
+  prio_fee_max_lamports: "1000000", // 0.001 SOL
   prio_level: "veryHigh", // If you want to land transaction fast, set this to use `veryHigh`. You will pay on average higher priority fee.
   slippageBps: "400", // 4%
   auto_sell: true, // If set to true, trade strategies are automatically applied

@@ -8,6 +8,13 @@ export interface PoolSizeData {
   change: number;
 }
 
+
+export interface SellDecision {
+  shouldSell: boolean;
+  amountToSell: number;
+}
+
+
 export interface RoutePlanSwapInfo {
   ammKey: string;
   label: string;
@@ -44,6 +51,7 @@ export interface QuoteResponse {
 }
 
 export interface CalculatedPNL {
+  botName: string;
   tokenName: string;
   tokenAddress: string;
   priceImpact: number;
@@ -96,25 +104,6 @@ export interface TransactionRecord {
   TxId: string;
 }
 
-export interface SerializedQuoteResponse {
-  swapTransaction: string;
-  lastValidBlockHeight: number;
-  prioritizationFeeLamports: number;
-  computeUnitLimit: number;
-  prioritizationType: {
-    computeBudget: Record<string, unknown>;
-  };
-  simulationSlot: number;
-  dynamicSlippageReport: {
-    slippageBps: number;
-    otherAmount: number;
-    simulatedIncurredSlippageBps: number;
-    amplificationRatio: string;
-    categoryName: string;
-    heuristicMaxSlippageBps: number;
-  };
-  simulationError: string | null;
-}
 
 export interface RugResponseExtended {
   mint: string;
@@ -176,13 +165,6 @@ export interface RugResponseExtended {
   totalMarketLiquidity: number;
   totalLPProviders: number;
   rugged: boolean;
-}
-
-export interface WebSocketRequest {
-  jsonrpc: string;
-  id: number;
-  method: string;
-  params: unknown[];
 }
 
 interface TransactionDetailsResponse {
@@ -316,36 +298,7 @@ interface TransactionDetailsResponse {
   };
 }
 
-export interface SwapEventDetailsResponse {
-  programInfo: {
-    source: string;
-    account: string;
-    programName: string;
-    instructionName: string;
-  };
-  tokenInputs: Array<{
-    fromTokenAccount: string;
-    toTokenAccount: string;
-    fromUserAccount: string;
-    toUserAccount: string;
-    tokenAmount: number;
-    mint: string;
-    tokenStandard: string;
-  }>;
-  tokenOutputs: Array<{
-    fromTokenAccount: string;
-    toTokenAccount: string;
-    fromUserAccount: string;
-    toUserAccount: string;
-    tokenAmount: number;
-    mint: string;
-    tokenStandard: string;
-  }>;
-  fee: number;
-  slot: number;
-  timestamp: number;
-  description: string;
-}
+
 
 export interface HoldingRecord {
   id?: number; // Optional because it's added by the database
@@ -476,8 +429,8 @@ export interface ProfitLossRecord {
   IsTakeProfit: boolean;       // Whether the trade was a take-profit
   WalletPublicKey: string;     // Added wallet public key field
   TxId: string;               // Transaction ID (signature)
-  ConfigTakeProfit: number;   // Take profit percentage from config
-  ConfigStopLoss: number;    // Stop loss percentage from config
+  ConfigTakeProfit: StrategyAction;   // Take profit percentage from config
+  ConfigStopLoss: StrategyAction;    // Stop loss percentage from config
 }
 // Default trading strategy
 export type StrategyAction = {
@@ -495,7 +448,7 @@ export type TradeStrategy = {
   take_profit: StrategyAction[];
 };
 export interface TrackerBotConfig {
-  prio_fee_max_lamports: number;
+  prio_fee_max_lamports: string;
   prio_level: "low"|"medium"|"high"|"veryHigh";
   slippageBps: string;
   auto_sell: boolean;
