@@ -24,7 +24,8 @@ export async function createTableNewTokens(database: Database): Promise<boolean>
         supply REAL,           -- Added missing supply column
         decimals INTEGER,      -- Added missing decimals column
         rug_conditions TEXT,
-        tokenReport TEXT
+        tokenReport TEXT,
+        bot_name TEXT NOT NULL
       );
     `);
     console.log(`[${DEFAULT_BOT_NAME}]|[${functionName}]|Tokens table checked/created successfully.`);
@@ -44,13 +45,12 @@ export async function createTableNewTokens(database: Database): Promise<boolean>
  */
 export async function insertNewToken(
   newToken: NewTokenRecord,
-  botName: string,
   processRunCounter: number
 ): Promise<void> {
   let db: Database | null = null;
   const functionName = 'insertNewToken';
-  const effectiveBotName = botName || DEFAULT_BOT_NAME;
-  const { time, name, mint, creator, program, supply, decimals, tokenReport, rug_conditions } = newToken;
+  const effectiveBotName = newToken.bot_name || DEFAULT_BOT_NAME;
+  const { time, name, mint, creator, program, supply, decimals, tokenReport, rug_conditions, bot_name } = newToken;
 
   try {
     db = await getDbConnection(db_config.tracker_holdings_path);
@@ -74,10 +74,10 @@ export async function insertNewToken(
     // Use INSERT OR IGNORE to avoid errors if the mint already exists due to the UNIQUE constraint
     const result = await db.run(
       `
-      INSERT OR IGNORE INTO tokens (time, timeDate, name, mint, creator, program, supply, decimals, rug_conditions, tokenReport)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+      INSERT OR IGNORE INTO tokens (time, timeDate, name, mint, creator, program, supply, decimals, rug_conditions, tokenReport, bot_name)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
       `,
-      [Number(time), timeDate, name, mint, creator, program, supply, decimals, rug_conditions, tokenReport]
+      [Number(time), timeDate, name, mint, creator, program, supply, decimals, rug_conditions, tokenReport, bot_name]
     );
     
     // Log success based on whether a row was changed (i.e., inserted)

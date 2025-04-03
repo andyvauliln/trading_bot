@@ -148,12 +148,16 @@ export async function getHoldingRecord(
     db = await getDbConnection(db_config.tracker_holdings_path);
 
     
-    const query = walletPublicKey 
-      ? `SELECT * FROM holdings WHERE Token = ? AND WalletPublicKey = ? LIMIT 1;`
-      : `SELECT * FROM holdings WHERE Token = ? LIMIT 1;`;
+    let query = walletPublicKey 
+      ? `SELECT * FROM holdings WHERE Token = ? AND WalletPublicKey = ?;`
+      : `SELECT * FROM holdings WHERE Token = ?;`;
 
-    const params = walletPublicKey ? [token, walletPublicKey] : [token];
-    
+    let params = walletPublicKey ? [token, walletPublicKey] : [token];
+    if(botName) {
+      query += ` AND BotName = ?`;
+      params.push(botName);
+    }
+
     const tokenRecord: HoldingRecord | undefined = await db.get(query, params);
 
     if (!tokenRecord) {
@@ -176,7 +180,7 @@ export async function getHoldingRecord(
 
 // ***************************GET WALLET HOLDINGS**************************
 export async function getWalletHoldings(
-  walletPublicKey?: string,
+  walletPublicKey: string,
   botName: string = DEFAULT_BOT_NAME,
   processRunCounter: number = 0
 ): Promise<HoldingRecord[]> {
@@ -187,11 +191,15 @@ export async function getWalletHoldings(
   try {
     db = await getDbConnection(db_config.tracker_holdings_path);
 
-    const query = walletPublicKey
+    let query = walletPublicKey
       ? `SELECT * FROM holdings WHERE WalletPublicKey = ? ORDER BY Time DESC;`
       : `SELECT * FROM holdings ORDER BY Time DESC;`;
     
-    const params = walletPublicKey ? [walletPublicKey] : [];
+    let params = walletPublicKey ? [walletPublicKey] : [];  
+    if(botName) {
+      query += ` AND BotName = ?`;
+      params.push(botName);
+    }
     
     const holdings: HoldingRecord[] = await db.all(query, params);
     
@@ -217,12 +225,12 @@ export async function getAllHoldingsGroupedByWallet(
     startTime?: number;
     endTime?: number;
   },
-  botName: string = DEFAULT_BOT_NAME, // For logging
   processRunCounter: number = 0     // For logging
 ): Promise<{ [walletPublicKey: string]: HoldingRecord[] }> {
   let db: Database | null = null;
   const functionName = 'getAllHoldingsGroupedByWallet';
-  console.log(`[${botName}]|[${functionName}]|Fetching holdings grouped by wallet`, processRunCounter, { options });
+  const effectiveBotName = options?.botName || DEFAULT_BOT_NAME;
+  console.log(`[${effectiveBotName}]|[${functionName}]|Fetching holdings grouped by wallet`, processRunCounter, { options });
 
   try {
     db = await getDbConnection(db_config.tracker_holdings_path);
@@ -264,11 +272,11 @@ export async function getAllHoldingsGroupedByWallet(
       groupedHoldings[holding.WalletPublicKey].push(holding);
     }
     
-    console.log(`[${botName}]|[${functionName}]|Successfully fetched and grouped holdings for ${Object.keys(groupedHoldings).length} wallets`, processRunCounter);
+    console.log(`[${effectiveBotName}]|[${functionName}]|Successfully fetched and grouped holdings for ${Object.keys(groupedHoldings).length} wallets`, processRunCounter);
     return groupedHoldings;
 
   } catch (error) {
-    console.error(`[${botName}]|[${functionName}]|Error fetching holdings grouped by wallet`, processRunCounter, { error, options });
+    console.error(`[${effectiveBotName}]|[${functionName}]|Error fetching holdings grouped by wallet`, processRunCounter, { error, options });
     throw error;
   } finally {
     if (db) {

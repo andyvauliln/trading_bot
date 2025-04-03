@@ -2,13 +2,12 @@ import * as express from 'express';
 import { Request, Response } from 'express';
 import { 
   initDatabaseConnection, 
-  createTableLogs, 
-  validateModuleName, 
-  validateDateFormat, 
+  createTableLogs,  
   getLogs, 
   getLogsByTags 
 } from '../db/db.logs';
 import { TAGS } from "../common/logger";
+import { validateDateFormat, validateModuleName } from '../db/db.utils';
 import { config } from './config';
 const router = express.Router();
 

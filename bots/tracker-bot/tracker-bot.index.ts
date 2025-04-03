@@ -1,6 +1,6 @@
 import { tracker_bot_config } from "./tracker-bot.config";
-import dotenv, { config } from "dotenv";
-import { getAllHoldings, initializeDatabaseTables, updateSellAttempts } from "../../db/db.holding";
+import dotenv from "dotenv";
+import { getAllHoldings, updateSellAttempts } from "../../db/db.holding";
 import { createDefaultBotConfig, getBotConfigs } from "../../db/db.bots-config";
 import { TrackerBotConfig } from "./tacker-bot.types";
 import { fetchAndSaveSwapDetails, calculatePNL } from "./tracker-bot-utils";
@@ -51,7 +51,7 @@ async function main() {
                             const txTransaction = result.tx;
                             if (!txSuccess && holding.id) {
                                 console.warn(`${botConfig.bot_name}|[main]|Failed to sell token ${holding.Token}. Reason: ${result.msg}. Current attempt: ${holding.SellAttempts}. Config: ${tracker_bot_config.max_sell_attempts}`, processRunCounter);
-                                await updateSellAttempts(holding.id, processRunCounter);
+                                await updateSellAttempts(holding.id, botConfig.bot_name, processRunCounter);
                                 return;
                             }
                             if (txSuccess && txTransaction) {
@@ -60,7 +60,7 @@ async function main() {
                         }
                         
                     } else {
-                        console.log(`${config.name}|[main]|Failed to get token quotes for ${holding.Token}`, processRunCounter);
+                        console.log(`${tracker_bot_config.name}|[main]|Failed to get token quotes for ${holding.Token}`, processRunCounter);
                     }
                 }
             }
@@ -75,14 +75,7 @@ async function main() {
     }
 }
 
-
 logger.init(tracker_bot_config.name).then(async () => {
-    const tablesInitialized = await initializeDatabaseTables();
-    if (!tablesInitialized) {
-        console.error(`${config.name}|[main]| ⛔ Failed to initialize database tables. Exiting...`);
-        process.exit(1);
-    }
-    console.log(`${config.name}|[main]| ✅ Database tables initialized successfully`);
     main().catch(async (err) => {
       console.error(err);
       await logger.close();

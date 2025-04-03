@@ -149,6 +149,7 @@ export interface TransactionRecord {
     supply: number;
     decimals: number;
     rug_conditions: string;
+    bot_name: string;
     tokenReport: string;
   }
   
@@ -164,7 +165,7 @@ export interface TransactionRecord {
     bot_data: object;
     updated_at?: number;
     created_at?: number;
-    trading_wallet_address: string;
+    bot_wallet_address: string;
   }
   
 // Types for Historical Data
@@ -206,4 +207,22 @@ export interface EnhancedTransactionRecord extends TransactionRecord {
   EntryPriceUSDC?: number;
   HoldingTimeSeconds?: number;
   IsTakeProfit?: boolean;
+}
+
+/**
+ * Represents a log entry in the database
+ */
+export interface LogEntry {
+  id?: number;
+  date: string;
+  time: string;
+  run_prefix: string;
+  full_message: string;
+  message: string;
+  module: string;
+  function: string;
+  type: 'info' | 'error' | 'warn';
+  data: string | null;
+  cycle: number;
+  tag: string;
 }

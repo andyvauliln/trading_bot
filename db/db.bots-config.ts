@@ -81,7 +81,7 @@ export async function saveBotConfig(
           configData.bot_author_wallet_address,
           configData.send_notifications_to_discord ? 1 : 0, // Convert boolean to 0/1
           configData.is_enabled ? 1 : 0,                   // Convert boolean to 0/1
-          configData.trading_wallet_address, // Standardized column name
+          configData.bot_wallet_address, // Standardized column name
           now, 
           effectiveBotName
         ]
@@ -104,7 +104,7 @@ export async function saveBotConfig(
           configData.bot_author_wallet_address, 
           configData.send_notifications_to_discord ? 1 : 0, // Convert boolean to 0/1
           configData.is_enabled ? 1 : 0,                   // Convert boolean to 0/1
-          configData.trading_wallet_address, // Standardized column name
+          configData.bot_wallet_address, // Standardized column name
           now, 
           now
         ]

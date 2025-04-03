@@ -10,9 +10,8 @@ import {
 import { removeHolding } from "../../db/db.holding";
 import { HoldingRecord, TransactionRecord, ProfitLossRecord } from "../../db/db.types";
 import { insertTransaction } from "../../db/db.transactions";
-import { insertProfitLoss } from "../../db/db.proffit-loss";
+import { insertProfitLoss } from "../../db/db.profit-loss";
 import { DateTime } from "luxon";
-import { getSolanaPrice } from "../../services/jupiter/jupiter-get-solana-price";
 import { getTransactionDetails } from "../../services/solana-rpc/solana-get-transaction-details";
 
 
@@ -154,7 +153,7 @@ function getCurrentStopLossAndTakeProfit(strategy: TradeStrategy): { currentStop
 
 export async function fetchAndSaveSwapDetails(bot_name:string, tx: string, holding: HoldingRecord, calculatedPNL: CalculatedPNL, walletPublicKey: string, processRunCounter: number): Promise<boolean> {
   try {
-    await removeHolding(holding.Token, processRunCounter, walletPublicKey).catch((err) => {
+    await removeHolding(holding.Token,  walletPublicKey, bot_name, processRunCounter).catch((err) => {
       console.error(`${bot_name}|[fetchAndSaveSwapDetails]| ⛔ Database Error: ${err}`, processRunCounter);
     });
     // Safely access the event information
@@ -236,8 +235,6 @@ async function makeInsertProfitLoss(bot_name: string, holding: HoldingRecord, ca
   sendSellNotification(bot_name, holding, calculatedPNL, profitLossRecord, processRunCounter);
   await insertProfitLoss(profitLossRecord, processRunCounter);
 }
-
-
 
 //*********************DISCORD NOTIFICATIONS*********************
 

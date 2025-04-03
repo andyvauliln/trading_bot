@@ -1,4 +1,4 @@
-import { HoldingRecord, PoolSizeData, TransactionRecord } from '../bots/tracker-bot/tacker-bot.types';
+import { HoldingRecord, PoolSizeData, TransactionRecord } from '../db/db.types';
 import { config } from './config';
 import axios from 'axios';
 import { retryAxiosRequest } from '../common/common.helpers';
