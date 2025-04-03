@@ -3,7 +3,7 @@ import dotenv from "dotenv";
 import { getAllHoldings, updateSellAttempts } from "../../db/db.holding";
 import { createDefaultBotConfig, getBotConfigs } from "../../db/db.bots-config";
 import { TrackerBotConfig } from "./tacker-bot.types";
-import { fetchAndSaveSwapDetails, calculatePNL } from "./tracker-bot-utils";
+import { fetchAndSaveSwapDetails, calculatePNL } from "./tracker-bot.utils";
 import { getTokenQuotes } from "../../services/jupiter/jupiter-get-quotes";
 import { createSellTransaction } from "../../services/jupiter/jupiter-sell-transaction";
 import { getBotConfigData, getPrivateKeysMap } from "../../common/common.helpers";
@@ -19,7 +19,7 @@ async function main() {
         const walletKeyMap = getPrivateKeysMap();
         const solanaPrice = await getSolanaPrice(tracker_bot_config.name, processRunCounter);
         if (solanaPrice && walletKeyMap.size > 0) {
-            const botConfigs = await getBotConfigs(tracker_bot_config.bot_default_config.bot_type, true);
+            const botConfigs = await getBotConfigs(tracker_bot_config.bot_default_config.bot_type, true, tracker_bot_config.name, processRunCounter);
             if(botConfigs.length === 0) {
                 const defaultConfig = await createDefaultBotConfig(tracker_bot_config.bot_default_config);
                 if(defaultConfig) {
@@ -30,7 +30,7 @@ async function main() {
                 const botPrivateKey = walletKeyMap.get(botConfig.bot_wallet_address || "");
                 bot_name = botConfig.bot_name;
                 if(!botPrivateKey) {
-                    console.warn(`${botConfig.bot_name}|[main]|No private key found for bot ${botConfig.bot_wallet_address}`, processRunCounter);
+                    console.warn(`${botConfig.bot_name}|[main]|No private key found for bot ${botConfig.bot_wallet_address}`, processRunCounter, botConfig);
                     continue;
                 }
                 const holdings = await getAllHoldings("notSkipped", botConfig.bot_wallet_address);

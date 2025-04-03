@@ -1,10 +1,9 @@
 import { v4 as uuidv4 } from 'uuid';
-import { initializeDiscordClient, getDiscordChannel, sendMessageOnDiscord } from "../services/discord/discordSend";
+import { initializeDiscordClient, getDiscordChannel, sendMessageOnDiscord } from "../services/discord/discord-send";
 import { saveLogs as dbSaveLogs } from '../db/db.logs';
 import { LogEntry } from '../db/db.types';
 
 export const TAGS = {
-import { config } from '../bots/telegram-bot/config';
     sell_tx_confirmed: {name: "sell-tx-confirmed", description: "Sell transaction confirmed", color: "green"},
     buy_tx_confirmed: {name: "buy-tx-confirmed", description: "Buy transaction confirmed", color: "green"},
     rug_validation: {name: "rug-validation", description: "Rug validation", color: "yellow"},
@@ -17,7 +16,7 @@ import { config } from '../bots/telegram-bot/config';
   
 // Logger class to handle logging to console, file, and database
 class Logger {
-  private logs: any[] = [];
+  private logs: LogEntry[] = [];
   private cycle: number = 0;
   private default_name: string = '';
   private runPrefix: string = '';
@@ -37,9 +36,10 @@ class Logger {
     this.originalConsoleLog = console.log;
     this.originalConsoleError = console.error;
     this.originalConsoleWarn = console.warn;
-    this.is_db_logs_enabled = process.env.DB_LOGS === 'true';
-    this.is_terminal_logs_enabled = process.env.TERMINAL_LOGS === 'true';
+    this.is_db_logs_enabled = process.env.IS_DB_LOG === 'true';
+    this.is_terminal_logs_enabled = process.env.IS_TERMINAL_LOG === 'true';
     
+
     // Initialize Discord settings
     this.discordChannel = process.env.DISCORD_CT_TRACKER_CHANNEL || '';
     
@@ -73,6 +73,9 @@ class Logger {
     this.default_name = default_name;
     // Override console methods
     this.overrideConsoleMethods();
+    console.log(`${this.default_name}|[logger]|INITIALIZING LOGGER`);
+    console.log(`${this.default_name}|[logger]|DB_LOGS: ${this.is_db_logs_enabled}`);
+    console.log(`${this.default_name}|[logger]|TERMINAL_LOGS: ${this.is_terminal_logs_enabled}`);
 
     // Initialize Discord client if enabled
     if (this.discordEnabled) {
@@ -297,7 +300,7 @@ class Logger {
     // Shutdown Discord client if it was initialized
     if (this.discordEnabled) {
       try {
-        await import("../services/discord/discordSend").then(async (module) => {
+        await import("../services/discord/discord-send").then(async (module) => {
           await module.shutdownDiscordClient();
         });
       } catch (error) {

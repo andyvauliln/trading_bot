@@ -1,9 +1,9 @@
 import { createBrowser } from './scraperClient';
-import { initializeDiscordClient, sendMessageOnDiscord } from '../services/discord/discordSend';
+import { initializeDiscordClient, sendMessageOnDiscord } from '../discord/discord-send';
 import fs from 'fs';
 import path from 'path';
-import { Browser } from 'puppeteer';
-import { TextChannel, DMChannel, NewsChannel } from 'discord.js';
+import { Browser } from 'puppeteer';  
+import { TextChannel, DMChannel, NewsChannel, Client } from 'discord.js';
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -69,7 +69,7 @@ export async function makeTokenScreenshotAndSendToDiscord(
       
       // Still send a message to Discord about the failure
       const errorMessage = `⚠️ Failed to take screenshot of token ${tokenAddress} due to browser initialization error. Please check server logs.`;
-      await initializeDiscordClient().then(client => {
+      await initializeDiscordClient().then((client: Client | null) => {
         if (client) {
           return sendMessageOnDiscord(discordChannelId, [errorMessage]);
         }
@@ -191,7 +191,7 @@ export async function makeTokenScreenshotAndSendToDiscord(
     // Try to send error notification to Discord
     try {
       const errorMessage = `❌ Failed to process token ${tokenAddress}: ${error instanceof Error ? error.message : String(error)}`;
-      const discordClient = await initializeDiscordClient();
+      const discordClient: Client | null = await initializeDiscordClient();
       if (discordClient) {
         await sendMessageOnDiscord(discordChannelId, [errorMessage]);
       }

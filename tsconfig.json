@@ -9,6 +9,7 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["bots/**/*", "api/**/*", "crons/**/*", "common/**/*", "db/**/*", "services/**/*"],
+  "include": ["bots/tracker-bot/**/*",  "common/**/*", "db/**/*", "services/**/*"],
   "exclude": ["node_modules"]
 }
+//"api/**/*", "crons/**/*",

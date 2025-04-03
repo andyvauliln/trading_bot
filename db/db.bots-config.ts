@@ -18,7 +18,7 @@ export async function createTableBotConfig(database: Database): Promise<boolean>
         bot_author_wallet_address TEXT,
         send_notifications_to_discord INTEGER NOT NULL, -- Store boolean as INTEGER 0/1
         is_enabled INTEGER NOT NULL,                   -- Store boolean as INTEGER 0/1
-        trading_wallet_address TEXT NOT NULL,
+        bot_wallet_address TEXT NOT NULL,
         bot_data TEXT NOT NULL,                       -- Store complex data as JSON TEXT
         updated_at INTEGER NOT NULL,
         created_at INTEGER NOT NULL
@@ -71,7 +71,7 @@ export async function saveBotConfig(
         `UPDATE configs SET 
           bot_data = ?, bot_type = ?, bot_version = ?, bot_description = ?, 
           bot_author_wallet_address = ?, send_notifications_to_discord = ?, 
-          is_enabled = ?, trading_wallet_address = ?, updated_at = ? 
+          is_enabled = ?, bot_wallet_address = ?, updated_at = ? 
          WHERE bot_name = ?`,
         [
           botDataJson, 
@@ -93,7 +93,7 @@ export async function saveBotConfig(
         `INSERT INTO configs (
           bot_name, bot_data, bot_type, bot_version, bot_description, 
           bot_author_wallet_address, send_notifications_to_discord, is_enabled, 
-          trading_wallet_address, updated_at, created_at
+          bot_wallet_address, updated_at, created_at
          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           effectiveBotName, 
@@ -229,7 +229,7 @@ export async function getBotConfigs(
       updated_at: new Date(row.updated_at),
     }));
     
-    console.log(`[${callingBotName}]|[${functionName}]|Retrieved ${configs.length} bot configs`, processRunCounter);
+    console.log(`[${callingBotName}]|[${functionName}]|Retrieved ${configs.length} bot configs`, processRunCounter,configs);
     return configs;
 
   } catch (error: any) {

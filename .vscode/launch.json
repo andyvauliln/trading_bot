@@ -7,7 +7,7 @@
       "name": "Debug Telegram Trading Bot",
       "skipFiles": ["<node_internals>/**"],
       // "program": "${workspaceFolder}/bots/telegram-trading-bot/test-transaction.ts",
-      "program": "${workspaceFolder}/bots/tracker-bot/index.ts",
+      "program": "${workspaceFolder}/bots/tracker-bot/tracker-bot.index.ts",
       "runtimeArgs": ["-r", "ts-node/register"],
       "console": "integratedTerminal",
       "outFiles": ["${workspaceFolder}/dist/**/*.js"],

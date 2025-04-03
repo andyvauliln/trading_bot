@@ -1,4 +1,4 @@
-import { initializeDatabaseTables } from '../db/db.utils';
+const { initializeDatabaseTables } = require('../dist/db/db.utils');
 
 /**
  * Initialize all database tables

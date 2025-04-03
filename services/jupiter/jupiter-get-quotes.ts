@@ -1,4 +1,4 @@
-import { Connection } from "@solana/web3.js";
+import { Connection, PublicKey } from "@solana/web3.js";
 import { parseErrorForTransaction } from '@mercurial-finance/optimist';
 import { app_config_common } from "../../common/common.config";
 import axios from "axios";
@@ -12,18 +12,75 @@ import {
 import { RETRY_CONFIG, API_CONFIG } from './constants';
 import { delay, calculateBackoffDelay } from './utils';
 
+/**
+ * Gets token decimals for proper amount conversion
+ * @param botName Bot name for logging
+ * @param tokenMint Token mint address
+ * @param processRunCounter Process run counter for logging
+ * @param connection Optional Solana RPC connection
+ * @returns Token decimals (defaults to 9 if not found)
+ */
+async function getTokenDecimals(
+  botName: string,
+  tokenMint: string,
+  processRunCounter: number,
+  connection?: Connection
+): Promise<number> {
+  try {
+    // Create connection if not provided
+    if (!connection) {
+      connection = new Connection(API_CONFIG.ENDPOINTS.HELIUS_RPC);
+    }
+    
+    // Get token account info to extract decimals
+    const tokenInfo = await connection.getParsedAccountInfo(new PublicKey(tokenMint));
+    const decimals = (tokenInfo.value?.data as any)?.parsed?.info?.decimals;
+    
+    if (decimals !== undefined) {
+      console.log(`[${botName}]|[getTokenDecimals]|Found decimals for token ${tokenMint}: ${decimals}`, processRunCounter);
+      return decimals;
+    }
+    
+    console.warn(`[${botName}]|[getTokenDecimals]|Could not find decimals for token ${tokenMint}, using default 9`, processRunCounter);
+    return 9; // Default to 9 decimals (like SOL) if not found
+  } catch (error) {
+    console.error(`[${botName}]|[getTokenDecimals]|Error fetching token decimals: ${error}`, processRunCounter);
+    return 9; // Default to 9 decimals on error
+  }
+}
+
 export async function getTokenQuotes(
   botName: string,
   token: string,
-  balance: string,
+  balance: string, // IN LAMPORTS
   slippageBps: string,
   processRunCounter: number,
   excludeRoutes = false,
   txid?: string
 ): Promise<QuoteResult> {
-  const { JUPITER_QUOTE, HELIUS_RPC } = API_CONFIG.ENDPOINTS;
+  const { JUPITER_QUOTE } = API_CONFIG.ENDPOINTS;
   let excludeDexes = new Set<string>();
-
+  
+  // Get token decimals for proper conversion
+  // const tokenDecimals = await getTokenDecimals(botName, token, processRunCounter);
+  // // Convert balance to correct format based on token decimals
+  // const rawAmount = Math.round(Number(balance) * Math.pow(10, tokenDecimals)).toString();
+  
+  //console.log(`[${botName}]|[getTokenQuotes]|Converting ${balance} with ${tokenDecimals} decimals to raw amount: ${rawAmount}`, processRunCounter);
+  
+  const params: QuoteRequestParams = {
+    inputMint: token,
+    outputMint: app_config_common.liquidity_pool.wsol_pc_mint,
+    amount: balance,
+    slippageBps,
+    restrictItermediateTokens: true,
+    ...(excludeDexes.size > 0 && { excludeDexes: Array.from(excludeDexes).join(',') })
+  };
+  const url = `${JUPITER_QUOTE}?${new URLSearchParams({
+    ...params,
+    slippageBps: params.slippageBps,
+    restrictItermediateTokens: params.restrictItermediateTokens.toString()
+  }).toString()}`;
   if (excludeRoutes && txid) {
     try {
       excludeDexes = await getExcludedDexes({ botName, txid, processRunCounter });
@@ -34,19 +91,12 @@ export async function getTokenQuotes(
   }
 
   let retryCount = 0;
-  const params: QuoteRequestParams = {
-    inputMint: token,
-    outputMint: app_config_common.liquidity_pool.wsol_pc_mint,
-    amount: Math.round(Number(balance) * 1e9).toString(), //TODO: make sure all comes in normal format and don't use convert to lamports
-    slippageBps,
-    restrictItermediateTokens: true,
-    ...(excludeDexes.size > 0 && { excludeDexes: Array.from(excludeDexes).join(',') })
-  };
+  
 
   while (retryCount < RETRY_CONFIG.maxRetries) {
     try {
       console.log(`[${botName}]|[getTokenQuotes]|amount ${balance} (${params.amount})`, processRunCounter, params);
-
+     
       const quoteResponse = await axios.get(JUPITER_QUOTE, {
         params: {
           ...params,
@@ -66,7 +116,7 @@ export async function getTokenQuotes(
         return { success: false, msg: error.response.data.error, data: null };
       }
       
-      console.error(`[${botName}]|[getTokenQuotes]|Error fetching quote, attempt ${retryCount + 1}/${RETRY_CONFIG.maxRetries}`, processRunCounter, error);
+      console.error(`[${botName}]|[getTokenQuotes]|Error fetching quote, attempt ${retryCount + 1}/${RETRY_CONFIG.maxRetries} \nurl: ${url}`, processRunCounter, error);
     }
 
     retryCount++;

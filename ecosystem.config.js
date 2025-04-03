@@ -4,13 +4,26 @@ require('dotenv').config();
 module.exports = {
   apps: [
     {
+      name: 'init',
+      script: './scripts/init-db.js',
+      env: {
+        NODE_ENV: process.env.NODE_ENV,
+      },
+      out_file: process.env.NODE_ENV === 'development' ? 'logs/pm2/db-init.log' : '/dev/null',
+      error_file: process.env.NODE_ENV === 'development' ? 'logs/pm2/db-init.error.log' : '/dev/null',
+      autorestart: false,  // Run once and exit
+      wait_ready: true,    // Wait for process to emit ready signal
+      kill_timeout: 5000,  // Give it time to finish initialization
+    },
+    {
       name: 'tracker',
-      script: './dist/bots/tracker-bot/index.js',
+      script: './dist/bots/tracker-bot/tracker-bot.index.js',
       env: {
         NODE_ENV: process.env.NODE_ENV,
       },
       out_file: process.env.NODE_ENV === 'development' ? 'logs/pm2/tracker-bot.log' : '/dev/null',
       error_file: process.env.NODE_ENV === 'development' ? 'logs/pm2/tracker-bot.error.log' : '/dev/null',
+      dependency: ['db-init'],
       // Production configuration
       ...(process.env.NODE_ENV === 'production' ? {
         // No watch and logs in production
@@ -28,6 +41,7 @@ module.exports = {
       env: {
         NODE_ENV: process.env.NODE_ENV,
       },
+      dependency: ['db-init'],
       ...(process.env.NODE_ENV === 'production' ? {
         // No watch and logs in production
       } : {
@@ -43,6 +57,7 @@ module.exports = {
       env: {
         NODE_ENV: process.env.NODE_ENV,
       },
+      dependency: ['db-init'],
       ...(process.env.NODE_ENV === 'production' ? {
         // No watch and logs in production
       } : {
@@ -55,6 +70,7 @@ module.exports = {
       script: './dist/trades-monitoring/index.js',
       out_file: process.env.NODE_ENV === 'development' ? 'logs/pm2/trades-monitoring.log' : '/dev/null',
       error_file: process.env.NODE_ENV === 'development' ? 'logs/pm2/trades-monitoring.error.log' : '/dev/null',
+      dependency: ['db-init'],
       ...(process.env.NODE_ENV === 'production' ? {
         // No watch and logs in production
       } : {
@@ -76,7 +92,7 @@ module.exports = {
       wait_ready: true,    // Wait for process to emit ready signal
       max_restarts: 3,     // Limit restarts if there are real errors
       restart_delay: 10000, // Wait 10 seconds before restarting
-      dependency: ['api'], // Ensure API is running first
+      dependency: ['api', 'db-init'], // Ensure API is running first and DB is initialized
       env: {
         NODE_ENV: process.env.NODE_ENV,
       },
@@ -93,6 +109,7 @@ module.exports = {
       kill_timeout: 3000,  // Give it time to cleanup before killing
       wait_ready: true,    // Wait for process to emit ready signal
       max_restarts: 3,     // Limit restarts if there are real errors
+      dependency: ['db-init'], // Ensure DB is initialized
       env: {
         NODE_ENV: process.env.NODE_ENV,
       },
@@ -109,6 +126,7 @@ module.exports = {
       kill_timeout: 3000,  // Give it time to cleanup before killing
       wait_ready: true,    // Wait for process to emit ready signal
       max_restarts: 3,     // Limit restarts if there are real errors
+      dependency: ['db-init'], // Ensure DB is initialized
       env: {
         NODE_ENV: process.env.NODE_ENV,
       },

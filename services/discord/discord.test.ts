@@ -1,5 +1,5 @@
 import dotenv from "dotenv";
-import { initializeDiscordClient, getDiscordChannel, sendMessageOnDiscord, shutdownDiscordClient } from "./discordSend";
+import { initializeDiscordClient, getDiscordChannel, sendMessageOnDiscord, shutdownDiscordClient } from "./discord-send";
 
 // Load environment variables
 dotenv.config();

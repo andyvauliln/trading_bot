@@ -171,3 +171,7 @@ TODO API:
 `http://35.204.20.112:9090/api/logs?module=tracker-bot`
 
 Math.round(Number(balance) * 1e9).toString(), 
+
+
+[] configuration bot, implement/reomove discord_notification_field
+[] save solana price to historical data every time we have it
