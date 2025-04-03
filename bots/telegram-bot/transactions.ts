@@ -11,9 +11,9 @@ import {
   SwapEventDetailsResponse,
   NewTokenRecord,
 } from "./types";
-import { insertHolding, selectTokenByMint, insertTransaction } from "../../db/holding.db";
-import { HoldingRecord } from "../tracker-bot/types";
-import { retryAxiosRequest } from "../../common/utils/help-functions";
+import { insertHolding, selectTokenByMint, insertTransaction } from "../../db/db.holding";
+import { HoldingRecord } from "../tracker-bot/tacker-bot.types";
+import { retryAxiosRequest } from "../../common/common.helpers";
 import { TAGS } from "../../common/utils/log-tags";
 dotenv.config();
 

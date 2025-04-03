@@ -1,7 +1,7 @@
 import axios from 'axios';
 import {config} from '../api/config';
 import { DateTime } from 'luxon';
-import { retryAxiosRequest } from '../common/utils/help-functions';
+import { retryAxiosRequest } from '../common/common.helpers';
 import dotenv from 'dotenv';
 
 dotenv.config();

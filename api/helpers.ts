@@ -1,13 +1,13 @@
-import { HoldingRecord, PoolSizeData, TransactionRecord } from '../bots/tracker-bot/types';
+import { HoldingRecord, PoolSizeData, TransactionRecord } from '../bots/tracker-bot/tacker-bot.types';
 import { config } from './config';
 import axios from 'axios';
-import { retryAxiosRequest } from '../common/utils/help-functions';
+import { retryAxiosRequest } from '../common/common.helpers';
 import { Keypair, Connection, PublicKey } from '@solana/web3.js';
 import { Wallet } from "@project-serum/anchor";
 import bs58 from 'bs58';
 import { Metaplex } from "@metaplex-foundation/js";
 import { DateTime } from 'luxon';
-import { selectHistoricalDataByAccount, insertHistoricalData } from '../db/db';
+import { selectHistoricalDataByAccount, insertHistoricalData } from '../db/db.historical-data';
 import {
   WalletToken,
   DexscreenerResult,

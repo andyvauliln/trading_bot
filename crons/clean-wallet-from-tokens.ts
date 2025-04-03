@@ -3,10 +3,10 @@ import { Connection, Keypair, PublicKey, Transaction, sendAndConfirmTransaction 
 import { Wallet } from "@project-serum/anchor";
 import bs58 from "bs58";
 import dotenv from "dotenv";
-import { getAllHoldings, getSkippedHoldings, removeHolding } from "../db/holding.db";
+import { getAllHoldings, getSkippedHoldings, removeHolding } from "../db/db.holding";
 import { createBurnCheckedInstruction } from "@solana/spl-token";
-import { createSellTransaction, getTokenQuotes, calculatePNL } from "../bots/tracker-bot/tracker-utils";
-import { HoldingRecord as DBHoldingRecord, HoldingRecord } from "../bots/tracker-bot/types";
+import { createSellTransaction, getTokenQuotes, calculatePNL } from "../bots/tracker-bot/tracker-bot-utils";
+import { HoldingRecord as DBHoldingRecord, HoldingRecord } from "../bots/tracker-bot/tacker-bot.types";
 
 // Load environment variables from the .env file
 dotenv.config();

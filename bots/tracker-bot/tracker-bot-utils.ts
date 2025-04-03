@@ -5,49 +5,20 @@ import {
   TrackerBotConfig,
   TradeStrategy,
   SellDecision,
-} from "./types";
-import { removeHolding } from "../../db/holding.db";
-import { HoldingRecord, CalculatedPNL, TransactionRecord, ProfitLossRecord } from "./types";
-import { insertTransaction, insertProfitLoss } from "../../db/holding.db";
+  CalculatedPNL
+} from "./tacker-bot.types";
+import { removeHolding } from "../../db/db.holding";
+import { HoldingRecord, TransactionRecord, ProfitLossRecord } from "../../db/db.types";
+import { insertTransaction } from "../../db/db.transactions";
+import { insertProfitLoss } from "../../db/db.proffit-loss";
 import { DateTime } from "luxon";
 import { getSolanaPrice } from "../../services/jupiter/jupiter-get-solana-price";
 import { getTransactionDetails } from "../../services/solana-rpc/solana-get-transaction-details";
 
 
-function calculateSellDecision(
-  strategy: StrategyAction | null,
-  currentPrice: number,
-  pnlPercent: number,
-  balance: number,
-  isProfitStrategy: boolean
-): SellDecision {
-  const defaultResult = { shouldSell: false, amountToSell: 0 };
-  
-  if (!strategy) return defaultResult;
+//*********************CALCULTE PNLS*********************
 
-  const isCorrectPnlDirection = isProfitStrategy ? pnlPercent > 0 : pnlPercent < 0;
-  if (!isCorrectPnlDirection) return defaultResult;
-
-  let shouldSell = false;
-
-  if (strategy.threshold_unit === "percent") {
-    shouldSell = Math.abs(pnlPercent) > strategy.threshold;
-  } else if (strategy.threshold_unit === "price") {
-    shouldSell = isProfitStrategy 
-      ? currentPrice > strategy.threshold
-      : currentPrice < strategy.threshold;
-  }
-
-  if (!shouldSell) return defaultResult;
-
-  const amountToSell = strategy.sellAmount_unit === "percent"
-    ? (balance * strategy.sellAmount) / 100
-    : Math.min(strategy.sellAmount, balance);
-
-  return { shouldSell, amountToSell };
-}
-
-export async function calculatePNL(holding: HoldingRecord, tokenQuotes: QuoteResponse, trackerBotConfig: TrackerBotConfig, solanaPrice: number, bot_name: string): Promise<CalculatedPNL> {
+export async function calculatePNL(holding: HoldingRecord, tokenQuotes: QuoteResponse, trackerBotConfig: TrackerBotConfig, solanaPrice: number, bot_name: string, processRunCounter: number): Promise<CalculatedPNL> {
   try {
     const { 
       Balance, 
@@ -87,7 +58,7 @@ export async function calculatePNL(holding: HoldingRecord, tokenQuotes: QuoteRes
     const stopLossDecision = calculateSellDecision(currentStopLossStrategy, currentPrice, pnlPercent, Balance, false);
     const takeProfitDecision = calculateSellDecision(currentTakeProfitStrategy, currentPrice, pnlPercent, Balance, true);
 
-    return {
+    const calculatedPNL: CalculatedPNL = {
       botName: bot_name,
       tokenName: holding.TokenName,
       tokenAddress: Token,
@@ -120,10 +91,45 @@ export async function calculatePNL(holding: HoldingRecord, tokenQuotes: QuoteRes
       shouldTakeProfit: takeProfitDecision.shouldSell,
       amountToSell: stopLossDecision.shouldSell ? stopLossDecision.amountToSell : takeProfitDecision.amountToSell,
     };
+    sendCurrentStateNotification(holding, calculatedPNL, bot_name, processRunCounter);
+    return calculatedPNL;
   } catch (error: any) {
     console.error(`[${bot_name}]|[calculatePNL]|Error calculating PNL: ${error.message}`, 0, error);
     throw error;
   }
+}
+
+function calculateSellDecision(
+  strategy: StrategyAction | null,
+  currentPrice: number,
+  pnlPercent: number,
+  balance: number,
+  isProfitStrategy: boolean
+): SellDecision {
+  const defaultResult = { shouldSell: false, amountToSell: 0 };
+  
+  if (!strategy) return defaultResult;
+
+  const isCorrectPnlDirection = isProfitStrategy ? pnlPercent > 0 : pnlPercent < 0;
+  if (!isCorrectPnlDirection) return defaultResult;
+
+  let shouldSell = false;
+
+  if (strategy.threshold_unit === "percent") {
+    shouldSell = Math.abs(pnlPercent) > strategy.threshold;
+  } else if (strategy.threshold_unit === "price") {
+    shouldSell = isProfitStrategy 
+      ? currentPrice > strategy.threshold
+      : currentPrice < strategy.threshold;
+  }
+
+  if (!shouldSell) return defaultResult;
+
+  const amountToSell = strategy.sellAmount_unit === "percent"
+    ? (balance * strategy.sellAmount) / 100
+    : Math.min(strategy.sellAmount, balance);
+
+  return { shouldSell, amountToSell };
 }
 
 function getCurrentStopLossAndTakeProfit(strategy: TradeStrategy): { currentStopLossStrategy: StrategyAction, currentTakeProfitStrategy: StrategyAction } {
@@ -144,7 +150,7 @@ function getCurrentStopLossAndTakeProfit(strategy: TradeStrategy): { currentStop
   };
 }
 
-
+//*********************DATABASE PROCESSING*********************
 
 export async function fetchAndSaveSwapDetails(bot_name:string, tx: string, holding: HoldingRecord, calculatedPNL: CalculatedPNL, walletPublicKey: string, processRunCounter: number): Promise<boolean> {
   try {
@@ -154,11 +160,6 @@ export async function fetchAndSaveSwapDetails(bot_name:string, tx: string, holdi
     // Safely access the event information
     const swapTransactionData = await getTransactionDetails(bot_name, tx, processRunCounter);
     if (!swapTransactionData) {
-      return false;
-    }
-    const solanaPrice = await getSolanaPrice(bot_name, processRunCounter);
-    if (!solanaPrice) {
-      console.warn(`${bot_name}|[fetchAndSaveSwapDetails]| ⛔ Could not fetch latest Sol Price: No valid data received from API after 5 attempts.`, processRunCounter);
       return false;
     }
     await makeInsertTransaction(bot_name, holding, calculatedPNL, swapTransactionData, walletPublicKey, tx, processRunCounter);
@@ -171,18 +172,6 @@ export async function fetchAndSaveSwapDetails(bot_name:string, tx: string, holdi
   }
 }
 
-
-async function sendSellNotification(bot_name: string, holding: HoldingRecord, calculatedPNL: CalculatedPNL, profitLossRecord: ProfitLossRecord, processRunCounter: number) {
-  const icon = profitLossRecord.IsTakeProfit ? "🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢" : "🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴";
-  const actionText = profitLossRecord.IsTakeProfit ? "Take profit" : "Stop loss";
-  const hrTradeTime = DateTime.fromMillis(Date.now()).toFormat("HH:mm:ss");
-  const txLink = `https://solscan.io/tx/${profitLossRecord.TxId}`;
-  const tokenLink = `https://solscan.io/token/${holding.Token}`;
-  const gmgnLink = `https://gmgn.xyz/token/${holding.Token}`;
-  const jsonData = JSON.stringify(profitLossRecord, null, 2);
-  const message = `[${bot_name}]|[sell-notification]| ${icon}\n${hrTradeTime}: ${actionText} for ${holding.TokenName} with wallet ${profitLossRecord.WalletPublicKey}\n${txLink}\n${tokenLink}\n${gmgnLink}\n${jsonData}\n${icon}`;
-  console.log(message, processRunCounter, {holding, calculatedPNL, profitLossRecord}, "send-to-discord");
-}
 async function makeInsertTransaction(bot_name: string, holding: HoldingRecord, calculatedPNL: CalculatedPNL,  swapTransactionData: SwapEventDetailsResponse, publicKey: string, txTransaction: string, processRunCounter: number) {
   const transactionRecord: TransactionRecord = {
       Time: Math.floor(Date.now() / 1000),
@@ -247,3 +236,32 @@ async function makeInsertProfitLoss(bot_name: string, holding: HoldingRecord, ca
   sendSellNotification(bot_name, holding, calculatedPNL, profitLossRecord, processRunCounter);
   await insertProfitLoss(profitLossRecord, processRunCounter);
 }
+
+
+
+//*********************DISCORD NOTIFICATIONS*********************
+
+async function sendCurrentStateNotification(holding: HoldingRecord, calculatedPNL: CalculatedPNL, bot_name: string, processRunCounter: number) {
+  const icon = calculatedPNL.pnlPercent >= 0 ? "🟢" : "🔴";
+  const hrTradeTime = DateTime.fromMillis(Date.now()).toFormat("HH:mm:ss");
+  const tokenLink = `https://solscan.io/token/${holding.Token}`;
+  const gmgnLink = `https://gmgn.xyz/token/${holding.Token}`;
+  const jsonData = JSON.stringify(calculatedPNL, null, 2);
+  const message = `${icon}${hrTradeTime} ${bot_name}| Current state of holding for Token: ${holding.TokenName} with wallet ${holding.WalletPublicKey}\n${tokenLink}\n${gmgnLink}\n${jsonData}\n`;
+  console.log(message, processRunCounter, {holding, calculatedPNL}, "send-to-discord");
+}
+
+
+async function sendSellNotification(bot_name: string, holding: HoldingRecord, calculatedPNL: CalculatedPNL, profitLossRecord: ProfitLossRecord, processRunCounter: number) {
+  const icon = profitLossRecord.IsTakeProfit ? "🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢" : "🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴";
+  const actionText = profitLossRecord.IsTakeProfit ? "Take profit" : "Stop loss";
+  const hrTradeTime = DateTime.fromMillis(Date.now()).toFormat("HH:mm:ss");
+  const txLink = `https://solscan.io/tx/${profitLossRecord.TxId}`;
+  const tokenLink = `https://solscan.io/token/${holding.Token}`;
+  const gmgnLink = `https://gmgn.xyz/token/${holding.Token}`;
+  const jsonData = JSON.stringify(profitLossRecord, null, 2);
+  const message = `[${bot_name}]|[sell-notification]| ${icon}\n${hrTradeTime}: ${actionText} for ${holding.TokenName} with wallet ${profitLossRecord.WalletPublicKey}\n${txLink}\n${tokenLink}\n${gmgnLink}\n${jsonData}\n${icon}`;
+  console.log(message, processRunCounter, {holding, calculatedPNL, profitLossRecord}, "send-to-discord");
+}
+
+

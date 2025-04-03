@@ -1,13 +1,12 @@
-import { tracker_bot_config } from "./config";
+import { tracker_bot_config } from "./tracker-bot.config";
 import dotenv, { config } from "dotenv";
-import { getAllHoldings, initializeDatabaseTables, updateSellAttempts } from "../../db/holding.db";
-import { createDefaultBotConfig, getBotConfigs } from "../../db/config.db";
-import { CalculatedPNL, HoldingRecord, TrackerBotConfig } from "./types";
-import { DateTime } from "luxon";
-import { fetchAndSaveSwapDetails, calculatePNL } from "./tracker-utils";
+import { getAllHoldings, initializeDatabaseTables, updateSellAttempts } from "../../db/db.holding";
+import { createDefaultBotConfig, getBotConfigs } from "../../db/db.bots-config";
+import { TrackerBotConfig } from "./tacker-bot.types";
+import { fetchAndSaveSwapDetails, calculatePNL } from "./tracker-bot-utils";
 import { getTokenQuotes } from "../../services/jupiter/jupiter-get-quotes";
 import { createSellTransaction } from "../../services/jupiter/jupiter-sell-transaction";
-import { getBotConfigData, getPrivateKeysMap } from "../../common/utils/help-functions";
+import { getBotConfigData, getPrivateKeysMap } from "../../common/common.helpers";
 import { getSolanaPrice } from "../../services/jupiter/jupiter-get-solana-price";
 import logger from "../../common/logger";
 
@@ -44,10 +43,8 @@ async function main() {
 
                     if (tokenQuotes.success && tokenQuotes.data) {
                        
-                        const calculatedPNL = await calculatePNL(holding, tokenQuotes.data, botConfigData, solanaPrice, botConfig.bot_name);
+                        const calculatedPNL = await calculatePNL(holding, tokenQuotes.data, botConfigData, solanaPrice, botConfig.bot_name, processRunCounter);
             
-                        await sendCurrentStateNotification(holding, calculatedPNL, botConfig.bot_name, processRunCounter);
-                        
                         if (calculatedPNL.shouldTakeProfit || calculatedPNL.shouldStopLoss) {                        
                             const result = await createSellTransaction(botConfig.bot_name, tokenQuotes.data, holding.TokenName, tokenAmount, holding.Token, botConfigData.prio_fee_max_lamports, botConfigData.prio_level, processRunCounter, botPrivateKey);
                             const txSuccess = result.success;
@@ -76,17 +73,6 @@ async function main() {
         //Should run again after sleep
         await new Promise(resolve => setTimeout(resolve, tracker_bot_config.check_interval * 1000));
     }
-}
-
-
-async function sendCurrentStateNotification(holding: HoldingRecord, calculatedPNL: CalculatedPNL, bot_name: string, processRunCounter: number) {
-    const icon = calculatedPNL.pnlPercent >= 0 ? "🟢" : "🔴";
-    const hrTradeTime = DateTime.fromMillis(Date.now()).toFormat("HH:mm:ss");
-    const tokenLink = `https://solscan.io/token/${holding.Token}`;
-    const gmgnLink = `https://gmgn.xyz/token/${holding.Token}`;
-    const jsonData = JSON.stringify(calculatedPNL, null, 2);
-    const message = `${icon}${hrTradeTime} ${bot_name}| Current state of holding for Token: ${holding.TokenName} with wallet ${holding.WalletPublicKey}\n${tokenLink}\n${gmgnLink}\n${jsonData}\n`;
-    console.log(message, processRunCounter, {holding, calculatedPNL}, "send-to-discord");
 }
 
 

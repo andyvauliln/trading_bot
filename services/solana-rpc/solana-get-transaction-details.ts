@@ -1,7 +1,7 @@
 import { SwapEventDetailsResponse, TransactionDetailsResponse } from "./types";
 
 import axios from "axios";
-import { retryAxiosRequest } from "../../common/utils/help-functions";
+import { retryAxiosRequest } from "../../common/common.helpers";
 
 export async function getTransactionDetails(bot_name:string, tx: string, processRunCounter: number): Promise<SwapEventDetailsResponse | null> {
 

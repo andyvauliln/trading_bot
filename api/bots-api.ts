@@ -1,6 +1,6 @@
 import * as express from 'express';
 import { Request, Response } from 'express';
-import { getAllHoldings, getTotalProfitLoss, getProfitLossRecords, getAllTransactions, getTransactionHistoryWithProfitLoss } from '../db/holding.db';
+import { getAllHoldings, getTotalProfitLoss, getProfitLossRecords, getAllTransactions, getTransactionHistoryWithProfitLoss } from '../db/db.holding';
 import { getWalletData, populateWithCurrentProfitsLosses, getHistoricalWalletData, addComments, getPoolSizeData } from './helpers';
 import { WalletToken } from './types';
 import { config } from './config';

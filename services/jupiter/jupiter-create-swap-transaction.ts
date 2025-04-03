@@ -1,5 +1,5 @@
 import axios from "axios";
-import { retryAxiosRequest } from "../../common/utils/help-functions";
+import { retryAxiosRequest } from "../../common/common.helpers";
 import { QuoteResponse, SerializedQuoteResponse } from "./types";
 
 /**

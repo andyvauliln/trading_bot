@@ -2,7 +2,7 @@ import path from "path";
 import { Keypair } from "@solana/web3.js";
 import { Wallet } from "@project-serum/anchor";
 import bs58 from "bs58";
-import { BotConfig } from "../../db/config.db";
+import { BotConfig } from "../db/db.types";
 /**
  * Helper function to retry axios requests with exponential backoff
  * @param requestFn Function that returns an axios request promise

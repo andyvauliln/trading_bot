@@ -1,6 +1,6 @@
 import axios, { AxiosResponse } from "axios";
-import { app_config_common } from "../../common/config-app";
-import { retryAxiosRequest } from "../../common/utils/help-functions";
+import { app_config_common } from "../../common/common.config";
+import { retryAxiosRequest } from "../../common/common.helpers";
 
 type SolanaPriceResponse = {
   data: {

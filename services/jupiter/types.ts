@@ -9,6 +9,12 @@ export type QuoteRequestParams = {
   excludeDexes?: string;
 };
 
+
+export interface createSellTransactionResponse {
+  success: boolean;
+  msg: string | null;
+  tx: string | null;
+}
 export type QuoteResult = {
   success: boolean;
   msg: string | null;

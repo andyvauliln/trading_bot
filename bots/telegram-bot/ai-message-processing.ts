@@ -3,7 +3,7 @@ import axios from 'axios';
 import * as dotenv from 'dotenv';
 import { config as configData } from "./config";
 import { AIConfig } from "./types";
-import { retryAxiosRequest } from "../../common/utils/help-functions";
+import { retryAxiosRequest } from "../../common/common.helpers";
 
 // Load environment variables
 dotenv.config();

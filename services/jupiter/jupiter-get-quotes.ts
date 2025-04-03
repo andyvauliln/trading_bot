@@ -1,6 +1,6 @@
 import { Connection } from "@solana/web3.js";
 import { parseErrorForTransaction } from '@mercurial-finance/optimist';
-import { app_config_common } from "../../common/config-app";
+import { app_config_common } from "../../common/common.config";
 import axios from "axios";
 
 import { 

@@ -1,9 +1,9 @@
 import path from "path";
 import dotenv from "dotenv";
-import { getAppVersion } from "../../common/utils/help-functions";
-import { TradeStrategy, TrackerBotConfig } from "./types";
-import { app_config_common } from "../../common/config-app";
-import { BotConfig } from "../../db/config.db";
+import { getAppVersion } from "../../common/common.helpers";
+import { TradeStrategy, TrackerBotConfig } from "./tacker-bot.types";
+import { app_config_common } from "../../common/common.config";
+import { BotConfig } from "../../db/db.types";
 dotenv.config();
 
 const MODULE_NAME = "tracker-bot";

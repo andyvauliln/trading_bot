@@ -13,10 +13,10 @@ import {
   RugResponseExtended,
   NewTokenRecord,
 } from "./types";
-import { insertHolding, insertNewToken, selectTokenByMint, insertTransaction } from "../../db/holding.db";
-import { HoldingRecord } from "../tracker-bot/types";
+import { insertHolding, insertNewToken, selectTokenByMint, insertTransaction } from "../../db/db.holding";
+import { HoldingRecord } from "../tracker-bot/tacker-bot.types";
 import { TAGS } from "../../common/utils/log-tags";
-import { retryAxiosRequest } from "../../common/utils/help-functions";
+import { retryAxiosRequest } from "../../common/common.helpers";
 import { makeTokenScreenshotAndSendToDiscord } from "../../gmgn_api/make_token_screen-shot";
 
 dotenv.config();
