@@ -175,3 +175,26 @@ Math.round(Number(balance) * 1e9).toString(),
 
 [] configuration bot, implement/reomove discord_notification_field
 [] save solana price to historical data every time we have it
+[] fix PNL calculation amount
+[] add $ strategy
+[] add current strategy in Proffit Loss
+
+## Database Schema Updates
+
+If you encounter a database error like `SQLITE_ERROR: no such column: LamportsBalance`, you need to update your database schema. Use one of the following methods:
+
+### Method 1: Run the schema update script
+
+```bash
+# Run the schema update script
+npx ts-node scripts/update-holdings-schema.ts
+```
+
+### Method 2: Restart the tracker-bot
+
+The tracker-bot now automatically checks for missing columns and adds them when it starts.
+
+```bash
+# Stop and restart the tracker-bot
+pm2 restart tracker-bot
+```

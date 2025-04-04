@@ -31,7 +31,9 @@ export async function createTableHoldings(database: Database): Promise<boolean> 
       SellAttempts INTEGER DEFAULT 0,
       IsSkipped INTEGER DEFAULT 0,
       LastAttemptTime INTEGER,
-      LastAttemptTimeDate TEXT
+      LastAttemptTimeDate TEXT,
+      LamportsBalance TEXT,
+      Decimals INTEGER DEFAULT 9
     );
   `);
     console.log(`[${DEFAULT_BOT_NAME}]|[${functionName}]|Holdings table checked/created successfully.`);
@@ -42,16 +44,54 @@ export async function createTableHoldings(database: Database): Promise<boolean> 
   }
 }
 
+// ***************************UPDATE HOLDINGS SCHEMA**************************
+export async function updateHoldingsSchema(botName: string = DEFAULT_BOT_NAME, processRunCounter: number = 0): Promise<boolean> {
+  let db: Database | null = null;
+  const functionName = 'updateHoldingsSchema';
+  
+  try {
+    db = await getDbConnection(db_config.tracker_holdings_path);
+    
+    // Check if LamportsBalance column exists
+    const tableInfo = await db.all(`PRAGMA table_info(holdings);`);
+    const lamportsBalanceExists = tableInfo.some(column => column.name === 'LamportsBalance');
+    const decimalsExists = tableInfo.some(column => column.name === 'Decimals');
+    
+    // Add missing columns if they don't exist
+    if (!lamportsBalanceExists) {
+      console.log(`[${botName}]|[${functionName}]|Adding LamportsBalance column to holdings table`, processRunCounter);
+      await db.exec(`ALTER TABLE holdings ADD COLUMN LamportsBalance TEXT;`);
+    }
+    
+    if (!decimalsExists) {
+      console.log(`[${botName}]|[${functionName}]|Adding Decimals column to holdings table`, processRunCounter);
+      await db.exec(`ALTER TABLE holdings ADD COLUMN Decimals INTEGER DEFAULT 9;`);
+    }
+    
+    console.log(`[${botName}]|[${functionName}]|Holdings table schema updated successfully`, processRunCounter);
+    return true;
+  } catch (error) {
+    console.error(`[${botName}]|[${functionName}]|Error updating holdings table schema`, processRunCounter, { error });
+    return false;
+  } finally {
+    if (db) {
+      await db.close();
+    }
+  }
+}
+
 // ***************************GET ALL HOLDINGS**************************
 export async function getAllHoldings(
   filter: 'all' | 'skipped' | 'notSkipped' = 'all',
   walletPublicKey?: string,
+  processRunCounter: number = 0,
+  maxAttempts?: number,
   botName?: string,
-  processRunCounter: number = 0
 ): Promise<HoldingRecord[]> {
   let db: Database | null = null;
   const functionName = 'getAllHoldings';
-  console.log(`[${botName}]|[${functionName}]|Fetching holdings`, processRunCounter, { filter, walletPublicKey });
+  const effectiveBotName = botName || DEFAULT_BOT_NAME;
+  console.log(`[${effectiveBotName}]|[${functionName}]|Fetching holdings`, processRunCounter, { filter, walletPublicKey });
   try {
     db = await getDbConnection(db_config.tracker_holdings_path);
     
@@ -62,7 +102,7 @@ export async function getAllHoldings(
     if (filter === 'skipped') {
       conditions.push('IsSkipped = 1');
     } else if (filter === 'notSkipped') {
-      conditions.push('IsSkipped = 0');
+      conditions.push(`(IsSkipped = 0${maxAttempts ? ` AND SellAttempts < ${maxAttempts}` : ''})`);
     }
 
     if(botName) {
@@ -78,12 +118,13 @@ export async function getAllHoldings(
     if (conditions.length > 0) {
       query += ` WHERE ${conditions.join(' AND ')}`;
     }
+    console.log(`[${effectiveBotName}]|[${functionName}]|Query: ${query}`, processRunCounter);
 
     const holdings: HoldingRecord[] = await db.all(query, params);
-    console.log(`[${botName}]|[${functionName}]|Successfully fetched ${holdings.length} holdings`, processRunCounter);
+    console.log(`[${effectiveBotName}]|[${functionName}]|Successfully fetched ${holdings.length} holdings`, processRunCounter);
     return holdings;
   } catch (error) {
-    console.error(`[${botName}]|[${functionName}]|Error fetching holdings`, processRunCounter, { error, filter, walletPublicKey });
+    console.error(`[${effectiveBotName}]|[${functionName}]|Error fetching holdings`, processRunCounter, { error, filter, walletPublicKey });
     throw error;
   } finally {
     if (db) {
@@ -109,8 +150,8 @@ export async function insertHolding(holding: HoldingRecord, processRunCounter: n
     // Ensure all numeric values are numbers before storing
     await db.run(
       `
-    INSERT INTO holdings (Time, TimeDate, Token, TokenName, Balance, SolPaid, SolFeePaid, SolPaidUSDC, SolFeePaidUSDC, PerTokenPaidUSDC, Slot, Program, BotName, WalletPublicKey, TxId)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    INSERT INTO holdings (Time, TimeDate, Token, TokenName, Balance, SolPaid, SolFeePaid, SolPaidUSDC, SolFeePaidUSDC, PerTokenPaidUSDC, Slot, Program, BotName, WalletPublicKey, TxId, LamportsBalance, Decimals)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
   `,
       [
         Number(Time), timeDate, Token, TokenName, Number(Balance), Number(SolPaid), Number(SolFeePaid), 
@@ -390,9 +431,202 @@ export async function removeHolding(
   }
 }
 
+// ***************************UPDATE HOLDING**************************
+export async function updateHolding(
+  id: number,
+  holdingData: Partial<HoldingRecord>,
+  botName: string,
+  processRunCounter: number = 0
+): Promise<boolean> {
+  let db: Database | null = null;
+  const functionName = 'updateHolding';
+  
+  try {
+    db = await getDbConnection(db_config.tracker_holdings_path);
+    
+    // Generate dynamic SQL based on the fields provided in holdingData
+    const updateFields: string[] = [];
+    const params: any[] = [];
+    
+    // Skip id and add all other provided fields to the update statement
+    Object.entries(holdingData).forEach(([key, value]) => {
+      if (key !== 'id' && value !== undefined) {
+        updateFields.push(`${key} = ?`);
+        params.push(value);
+      }
+    });
+    
+    // If TimeDate needs update based on Time
+    if (holdingData.Time && !holdingData.TimeDate) {
+      updateFields.push('TimeDate = ?');
+      params.push(convertTimestampToISO(Number(holdingData.Time)));
+    }
+    
+    // If no fields to update, return early
+    if (updateFields.length === 0) {
+      console.warn(`[${botName}]|[${functionName}]|No fields to update for holding ID`, processRunCounter, { id });
+      return false;
+    }
+    
+    // Add the ID as the last parameter for the WHERE clause
+    params.push(id);
+    
+    const query = `UPDATE holdings SET ${updateFields.join(', ')} WHERE id = ?;`;
+    const result = await db.run(query, params);
+    
+    if (result.changes && result.changes > 0) {
+      console.log(`[${botName}]|[${functionName}]|Holding updated successfully`, processRunCounter, { id, updatedFields: Object.keys(holdingData) });
+      return true;
+    } else {
+      console.warn(`[${botName}]|[${functionName}]|Holding not found for update or no changes made`, processRunCounter, { id });
+      return false;
+    }
+  } catch (error) {
+    console.error(`[${botName}]|[${functionName}]|Error updating holding`, processRunCounter, { error, id, holdingData });
+    throw error;
+  } finally {
+    if (db) {
+      await db.close();
+    }
+  }
+}
+
+// ***************************UPDATE HOLDING FIELD**************************
+export async function updateHoldingField<K extends keyof HoldingRecord>(
+  id: number,
+  fieldName: K,
+  fieldValue: HoldingRecord[K],
+  botName: string,
+  processRunCounter: number = 0
+): Promise<boolean> {
+  let db: Database | null = null;
+  const functionName = 'updateHoldingField';
+  
+  try {
+    db = await getDbConnection(db_config.tracker_holdings_path);
+    
+    // Special handling for Time field to also update TimeDate
+    if (fieldName === 'Time' as K) {
+      const timeDate = convertTimestampToISO(Number(fieldValue));
+      const result = await db.run(
+        `UPDATE holdings SET Time = ?, TimeDate = ? WHERE id = ?;`, 
+        [fieldValue, timeDate, id]
+      );
+      
+      if (result.changes && result.changes > 0) {
+        console.log(`[${botName}]|[${functionName}]|Time and TimeDate updated successfully`, processRunCounter, { id, time: fieldValue, timeDate });
+        return true;
+      }
+    } else {
+      // For all other fields
+      const query = `UPDATE holdings SET ${fieldName} = ? WHERE id = ?;`;
+      const result = await db.run(query, [fieldValue, id]);
+      
+      if (result.changes && result.changes > 0) {
+        console.log(`[${botName}]|[${functionName}]|Field ${String(fieldName)} updated successfully`, processRunCounter, { id, [fieldName]: fieldValue });
+        return true;
+      }
+    }
+    
+    console.warn(`[${botName}]|[${functionName}]|Holding not found for update or no changes made`, processRunCounter, { id, fieldName, fieldValue });
+    return false;
+  } catch (error) {
+    console.error(`[${botName}]|[${functionName}]|Error updating holding field`, processRunCounter, { error, id, fieldName, fieldValue });
+    throw error;
+  } finally {
+    if (db) {
+      await db.close();
+    }
+  }
+}
+
+// ***************************UPDATE HOLDING BY TOKEN**************************
+export async function updateHoldingByToken(
+  token: string,
+  walletPublicKey: string,
+  holdingData: Partial<HoldingRecord>,
+  botName: string,
+  processRunCounter: number = 0
+): Promise<boolean> {
+  let db: Database | null = null;
+  const functionName = 'updateHoldingByToken';
+  
+  try {
+    db = await getDbConnection(db_config.tracker_holdings_path);
+    
+    // Generate dynamic SQL based on the fields provided in holdingData
+    const updateFields: string[] = [];
+    const params: any[] = [];
+    
+    // Skip id and add all other provided fields to the update statement
+    Object.entries(holdingData).forEach(([key, value]) => {
+      if (key !== 'id' && key !== 'Token' && key !== 'WalletPublicKey' && value !== undefined) {
+        updateFields.push(`${key} = ?`);
+        params.push(value);
+      }
+    });
+    
+    // If TimeDate needs update based on Time
+    if (holdingData.Time && !holdingData.TimeDate) {
+      updateFields.push('TimeDate = ?');
+      params.push(convertTimestampToISO(Number(holdingData.Time)));
+    }
+    
+    // If no fields to update, return early
+    if (updateFields.length === 0) {
+      console.warn(`[${botName}]|[${functionName}]|No fields to update for token`, processRunCounter, { token, walletPublicKey });
+      return false;
+    }
+    
+    // Add parameters for WHERE clause
+    params.push(token);
+    params.push(walletPublicKey);
+    if (botName) {
+      params.push(botName);
+    }
+    
+    const whereClause = botName
+      ? 'WHERE Token = ? AND WalletPublicKey = ? AND BotName = ?'
+      : 'WHERE Token = ? AND WalletPublicKey = ?';
+    
+    const query = `UPDATE holdings SET ${updateFields.join(', ')} ${whereClause};`;
+    const result = await db.run(query, params);
+    
+    if (result.changes && result.changes > 0) {
+      console.log(`[${botName}]|[${functionName}]|Holding updated successfully by token`, processRunCounter, { 
+        token, 
+        walletPublicKey,
+        updatedFields: Object.keys(holdingData)
+      });
+      return true;
+    } else {
+      console.warn(`[${botName}]|[${functionName}]|Holding not found for update or no changes made`, processRunCounter, { 
+        token, 
+        walletPublicKey
+      });
+      return false;
+    }
+  } catch (error) {
+    console.error(`[${botName}]|[${functionName}]|Error updating holding by token`, processRunCounter, { 
+      error, 
+      token, 
+      walletPublicKey, 
+      holdingData 
+    });
+    throw error;
+  } finally {
+    if (db) {
+      await db.close();
+    }
+  }
+}
+
 // ***************************UPDATE SELL ATTEMPTS**************************
 export async function updateSellAttempts(
   id: number,
+  currentAttempt: number,
+  maxAttempts: number,
+  token: string,
   botName: string,
   processRunCounter: number
 ): Promise<boolean> {
@@ -412,7 +646,7 @@ export async function updateSellAttempts(
     );
 
     if (result.changes && result.changes > 0) {
-      console.log(`[${botName}]|[${functionName}]|Sell attempts updated successfully for holding ID`, processRunCounter, { id });
+      console.log(`[${botName}]|[${functionName}]|Sell attempts updated successfully for holding ID ${id}, Token ${token} Current Attempt ${currentAttempt}, Max Attempts ${maxAttempts}`, processRunCounter, { id, currentAttempt, maxAttempts });
       return true;
     } else {
       console.warn(`[${botName}]|[${functionName}]|Holding not found for updating sell attempts`, processRunCounter, { id });
@@ -451,6 +685,44 @@ export async function getSkippedHoldings(
     return holdings;
   } catch (error) {
     console.error(`[${botName}]|[${functionName}]|Error fetching skipped holdings`, processRunCounter, { error, walletPublicKey });
+    throw error;
+  } finally {
+    if (db) {
+      await db.close();
+    }
+  }
+}
+
+// ***************************UPDATE HOLDING IS SKIPPED**************************
+export async function updateHoldingIsSkipped(
+  id: number,
+  isSkipped: boolean,
+  botName: string,
+  processRunCounter: number = 0
+): Promise<boolean> {
+  let db: Database | null = null;
+  const functionName = 'updateHoldingIsSkipped';
+  
+  try {
+    db = await getDbConnection(db_config.tracker_holdings_path);
+    
+    // Convert boolean to 0/1 for SQLite
+    const isSkippedValue = isSkipped ? 1 : 0;
+    
+    const result = await db.run(
+      `UPDATE holdings SET IsSkipped = ? WHERE id = ?;`, 
+      [isSkippedValue, id]
+    );
+
+    if (result.changes && result.changes > 0) {
+      console.log(`[${botName}]|[${functionName}]|Holding IsSkipped status updated to ${isSkipped}`, processRunCounter, { id });
+      return true;
+    } else {
+      console.warn(`[${botName}]|[${functionName}]|Holding not found or IsSkipped status already set to ${isSkipped}`, processRunCounter, { id });
+      return false;
+    }
+  } catch (error) {
+    console.error(`[${botName}]|[${functionName}]|Error updating holding IsSkipped status`, processRunCounter, { error, id, isSkipped });
     throw error;
   } finally {
     if (db) {

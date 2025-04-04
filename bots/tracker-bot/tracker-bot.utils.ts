@@ -1,4 +1,4 @@
-import {SwapEventDetailsResponse} from "../../services/solana-rpc/types"
+import {SwapEventDetailsResponse} from "../../services/solana-rpc/solana-rpc.types"
 import {
   QuoteResponse,
   StrategyAction,
@@ -13,6 +13,7 @@ import { insertTransaction } from "../../db/db.transactions";
 import { insertProfitLoss } from "../../db/db.profit-loss";
 import { DateTime } from "luxon";
 import { getTransactionDetails } from "../../services/solana-rpc/solana-get-transaction-details";
+import { formatHumanToRaw } from "../../services/solana-rpc/solana-rpc.utils";
 
 
 //*********************CALCULTE PNLS*********************
@@ -25,8 +26,13 @@ export async function calculatePNL(holding: HoldingRecord, tokenQuotes: QuoteRes
       SolFeePaidUSDC, 
       SolFeePaid,
       PerTokenPaidUSDC,
-      Token
+      Token,
+      Decimals,
+      LamportsBalance = "0"
     } = holding;
+
+    // Use BigInt for raw lamports balance
+    const lamportsBalanceBigInt = BigInt(LamportsBalance);
 
     const currentPrice = parseFloat(tokenQuotes.swapUsdValue) / parseFloat(tokenQuotes.outAmount);
     let totalCostUSDC = SolPaidUSDC;
@@ -54,14 +60,15 @@ export async function calculatePNL(holding: HoldingRecord, tokenQuotes: QuoteRes
 
     const {currentStopLossStrategy, currentTakeProfitStrategy} = getCurrentStopLossAndTakeProfit(trackerBotConfig.strategy);
     
-    const stopLossDecision = calculateSellDecision(currentStopLossStrategy, currentPrice, pnlPercent, Balance, false);
-    const takeProfitDecision = calculateSellDecision(currentTakeProfitStrategy, currentPrice, pnlPercent, Balance, true);
+    const stopLossDecision = calculateSellDecision(currentStopLossStrategy, currentPrice, pnlPercent, Balance, lamportsBalanceBigInt, Decimals, false);
+    const takeProfitDecision = calculateSellDecision(currentTakeProfitStrategy, currentPrice, pnlPercent, Balance, lamportsBalanceBigInt, Decimals, true);
 
     const calculatedPNL: CalculatedPNL = {
       botName: bot_name,
       tokenName: holding.TokenName,
       tokenAddress: Token,
       tokenBalance: Balance,
+      tokenBalanceRaw: lamportsBalanceBigInt.toString(),
       initialPriceUSDC: PerTokenPaidUSDC,
       currentPriceUSDC: currentPrice,
       priceDiffUSD,
@@ -89,6 +96,9 @@ export async function calculatePNL(holding: HoldingRecord, tokenQuotes: QuoteRes
       shouldStopLoss: stopLossDecision.shouldSell,
       shouldTakeProfit: takeProfitDecision.shouldSell,
       amountToSell: stopLossDecision.shouldSell ? stopLossDecision.amountToSell : takeProfitDecision.amountToSell,
+      rawLamportsAmountToSell: stopLossDecision.shouldSell 
+        ? stopLossDecision.rawLamportsAmountToSell 
+        : takeProfitDecision.rawLamportsAmountToSell,
     };
     sendCurrentStateNotification(holding, calculatedPNL, bot_name, processRunCounter);
     return calculatedPNL;
@@ -103,9 +113,11 @@ function calculateSellDecision(
   currentPrice: number,
   pnlPercent: number,
   balance: number,
+  lamportsBalance: bigint,
+  decimals: number,
   isProfitStrategy: boolean
 ): SellDecision {
-  const defaultResult = { shouldSell: false, amountToSell: 0 };
+  const defaultResult = { shouldSell: false, amountToSell: 0, rawLamportsAmountToSell: "0" };
   
   if (!strategy) return defaultResult;
 
@@ -128,7 +140,15 @@ function calculateSellDecision(
     ? (balance * strategy.sellAmount) / 100
     : Math.min(strategy.sellAmount, balance);
 
-  return { shouldSell, amountToSell };
+  // Calculate raw lamports amount to sell using BigInt
+  let rawLamportsAmountToSell = formatHumanToRaw(amountToSell.toString(), decimals);
+
+  // Convert BigInt to string for the return value
+  return { 
+    shouldSell, 
+    amountToSell, 
+    rawLamportsAmountToSell: rawLamportsAmountToSell.toString() 
+  };
 }
 
 function getCurrentStopLossAndTakeProfit(strategy: TradeStrategy): { currentStopLossStrategy: StrategyAction, currentTakeProfitStrategy: StrategyAction } {

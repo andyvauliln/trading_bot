@@ -91,7 +91,7 @@ export async function createSellTransaction(
       alreadyTryExcludedDexes, 
     );
   } catch (error: any) {
-    console.log(`[${botName}]|[createSellTransaction]|Error make sell transaction for token ${tokenName} from wallet: ${JSON.stringify({error}, null, 2)}`, processRunCounter);
+    console.log(`[${botName}]|[createSellTransaction]|Error make sell transaction for token ${tokenName} from wallet: ${walletPublicKey}. ${JSON.stringify(error, null, 2)}`, processRunCounter);
     return {
       success: false,
       msg: error.message,

@@ -54,6 +54,8 @@ export interface ProfitLossRecord {
     IsSkipped?: number;
     LastAttemptTime?: number;
     LastAttemptTimeDate?: string;
+    LamportsBalance: string;
+    Decimals: number;
   }
 
 export interface TransactionRecord {

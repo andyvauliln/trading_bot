@@ -1,3 +1,14 @@
+export interface TokenMetadata {
+  name: string;
+  symbol: string;
+  decimals: number;
+  mintAuthority: string | null;
+  freezeAuthority: string | null;
+  supply: string;
+  isInitialized: boolean;
+}
+
+
 export interface SwapEventDetailsResponse {
     programInfo: {
       source: string;

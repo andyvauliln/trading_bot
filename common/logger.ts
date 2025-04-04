@@ -118,6 +118,7 @@ class Logger {
       this.log('error', args);
       if (this.is_terminal_logs_enabled) {
         this.originalConsoleError(...args);
+        this.originalConsoleLog(...args);
       }
     };
 
@@ -125,6 +126,7 @@ class Logger {
       this.log('warn', args);
       if (this.is_terminal_logs_enabled) {
         this.originalConsoleWarn(...args);
+        this.originalConsoleLog(...args);
       }
     };
   }

@@ -1,6 +1,7 @@
 export interface SellDecision {
   shouldSell: boolean;
   amountToSell: number;
+  rawLamportsAmountToSell: string;
 }
 
 
@@ -53,6 +54,7 @@ export interface CalculatedPNL {
   totalInvestmentUSDC: number;
   currentValueUSDC: number;
   tokenBalance: number;
+  tokenBalanceRaw: string;
   solanaPrice: number;
   isIncludeFee: boolean;
   slippagePercent: number;
@@ -71,6 +73,7 @@ export interface CalculatedPNL {
   currentStopLossStrategy: StrategyAction;
   currentTakeProfitStrategy: StrategyAction;
   amountToSell: number;
+  rawLamportsAmountToSell: string;
 }
 
 

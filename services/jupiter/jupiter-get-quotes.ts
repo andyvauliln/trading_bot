@@ -92,7 +92,7 @@ export async function getTokenQuotes(
 
   let retryCount = 0;
   
-
+  let last_error = null;
   while (retryCount < RETRY_CONFIG.maxRetries) {
     try {
       console.log(`[${botName}]|[getTokenQuotes]|amount ${balance} (${params.amount})`, processRunCounter, params);
@@ -113,10 +113,13 @@ export async function getTokenQuotes(
       return { success: false, msg: "No data in response", data: null };
     } catch (error: any) {
       if (error.response?.status === 400 && error.response?.data?.errorCode === "COULD_NOT_FIND_ANY_ROUTE") {
-        return { success: false, msg: error.response.data.error, data: null };
+        last_error = { success: false, msg: error.response.data.error, data: null };
+      }
+      if(error.response?.status === 400 && error.response?.data?.errorCode === "TOKEN_NOT_TRADABLE") {
+        last_error = { success: false, msg: error.response.data.error, data: null };
       }
       
-      console.error(`[${botName}]|[getTokenQuotes]|Error fetching quote, attempt ${retryCount + 1}/${RETRY_CONFIG.maxRetries} \nurl: ${url}`, processRunCounter, error);
+      console.log(`[${botName}]|[getTokenQuotes]|Error fetching quote, attempt ${retryCount + 1}/${RETRY_CONFIG.maxRetries} \nurl: ${url}`, processRunCounter, error);
     }
 
     retryCount++;
@@ -125,15 +128,8 @@ export async function getTokenQuotes(
     }
   }
 
-  const searchParams = new URLSearchParams({
-    ...params,
-    slippageBps: params.slippageBps.toString(),
-    restrictItermediateTokens: params.restrictItermediateTokens.toString()
-  } as Record<string, string>);
-
-  const fullUrl = `${JUPITER_QUOTE}?${searchParams.toString()}`;
-  console.error(`[${botName}]|[getTokenQuotes]|No valid quote received after retries`, processRunCounter, { url: fullUrl });
-  return { success: false, msg: "No valid quote received after retries", data: null };
+  console.error(`[${botName}]|[getTokenQuotes]|No valid quote received after retries`, processRunCounter, { url: url });
+  return { success: false, msg: "No valid quote received after retries. " + last_error?.msg, data: null };
 }
 
 export async function getExcludedDexes({ botName, txid, processRunCounter }: ExcludedDexesParams): Promise<Set<string>> {

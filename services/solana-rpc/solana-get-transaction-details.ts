@@ -1,4 +1,4 @@
-import { SwapEventDetailsResponse, TransactionDetailsResponse } from "./types";
+import { SwapEventDetailsResponse, TransactionDetailsResponse } from "./solana-rpc.types";
 
 import axios from "axios";
 import { retryAxiosRequest } from "../../common/common.helpers";

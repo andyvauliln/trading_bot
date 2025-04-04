@@ -35,7 +35,7 @@ export async function validateWalletBalance(
       const tokenAmount = account.account.data.parsed.info.tokenAmount.amount;
       return sum + BigInt(tokenAmount);
     }, BigInt(0));
-  
+    console.log(`[${botName}]|[validateWalletBalance]|Token Balance: ${totalBalance}`, processRunCounter);
     // Skip this wallet if it doesn't have the token balance
     if (totalBalance <= 0n) {
       console.warn(`[${botName}]|[validateWalletBalance]|Wallet ${publicKey} has no balance for token ${mint}. Balance: ${totalBalance}`, processRunCounter);
@@ -47,16 +47,10 @@ export async function validateWalletBalance(
       };
     }
   
-    // Get token decimals and convert amounts properly
-    const tokenDecimals = tokenAccounts.value[0]?.account.data.parsed.info.tokenAmount.decimals || 9;
-          
-    // Convert totalBalance to human readable format for comparison
-    const totalBalanceHuman = Number(totalBalance) / Math.pow(10, tokenDecimals);
-    const holdingBalanceHuman = Number(balance);
   
     // Verify amount with tokenBalance using human readable format
-    if (totalBalanceHuman < holdingBalanceHuman) {
-      console.log(`[${botName}]|[validateWalletBalance]|Wallet ${publicKey} has insufficient balance (${totalBalanceHuman} tokens) for requested amount (${holdingBalanceHuman} tokens)`, processRunCounter);
+    if (BigInt(totalBalance) < BigInt(balance)) {
+      console.log(`[${botName}]|[validateWalletBalance]|Wallet ${publicKey} has insufficient balance (${totalBalance} tokens) for requested amount (${balance} tokens)`, processRunCounter);
       return { 
         success: false, 
         msg: "Insufficient token balance", 
