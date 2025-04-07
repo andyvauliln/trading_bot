@@ -34,6 +34,7 @@ COMMITS
 LOGS
 - Make logs in format: "console.log/warn/error(`[${config.name}]|[functionName]|message`, processRunCounter (0 if not present)), data);"
 <FileTree>
+├── @worklog.md
 ├── README.md
 ├── api
 │   ├── bots-api.ts
@@ -52,7 +53,7 @@ LOGS
 │   │   ├── logger.ts
 │   │   ├── transactions.ts
 │   │   └── types.ts
-│   ├── telegram-trading-bot
+│   ├── telegram-bot
 │   │   ├── ai-message-processing.ts
 │   │   ├── config.ts
 │   │   ├── index.ts
@@ -63,34 +64,40 @@ LOGS
 │   │   ├── types.ts
 │   │   └── validate-token.ts
 │   ├── tracker-bot
-│   │   ├── config.ts
-│   │   ├── index.ts
-│   │   ├── logger.ts
-│   │   ├── transactions.ts
-│   │   └── types.ts
-│   ├── twitter-tracker-bot
-│   │   ├── config.ts
-│   │   ├── db.ts
-│   │   ├── index.ts
-│   │   └── types.ts
-│   └── utils
+│   │   ├── tacker-bot.types.ts
+│   │   ├── tracker-bot.config.ts
+│   │   ├── tracker-bot.index.ts
+│   │   └── tracker-bot.utils.ts
+│   └── twitter-bot
+│       ├── config.ts
+│       ├── db.ts
+│       ├── index.ts
+│       └── types.ts
 ├── common
-│   ├── config-app.ts
-│   ├── types.ts
+│   ├── common.config.ts
+│   ├── common.helpers.ts
+│   ├── common.types.ts
+│   ├── logger.config.ts
+│   ├── logger.ts
 │   └── utils
 │       ├── env-validator.ts
-│       ├── help-functions.ts
-│       ├── keys.ts
-│       ├── log-tags.ts
-│       └── trade-history.ts
+│       └── keys.ts
 ├── crons
 │   ├── clean-db-logs.ts
 │   ├── clean-wallet-from-tokens.ts
 │   └── pool-historic-data.ts
 ├── db
-│   ├── config.db.ts
-│   ├── db.ts
-│   └── holding.db.ts
+│   ├── db.bots-config.ts
+│   ├── db.config.ts
+│   ├── db.historical-data.ts
+│   ├── db.holding.ts
+│   ├── db.logs.ts
+│   ├── db.profit-loss.ts
+│   ├── db.tokens.ts
+│   ├── db.transactions.ts
+│   ├── db.types.ts
+│   ├── db.utils.ts
+│   └── index.ts
 ├── docs
 │   ├── PUPPETEER_TROUBLESHOOTING.md
 │   ├── QUOTE DATA.md
@@ -107,20 +114,23 @@ LOGS
 ├── package-lock.json
 ├── package.json
 ├── scripts
+│   ├── check-account-balances-with-holding.ts
 │   ├── check-puppeteer-config.js
 │   ├── gmgn-browser-script.js
+│   ├── init-db.js
 │   ├── install-chrome-deps.sh
-│   ├── populate-db-script.ts
+│   ├── populate-db-script.js
 │   ├── run-token-screenshot-test.sh
 │   ├── test-browser-simple.js
 │   ├── test-puppeteer-bundled.js
 │   ├── test-puppeteer-extra.js
 │   ├── test-puppeteer-path.js
-│   └── test-puppeteer.js
+│   ├── test-puppeteer.js
+│   └── update-holdings-schema.ts
 ├── services
 │   ├── discord
-│   │   ├── discordSend.ts
-│   │   └── test-discord.ts
+│   │   ├── discord-send.ts
+│   │   └── discord.test.ts
 │   ├── gmgn_api
 │   │   ├── get_gas_price.ts
 │   │   ├── get_slippage.ts
@@ -136,17 +146,30 @@ LOGS
 │   │   ├── scraperClient.ts
 │   │   ├── test-token-screenshot.ts
 │   │   └── test.ts
-│   └── jupiter
-│       ├── constants.ts
-│       ├── jupiter-buy-transaction.test.ts
-│       ├── jupiter-buy-transaction.ts
-│       ├── jupiter-get-quotes.test.ts
-│       ├── jupiter-get-quotes.ts
-│       ├── jupiter-sell-transaction.test.ts
-│       ├── jupiter-sell-transaction.ts
-│       ├── types.ts
-│       └── utils.ts
+│   ├── jupiter
+│   │   ├── constants.ts
+│   │   ├── jupiter-buy-transaction.test.ts
+│   │   ├── jupiter-buy-transaction.ts
+│   │   ├── jupiter-create-swap-transaction.ts
+│   │   ├── jupiter-get-quotes.test.ts
+│   │   ├── jupiter-get-quotes.ts
+│   │   ├── jupiter-get-solana-price.ts
+│   │   ├── jupiter-sell-transaction.test.ts
+│   │   ├── jupiter-sell-transaction.ts
+│   │   ├── types.ts
+│   │   └── utils.ts
+│   └── solana-rpc
+│       ├── solana-get-token-metadata.test.ts
+│       ├── solana-get-token-metadata.ts
+│       ├── solana-get-transaction-confirmation.ts
+│       ├── solana-get-transaction-details.ts
+│       ├── solana-get-wallet-state.ts
+│       ├── solana-rpc.types.ts
+│       ├── solana-rpc.utils.ts
+│       ├── solana-send-transaction.ts
+│       └── solana-validate-wallet-balance.ts
 ├── setup-chrome.sh
+├── start-all.sh
 ├── start-bots.sh
 └── tsconfig.json
 </FileTree>
