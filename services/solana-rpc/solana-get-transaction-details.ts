@@ -9,7 +9,7 @@ export async function getTransactionDetails(bot_name:string, tx: string, process
     console.log(`${bot_name}|[getTransactionDetails]| Fetching swap details for tx: ${tx}`, processRunCounter);
     
     try {
-      const maxRetries = 5;
+      const maxRetries = 10;
       let txResponse = null;
       let retryCount = 0;
       

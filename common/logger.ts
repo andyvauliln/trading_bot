@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { initializeDiscordClient, getDiscordChannel, sendMessageOnDiscord } from "../services/discord/discord-send";
 import { saveLogs as dbSaveLogs } from '../db/db.logs';
 import { LogEntry } from '../db/db.types';
+import util from 'util';
 
 export const TAGS = {
     sell_tx_confirmed: {name: "sell-tx-confirmed", description: "Sell transaction confirmed", color: "green"},
@@ -27,6 +28,7 @@ class Logger {
   private discordEnabled: boolean = false;
   private is_db_logs_enabled: boolean = false;
   private is_terminal_logs_enabled: boolean = false;
+  private use_colors: boolean = false;
   private excludedMessagesFromDiscord: string[] = [
     "Server responded with 429 Too Many Requests.",
   ];
@@ -39,6 +41,23 @@ class Logger {
     this.is_db_logs_enabled = process.env.IS_DB_LOG === 'true';
     this.is_terminal_logs_enabled = process.env.IS_TERMINAL_LOG === 'true';
     
+    // Check for PM2 or if colors are explicitly disabled via env var
+    const isRunningUnderPM2 = typeof process.env.PM2_HOME !== 'undefined';
+    const colorSetting = process.env.USE_LOG_COLORS?.toLowerCase();
+    
+    // Determine if we should use colors
+    // 1. Explicitly enabled via env var (true/1/yes) OR
+    // 2. Not explicitly disabled and not running under PM2
+    this.use_colors = 
+      (colorSetting === 'true' || colorSetting === '1' || colorSetting === 'yes') || 
+      (colorSetting !== 'false' && colorSetting !== '0' && colorSetting !== 'no' && !isRunningUnderPM2);
+    
+    if (isRunningUnderPM2) {
+      // Force disable colors when running under PM2 (unless explicitly enabled)
+      if (colorSetting !== 'true' && colorSetting !== '1' && colorSetting !== 'yes') {
+        this.use_colors = false;
+      }
+    }
 
     // Initialize Discord settings
     this.discordChannel = process.env.DISCORD_CT_TRACKER_CHANNEL || '';
@@ -76,6 +95,7 @@ class Logger {
     console.log(`${this.default_name}|[logger]|INITIALIZING LOGGER`);
     console.log(`${this.default_name}|[logger]|DB_LOGS: ${this.is_db_logs_enabled}`);
     console.log(`${this.default_name}|[logger]|TERMINAL_LOGS: ${this.is_terminal_logs_enabled}`);
+    console.log(`${this.default_name}|[logger]|COLOR_OUTPUT: ${this.use_colors}`);
 
     // Initialize Discord client if enabled
     if (this.discordEnabled) {
@@ -108,25 +128,48 @@ class Logger {
    */
   private overrideConsoleMethods() {
     console.log = (...args: any[]) => {
+      // For database logging, we want to have color disabled
       this.log('info', args);
+      
       if (this.is_terminal_logs_enabled) {
-        this.originalConsoleLog(...args);
+        // Use colors based on the use_colors flag
+        const formattedArgs = args.map(arg => 
+          typeof arg === 'object' && arg !== null ? 
+            // Use colors based on configuration
+            util.inspect(arg, { depth: null, colors: this.use_colors }) : 
+            arg
+        );
+        this.originalConsoleLog(...formattedArgs);
       }
     };
 
     console.error = (...args: any[]) => {
       this.log('error', args);
       if (this.is_terminal_logs_enabled) {
-        this.originalConsoleError(...args);
-        this.originalConsoleLog(...args);
+        // Use colors based on the use_colors flag
+        const formattedArgs = args.map(arg => 
+          typeof arg === 'object' && arg !== null ? 
+            // Use colors based on configuration
+            util.inspect(arg, { depth: null, colors: this.use_colors }) : 
+            arg
+        );
+        this.originalConsoleError(...formattedArgs);
+        this.originalConsoleLog(...formattedArgs);
       }
     };
 
     console.warn = (...args: any[]) => {
       this.log('warn', args);
       if (this.is_terminal_logs_enabled) {
-        this.originalConsoleWarn(...args);
-        this.originalConsoleLog(...args);
+        // Use colors based on the use_colors flag
+        const formattedArgs = args.map(arg => 
+          typeof arg === 'object' && arg !== null ? 
+            // Use colors based on configuration
+            util.inspect(arg, { depth: null, colors: this.use_colors }) : 
+            arg
+        );
+        this.originalConsoleWarn(...formattedArgs);
+        this.originalConsoleLog(...formattedArgs);
       }
     };
   }
@@ -193,7 +236,28 @@ class Logger {
       module: parsedMessage.module,
       function: parsedMessage.func,
       type,
-      data: data ? JSON.stringify(data) : null,
+      data: data ? JSON.stringify(data, (key: any, value: any) => {
+        // If the value is an object with a nested object that would be [Object],
+        // use util.inspect to get a string representation of it
+        if (typeof value === 'object' && value !== null) {
+          try {
+            // This is just for checking if it would be rendered as [Object]
+            const asString = '' + value;
+            if (asString === '[object Object]') {
+              try {
+                return JSON.parse(JSON.stringify(value));
+              } catch (e) {
+                // Fall back to util.inspect if JSON.stringify fails, but never use colors
+                return util.inspect(value, { depth: 4, colors: false });
+              }
+            }
+          } catch (e) {
+            // Fall back to util.inspect if JSON.stringify fails, but never use colors
+            return util.inspect(value, { depth: 4, colors: false });
+          }
+        }
+        return value;
+      }, 2) : null,
       cycle,
       tag
     };
@@ -260,9 +324,32 @@ class Logger {
       // Create a formatted message with timestamp and details
       const formattedMessage = [
         `${emoji} **${logEntry.type.toUpperCase()}** ${logEntry.date} ${logEntry.time}`,
-        `${modulePart}${functionPart}${tagPart} ${logEntry.message}`,
-        "\n"
+        `${modulePart}${functionPart}${tagPart} ${logEntry.message}`
       ];
+
+      // Add data if available, format it for Discord (code block with JSON)
+      if (logEntry.data) {
+        let dataStr = logEntry.data;
+        // If it's already a string, use it directly
+        if (typeof dataStr !== 'string') {
+          try {
+            dataStr = typeof dataStr === 'object' ? 
+              util.inspect(dataStr, { depth: 4, colors: false }) : 
+              String(dataStr);
+          } catch (e) {
+            dataStr = '[Error formatting data]';
+          }
+        }
+        
+        // Add the data in a code block for better formatting in Discord
+        // Limit to 1800 chars to avoid Discord message limits
+        if (dataStr.length > 1800) {
+          dataStr = dataStr.substring(0, 1800) + '... (truncated)';
+        }
+        formattedMessage.push('```json\n' + dataStr + '\n```');
+      }
+      
+      formattedMessage.push("\n");
 
       // Send the message to Discord
       return await sendMessageOnDiscord(this.discordChannel, [formattedMessage.join('\n')]);

@@ -34,7 +34,7 @@ export async function createSwapTransaction(
       },
       prioritizationFeeLamports: {
         priorityLevelWithMaxLamports: {
-          maxLamports: prioFeeMaxLamports,
+          maxLamports: Number(prioFeeMaxLamports),
           priorityLevel: prioLevel,
         },
       },

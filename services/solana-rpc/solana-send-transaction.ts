@@ -21,7 +21,7 @@ export async function sendTransaction(
   
     // Execute the transaction
     const rawTransaction = transaction.serialize();
-    console.log(`[${botName}]|[sendTransaction]|Sending Swap Transaction`, processRunCounter);
+    console.log(`[${botName}]|[sendTransaction]|Sending Swap Transaction`, processRunCounter, rawTransaction);
     const txid = await connection.sendRawTransaction(rawTransaction, {
       skipPreflight: true,
       maxRetries: 2,

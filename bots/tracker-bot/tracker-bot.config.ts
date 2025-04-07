@@ -52,7 +52,7 @@ const defaultStrategy: TradeStrategy = {
 };
 
 const defaultTrackerBotConfig: TrackerBotConfig = {
-  prio_fee_max_lamports: "1000000", // 0.001 SOL
+  prio_fee_max_lamports: "1000000", // 0.001 SOL //TODO: Make interger
   prio_level: "veryHigh", // If you want to land transaction fast, set this to use `veryHigh`. You will pay on average higher priority fee.
   slippageBps: "400", // 4%
   auto_sell: true, // If set to true, trade strategies are automatically applied
@@ -80,7 +80,7 @@ export const tracker_bot_config = {
   check_interval: 60, // seconds
   environment: process.env.NODE_ENV || "development", // development, production, test
   db_name_tracker_holdings: path.resolve(process.cwd(), 'data', 'holdings.db'), // Sqlite Database location
-  max_sell_attempts: 3, //TODO: DO WE PAY FEE FOR ATTEMPTS?
+  max_sell_attempts: 5, //TODO: DO WE PAY FEE FOR ATTEMPTS?
   config_common: app_config_common,
   logger: {
     keeping_days_in_db: 10,
