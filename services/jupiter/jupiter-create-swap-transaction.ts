@@ -1,6 +1,6 @@
 import axios from "axios";
 import { retryAxiosRequest } from "../../common/common.helpers";
-import { QuoteResponse, SerializedQuoteResponse } from "./types";
+import { QuoteResponse, SerializedQuoteResponse } from "./jupiter.types";
 
 /**
  * Creates the swap transaction using Jupiter API

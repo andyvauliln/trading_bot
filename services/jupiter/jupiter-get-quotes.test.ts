@@ -1,5 +1,5 @@
 import { getTokenQuotes, getExcludedDexes, getProgramIdToLabelHash } from './jupiter-get-quotes';
-import { QuoteResult } from './types';
+import { QuoteResult } from './jupiter.types';
 
 // Mock data
 const MOCK_DATA = {

@@ -1,7 +1,7 @@
 import { VersionedTransaction } from "@solana/web3.js";
 import { Connection } from "@solana/web3.js";
 import { Wallet } from "@project-serum/anchor";
-import { SellTransactionResult, SerializedQuoteResponse } from "../jupiter/types";
+import { SellTransactionResult, SerializedQuoteResponse } from "../jupiter/jupiter.types";
 
 export async function sendTransaction(
     botName: string, 

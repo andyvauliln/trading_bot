@@ -8,9 +8,9 @@ import {
   QuoteResult, 
   ExcludedDexesParams,
   TransactionWithErr
-} from './types';
-import { RETRY_CONFIG, API_CONFIG } from './constants';
-import { delay, calculateBackoffDelay } from './utils';
+} from './jupiter.types';
+import { RETRY_CONFIG, API_CONFIG } from './jupiter.config';
+import { delay, calculateBackoffDelay } from './jupiter.utils';
 
 /**
  * Gets token decimals for proper amount conversion

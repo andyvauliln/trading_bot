@@ -1,7 +1,7 @@
 import { Connection, Keypair } from "@solana/web3.js";
 import { Wallet } from "@project-serum/anchor";
 import bs58 from "bs58";
-import { QuoteResponse, SellTransactionResult } from "./types";
+import { QuoteResponse, SellTransactionResult } from "./jupiter.types";
 import { getTransactionConfirmation } from "../solana-rpc/solana-get-transaction-confirmation";
 import { sendTransaction } from "../solana-rpc/solana-send-transaction";
 import { createSwapTransaction } from "./jupiter-create-swap-transaction";

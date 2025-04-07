@@ -1,6 +1,6 @@
 import { PublicKey } from "@solana/web3.js";
 import { Connection } from "@solana/web3.js";
-import { SellTransactionResult } from "../jupiter/types";
+import { SellTransactionResult } from "../jupiter/jupiter.types";
 
 const SOL_SAFETY_BUFFER = 1000000; // 0.001 SOL in lamports
 const BASE_TX_FEE = 5000; // Base transaction fee in lamports

@@ -1,5 +1,5 @@
 import { Connection, Keypair, VersionedTransaction, PublicKey } from "@solana/web3.js";
-import { SellTransactionResult } from "../jupiter/types";
+import { SellTransactionResult } from "../jupiter/jupiter.types";
 import { createSellTransaction } from "../jupiter/jupiter-sell-transaction";
 import { getTokenQuotes } from "../jupiter/jupiter-get-quotes";
 import { TAGS } from "../../common/logger";
